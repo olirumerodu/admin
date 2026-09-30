@@ -26,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import StudentHealthLogo from './StudentHealthLogo';
 import { api } from '../services/api';
 import UserManagementView from './UserManagementView';
+import StudentDataImportView from './StudentDataImportView';
 
 // React hook for responsive dimension detection
 function useWindowWidth() {
@@ -50,7 +51,7 @@ export default function DashboardView() {
   const isLargeDesktop = windowWidth >= 1366;
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState('users'); // Default to User Management as requested!
+  const [activeNav, setActiveNav] = useState('import'); // Default to Student Data Import as requested!
   const [searchQuery, setSearchQuery] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('ALL');
   const [topSchoolsLimit, setTopSchoolsLimit] = useState(5);
@@ -328,13 +329,15 @@ export default function DashboardView() {
                 padding: '9px 14px',
                 borderRadius: '8px',
                 fontSize: '13px',
-                fontWeight: 500,
-                color: '#94A3B8',
-                background: 'transparent',
+                fontWeight: activeNav === 'import' ? 600 : 500,
+                color: activeNav === 'import' ? '#FFFFFF' : '#94A3B8',
+                background: activeNav === 'import' ? 'linear-gradient(90deg, #F05A24 0%, #E8511A 100%)' : 'transparent',
+                boxShadow: activeNav === 'import' ? '0 3px 10px rgba(240, 90, 36, 0.35)' : 'none',
                 border: 'none',
                 cursor: 'pointer',
                 textAlign: 'left',
-                width: '100%'
+                width: '100%',
+                transition: 'all 0.15s ease'
               }}
             >
               <Upload size={16} />
@@ -713,6 +716,20 @@ export default function DashboardView() {
             }}
           >
             <UserManagementView />
+          </main>
+        ) : activeNav === 'import' ? (
+          <main 
+            style={{
+              padding: isMobile ? '12px 14px' : '18px 24px',
+              flex: 1,
+              height: 'calc(100vh - 52px)',
+              maxHeight: 'calc(100vh - 52px)',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              boxSizing: 'border-box'
+            }}
+          >
+            <StudentDataImportView />
           </main>
         ) : (
           /* Compact, Unscrollable Dashboard Main Screen */
