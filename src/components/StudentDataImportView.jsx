@@ -22,7 +22,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Building2,
+  Calendar,
+  Clock,
+  Eye,
+  Filter,
+  FastForward,
+  Info,
+  FileText
 } from 'lucide-react';
 
 function useWindowWidth() {
@@ -37,13 +45,16 @@ function useWindowWidth() {
   return width;
 }
 
-export default function StudentDataImportView() {
+export default function StudentDataImportView({ onNavigateTab }) {
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
 
-  // Multi-step State (Default to Step 3: Validate Student Data as requested)
-  const [currentStep, setCurrentStep] = useState(3);
+  // View state: 'wizard' | 'history' | 'details'
+  const [importView, setImportView] = useState('wizard');
+
+  // Multi-step State (Default to Step 4: Review Student Import as requested)
+  const [currentStep, setCurrentStep] = useState(4);
 
   // Step 1: Location selection
   const [selectedCluster, setSelectedCluster] = useState('Cluster A');
@@ -222,6 +233,111 @@ export default function StudentDataImportView() {
     document.body.removeChild(link);
   };
 
+  // Step 4 Review Search
+  const [searchReview, setSearchReview] = useState('');
+
+  // Step 4 Data matching Image 1 exactly (10 student rows)
+  const reviewStudents = [
+    { sno: 1, name: 'Aarav Sharma', classVal: '3', section: 'A', dob: '15/05/2019', height: '128.5', weight: '22.3' },
+    { sno: 2, name: 'Diya Patel', classVal: '4', section: 'B', dob: '20/08/2018', height: '132', weight: '25.1' },
+    { sno: 3, name: 'Rohan Kumar', classVal: '2', section: 'C', dob: '10/02/2020', height: '121', weight: '19.8' },
+    { sno: 4, name: 'Sneha Iyer', classVal: '5', section: 'A', dob: '12/11/2017', height: '140.2', weight: '28.6' },
+    { sno: 5, name: 'Arjun Mehta', classVal: '3', section: 'B', dob: '19/07/2018', height: '130', weight: '23.4' },
+    { sno: 6, name: 'Kavya Nair', classVal: '4', section: 'C', dob: '25/03/2019', height: '135', weight: '24.9' },
+    { sno: 7, name: 'Ishaan Gupta', classVal: '2', section: 'A', dob: '05/06/2018', height: '126', weight: '21.7' },
+    { sno: 8, name: 'Meera Joshi', classVal: '5', section: 'B', dob: '28/01/2020', height: '138', weight: '26.1' },
+    { sno: 9, name: 'Vikram Singh', classVal: '3', section: 'C', dob: '14/09/2019', height: '132', weight: '23.5' },
+    { sno: 10, name: 'Ananya Das', classVal: '4', section: 'A', dob: '18/12/2018', height: '129', weight: '22.8' },
+  ];
+
+  const filteredReviewStudents = reviewStudents.filter(s => {
+    if (!searchReview) return true;
+    const q = searchReview.toLowerCase();
+    return (
+      s.name.toLowerCase().includes(q) ||
+      s.classVal.toLowerCase().includes(q) ||
+      s.section.toLowerCase().includes(q)
+    );
+  });
+
+  // History state matching Image 3 exactly
+  const initialImportHistory = [
+    { id: 'IMP-001', fileName: 'Greenwood_Students.xlsx', cluster: 'Cluster A', school: 'Greenwood Public School', records: 122, total: 126, failed: 4, uploadedBy: 'Admin', date: '30 Sep 2026', time: '10:24 AM', status: 'Completed', fileSize: '248 KB' },
+    { id: 'IMP-002', fileName: 'Oakridge_Students.xlsx', cluster: 'Cluster B', school: 'Oakridge Academy', records: 98, total: 100, failed: 2, uploadedBy: 'Admin', date: '28 Sep 2026', time: '11:15 AM', status: 'Completed', fileSize: '210 KB' },
+    { id: 'IMP-003', fileName: 'Riverside_Students.xlsx', cluster: 'Cluster A', school: 'Riverside International', records: 45, total: 52, failed: 7, uploadedBy: 'Priya', date: '25 Sep 2026', time: '02:30 PM', status: 'Partial', fileSize: '180 KB' },
+    { id: 'IMP-004', fileName: 'Sunrise_Students.xlsx', cluster: 'Cluster C', school: 'Sunrise Public School', records: 0, total: 60, failed: 60, uploadedBy: 'Admin', date: '22 Sep 2026', time: '09:45 AM', status: 'Failed', fileSize: '195 KB' },
+    { id: 'IMP-005', fileName: 'Maplewood_Students.xlsx', cluster: 'Cluster B', school: 'Maplewood High School', records: 156, total: 156, failed: 0, uploadedBy: 'Admin', date: '20 Sep 2026', time: '04:12 PM', status: 'Completed', fileSize: '320 KB' },
+    { id: 'IMP-006', fileName: 'Hillview_Students.xlsx', cluster: 'Cluster C', school: 'Hillview School', records: 63, total: 75, failed: 12, uploadedBy: 'Karthik', date: '18 Sep 2026', time: '11:00 AM', status: 'Partial', fileSize: '175 KB' },
+    { id: 'IMP-007', fileName: 'Lakeside_Students.xlsx', cluster: 'Cluster A', school: 'Lakeside Public School', records: 89, total: 90, failed: 1, uploadedBy: 'Admin', date: '15 Sep 2026', time: '01:20 PM', status: 'Completed', fileSize: '230 KB' },
+    { id: 'IMP-008', fileName: 'Cedar_Students.xlsx', cluster: 'Cluster D', school: 'Cedar High School', records: 0, total: 40, failed: 40, uploadedBy: 'Meena', date: '12 Sep 2026', time: '10:05 AM', status: 'Failed', fileSize: '145 KB' },
+    { id: 'IMP-009', fileName: 'Pinehill_Students.xlsx', cluster: 'Cluster B', school: 'Pinehill Academy', records: 110, total: 110, failed: 0, uploadedBy: 'Admin', date: '10 Sep 2026', time: '03:40 PM', status: 'Completed', fileSize: '265 KB' },
+    { id: 'IMP-010', fileName: 'Valleyview_Students.xlsx', cluster: 'Cluster D', school: 'Valleyview School', records: 34, total: 42, failed: 8, uploadedBy: 'Priya', date: '08 Sep 2026', time: '09:15 AM', status: 'Partial', fileSize: '160 KB' },
+  ];
+
+  const [historyList, setHistoryList] = useState(initialImportHistory);
+  const [historyClusterFilter, setHistoryClusterFilter] = useState('All Clusters');
+  const [historySchoolFilter, setHistorySchoolFilter] = useState('All Schools');
+  const [historyDateFilter, setHistoryDateFilter] = useState('Select Date Range');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState('All Status');
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyPage, setHistoryPage] = useState(1);
+  const [selectedRecord, setSelectedRecord] = useState(initialImportHistory[0]);
+
+  // Error records state matching Image 4 exactly
+  const [detailErrorSearch, setDetailErrorSearch] = useState('');
+  const errorRecords = [
+    { row: 23, name: 'Aarav', classVal: '3', section: 'A', dob: '-', height: '128.5', weight: '22.3', issue: 'Missing DOB' },
+    { row: 45, name: 'Kiran', classVal: '-', section: 'B', dob: '10/02/2019', height: '135', weight: '24.8', issue: 'Invalid Class' },
+    { row: 78, name: 'Sneha', classVal: '4', section: 'C', dob: '18/07/2018', height: '-', weight: '23.1', issue: 'Missing Height' },
+    { row: 91, name: 'Vikram', classVal: '3', section: 'B', dob: '19/09/2019', height: '132', weight: '-', issue: 'Missing Weight' },
+  ];
+
+  const filteredErrorRecords = errorRecords.filter(item => {
+    if (!detailErrorSearch) return true;
+    const q = detailErrorSearch.toLowerCase();
+    return item.name.toLowerCase().includes(q) || item.issue.toLowerCase().includes(q);
+  });
+
+  const filteredHistory = historyList.filter(item => {
+    if (historyClusterFilter !== 'All Clusters' && item.cluster !== historyClusterFilter) return false;
+    if (historySchoolFilter !== 'All Schools' && item.school !== historySchoolFilter) return false;
+    if (historyStatusFilter !== 'All Status' && item.status !== historyStatusFilter) return false;
+    if (historySearch && !item.fileName.toLowerCase().includes(historySearch.toLowerCase())) return false;
+    return true;
+  });
+
+  const handleClearHistoryFilters = () => {
+    setHistoryClusterFilter('All Clusters');
+    setHistorySchoolFilter('All Schools');
+    setHistoryDateFilter('Select Date Range');
+    setHistoryStatusFilter('All Status');
+    setHistorySearch('');
+  };
+
+  const handleDownloadErrorReport = () => {
+    const csvContent = 'data:text/csv;charset=utf-8,Row,Student,Class,Section,DOB,Height,Weight,Issue\n' +
+      errorRecords.map(r => `${r.row},${r.name},${r.classVal},${r.section},${r.dob},${r.height},${r.weight},${r.issue}`).join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `error_report_${selectedRecord?.id || 'IMP-001'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDownloadRecordReport = (item) => {
+    const csvContent = 'data:text/csv;charset=utf-8,Import ID,File Name,Cluster,School,Records,Uploaded By,Date,Status\n' +
+      `${item.id},${item.fileName},${item.cluster},${item.school},${item.records},${item.uploadedBy},${item.date},${item.status}\n`;
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `${item.id}_summary.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div 
       style={{
@@ -235,7 +351,46 @@ export default function StudentDataImportView() {
       }}
     >
       {/* ================= BREADCRUMB ================= */}
-      {currentStep > 1 && (
+      {importView === 'history' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginBottom: '1px' }}>
+          <span 
+            style={{ cursor: 'pointer', color: '#64748B', transition: 'color 0.15s ease' }}
+            onClick={() => { setImportView('wizard'); setCurrentStep(4); }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#EA580C'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#64748B'}
+          >
+            Student Data Import
+          </span>
+          <span>&gt;</span>
+          <span style={{ color: '#0F172A', fontWeight: 600 }}>Import History</span>
+        </div>
+      )}
+
+      {importView === 'details' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginBottom: '1px' }}>
+          <span 
+            style={{ cursor: 'pointer', color: '#64748B', transition: 'color 0.15s ease' }}
+            onClick={() => { setImportView('wizard'); setCurrentStep(4); }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#EA580C'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#64748B'}
+          >
+            Student Data Import
+          </span>
+          <span>&gt;</span>
+          <span 
+            style={{ cursor: 'pointer', color: '#64748B', transition: 'color 0.15s ease' }}
+            onClick={() => setImportView('history')}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#EA580C'}
+            onMouseLeave={(e) => e.currentTarget.style.color = '#64748B'}
+          >
+            Import History
+          </span>
+          <span>&gt;</span>
+          <span style={{ color: '#0F172A', fontWeight: 600 }}>Import Details</span>
+        </div>
+      )}
+
+      {importView === 'wizard' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#64748B', marginBottom: '1px' }}>
           <span 
             style={{ cursor: 'pointer', color: '#64748B', transition: 'color 0.15s ease' }}
@@ -245,43 +400,89 @@ export default function StudentDataImportView() {
           >
             Student Data Import
           </span>
-          <span>&gt;</span>
-          <span style={{ color: '#0F172A', fontWeight: 600 }}>
-            {currentStep === 2 && 'Upload Student Excel'}
-            {currentStep === 3 && 'Validate Student Data'}
-            {currentStep === 4 && 'Confirm Import'}
-          </span>
+          {currentStep > 1 && (
+            <>
+              <span>&gt;</span>
+              <span style={{ color: '#0F172A', fontWeight: 600 }}>
+                {currentStep === 2 && 'Upload Student Excel'}
+                {currentStep === 3 && 'Validate Student Data'}
+                {currentStep === 4 && 'Review Student Import'}
+                {currentStep === 5 && 'Import Success'}
+              </span>
+              {currentStep === 4 && <span>&gt;</span>}
+            </>
+          )}
         </div>
       )}
 
       {/* ================= PAGE TITLE & SUBTITLE ================= */}
-      <div>
-        <h1 
-          style={{ 
-            fontSize: '24px', 
-            fontWeight: 800, 
-            color: '#0F172A', 
-            letterSpacing: '-0.02em', 
-            margin: 0,
-            lineHeight: 1.15 
-          }}
-        >
-          {currentStep === 1 && 'Student Data Import'}
-          {currentStep === 2 && 'Upload Student Excel'}
-          {currentStep === 3 && 'Validate Student Data'}
-          {currentStep === 4 && 'Confirm Student Import'}
-        </h1>
-        <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0' }}>
-          {currentStep === 1 && 'Upload student records and make them available in the mobile application'}
-          {currentStep === 2 && 'Upload student records and make them available in the mobile application'}
-          {currentStep === 3 && 'Review the uploaded data and fix the errors before importing.'}
-          {currentStep === 4 && `Review summary details and confirm importing records into ${selectedSchool}.`}
-        </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+        <div>
+          <h1 
+            style={{ 
+              fontSize: '24px', 
+              fontWeight: 800, 
+              color: '#0F172A', 
+              letterSpacing: '-0.02em', 
+              margin: 0,
+              lineHeight: 1.15 
+            }}
+          >
+            {importView === 'history' && 'Import History'}
+            {importView === 'details' && 'Import Details'}
+            {importView === 'wizard' && (
+              <>
+                {currentStep === 1 && 'Student Data Import'}
+                {currentStep === 2 && 'Upload Student Excel'}
+                {currentStep === 3 && 'Validate Student Data'}
+                {currentStep === 4 && 'Review Student Import'}
+                {currentStep === 5 && 'Import Success'}
+              </>
+            )}
+          </h1>
+          <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0' }}>
+            {importView === 'history' && 'Track all student data imports'}
+            {importView === 'details' && 'View import summary, timeline and error details.'}
+            {importView === 'wizard' && (
+              <>
+                {currentStep === 1 && 'Upload student records and make them available in the mobile application'}
+                {currentStep === 2 && 'Upload student records and make them available in the mobile application'}
+                {currentStep === 3 && 'Review the uploaded data and fix the errors before importing.'}
+                {currentStep === 4 && 'Verify the student details before importing to the selected school.'}
+                {currentStep === 5 && 'The student data has been successfully imported into the system.'}
+              </>
+            )}
+          </p>
+        </div>
+
+        {/* Top-right badge on Import Details screen */}
+        {importView === 'details' && (
+          <div 
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '10px', 
+              backgroundColor: '#ECFDF5', 
+              border: '1px solid #D1FAE5', 
+              borderRadius: '10px', 
+              padding: '8px 16px' 
+            }}
+          >
+            <FileSpreadsheet size={22} color="#059669" />
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: '#059669', lineHeight: 1.2 }}>
+                {selectedRecord?.id || 'IMP-001'}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748B' }}>Import ID</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ================= STEPPER PROGRESS BAR (4 STEPS) ================= */}
-      <div 
-        style={{
+      {importView === 'wizard' && currentStep <= 4 && (
+        <div 
+          style={{
           display: 'flex',
           alignItems: 'center',
           gap: isMobile ? '8px' : '16px',
@@ -517,6 +718,7 @@ export default function StudentDataImportView() {
           </span>
         </div>
       </div>
+      )}
 
       {/* ========================================================================= */}
       {/* STEP 2: UPLOAD STUDENT EXCEL (MATCHES ATTACHED SCREENSHOT EXACTLY)        */}
@@ -2055,161 +2257,2305 @@ export default function StudentDataImportView() {
       )}
 
       {/* ========================================================================= */}
-      {/* STEP 4: CONFIRM IMPORT                                                    */}
+      {/* STEP 4: REVIEW STUDENT IMPORT (MATCHES IMAGE 1 EXACTLY - FULLY DYNAMIC)   */}
       {/* ========================================================================= */}
-      {currentStep === 4 && (
+      {importView === 'wizard' && currentStep === 4 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+          {/* Top 4 Summary Cards Grid */}
+          <div 
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(4, 1fr)', 
+              gap: '16px' 
+            }}
+          >
+            {/* Card 1: Cluster */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FFF7ED',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Building2 size={24} color="#EA580C" />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Cluster</div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginTop: '2px' }}>
+                  {selectedCluster}
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: School */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#EFF6FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <School size={24} color="#2563EB" />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>School</div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#1E3A8A', marginTop: '2px' }}>
+                  {selectedSchool}
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: File */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#ECFDF5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <FileSpreadsheet size={24} color="#059669" />
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>File</div>
+                <div 
+                  style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 700, 
+                    color: '#0F172A', 
+                    marginTop: '2px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                  title={selectedFile?.name || 'Greenwood_Students_2026.xlsx'}
+                >
+                  {selectedFile?.name || 'Greenwood_Students_2026.xlsx'}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  {selectedFile?.size || '248 KB'}
+                </div>
+              </div>
+            </div>
+
+            {/* Card 4: Students Ready to Import */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FFF1ED',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Users size={24} color="#EA580C" />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Students Ready to Import</div>
+                <div style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  122
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  out of 126 rows
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Warning Banner */}
+          <div 
+            style={{
+              backgroundColor: '#FFFBEB',
+              border: '1px solid #FEF3C7',
+              borderRadius: '10px',
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}
+          >
+            <div 
+              style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                backgroundColor: '#F59E0B',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '13px',
+                flexShrink: 0
+              }}
+            >
+              !
+            </div>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: '#92400E' }}>
+              These students will be added to the selected school and become available in the mobile application.
+            </span>
+          </div>
+
+          {/* Student Preview Card */}
+          <div 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #ECEEF2',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+            }}
+          >
+            <div 
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px',
+                marginBottom: '16px'
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                  Student Preview
+                </h3>
+                <p style={{ fontSize: '12.5px', color: '#64748B', margin: '3px 0 0 0' }}>
+                  Review the list of students that will be imported.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', width: isMobile ? '100%' : '270px' }}>
+                  <Search 
+                    size={15} 
+                    color="#94A3B8" 
+                    style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} 
+                  />
+                  <input
+                    type="text"
+                    value={searchReview}
+                    onChange={(e) => setSearchReview(e.target.value)}
+                    placeholder="Search by student name, class or section..."
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px 7px 32px',
+                      borderRadius: '8px',
+                      border: '1px solid #E2E8F0',
+                      fontSize: '12px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                  Showing 1–{filteredReviewStudents.length} of 122 students
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '60px' }}>S.No</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student Name</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '80px' }}>Class</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '80px' }}>Section</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '130px' }}>DOB</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '120px' }}>Height (cm)</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '120px' }}>Weight (kg)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredReviewStudents.map((item) => (
+                    <tr 
+                      key={item.sno} 
+                      style={{ 
+                        borderBottom: '1px solid #F1F5F9',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#64748B' }}>{item.sno}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.name}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.classVal}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.section}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.dob}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.height}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.weight}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Action Buttons Row */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginTop: '8px',
+              paddingBottom: '20px'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setCurrentStep(3)}
+              style={{
+                backgroundColor: '#FFFFFF',
+                color: '#0F172A',
+                border: '1.5px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '9px 20px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+            >
+              <ArrowLeft size={16} />
+              <span>Back</span>
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setCurrentStep(1)}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  color: '#EF4444',
+                  border: '1.5px solid #FCA5A5',
+                  borderRadius: '8px',
+                  padding: '9px 20px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+              >
+                <Trash2 size={15} color="#EF4444" />
+                <span>Cancel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCurrentStep(5)}
+                style={{
+                  backgroundColor: '#EB5A1D',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '9px 24px',
+                  fontSize: '13.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 2px 8px rgba(235, 90, 29, 0.35)',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D94D12'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+              >
+                <Check size={16} strokeWidth={3} />
+                <span>Confirm Import</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* STEP 5: IMPORT SUCCESS (MATCHES IMAGE 2 EXACTLY - FULLY DYNAMIC)          */}
+      {/* ========================================================================= */}
+      {importView === 'wizard' && currentStep === 5 && (
         <div 
           style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '16px',
             border: '1px solid #ECEEF2',
-            padding: isMobile ? '20px 16px' : '28px 32px',
-            boxShadow: '0 1px 4px rgba(0, 0, 0, 0.03)',
-            boxSizing: 'border-box',
-            width: '100%'
+            padding: isMobile ? '24px 16px' : '36px 32px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+            position: 'relative',
+            overflow: 'hidden',
+            width: '100%',
+            boxSizing: 'border-box'
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', textAlign: 'center', padding: '10px 0' }}>
-            {!importSuccess ? (
-              <>
+          {/* Confetti decorations */}
+          <div style={{ position: 'absolute', top: 22, left: 130, width: '10px', height: '18px', backgroundColor: '#10B981', transform: 'rotate(25deg)', borderRadius: '2px', opacity: 0.7 }} />
+          <div style={{ position: 'absolute', top: 45, left: 65, width: '12px', height: '12px', backgroundColor: '#F59E0B', transform: 'rotate(45deg)', borderRadius: '2px', opacity: 0.7 }} />
+          <div style={{ position: 'absolute', top: 25, right: 120, width: '10px', height: '18px', backgroundColor: '#3B82F6', transform: 'rotate(-30deg)', borderRadius: '2px', opacity: 0.7 }} />
+          <div style={{ position: 'absolute', top: 52, right: 55, width: '12px', height: '12px', backgroundColor: '#EC4899', transform: 'rotate(15deg)', borderRadius: '2px', opacity: 0.7 }} />
+          <div style={{ position: 'absolute', top: 90, left: 105, width: '14px', height: '8px', backgroundColor: '#8B5CF6', transform: 'rotate(-20deg)', borderRadius: '2px', opacity: 0.7 }} />
+          <div style={{ position: 'absolute', top: 85, right: 160, width: '10px', height: '16px', backgroundColor: '#10B981', transform: 'rotate(40deg)', borderRadius: '2px', opacity: 0.7 }} />
+
+          {/* Center checkmark */}
+          <div style={{ textAlign: 'center', padding: '10px 0 20px 0' }}>
+            <div 
+              style={{
+                width: '74px',
+                height: '74px',
+                borderRadius: '50%',
+                backgroundColor: '#D1FAE5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto'
+              }}
+            >
+              <div 
+                style={{
+                  width: '54px',
+                  height: '54px',
+                  borderRadius: '50%',
+                  backgroundColor: '#10B981',
+                  color: '#FFFFFF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.35)'
+                }}
+              >
+                <Check size={32} strokeWidth={3.5} />
+              </div>
+            </div>
+
+            <h2 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', margin: '16px 0 0 0' }}>
+              Import Completed
+            </h2>
+            <p style={{ fontSize: '15px', color: '#64748B', margin: '4px 0 0 0' }}>
+              122 students successfully imported.
+            </p>
+          </div>
+
+          {/* 3 Summary Cards */}
+          <div 
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isStacked ? '1fr' : 'repeat(3, 1fr)', 
+              gap: '16px',
+              marginTop: '12px'
+            }}
+          >
+            {/* Cluster */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px'
+              }}
+            >
+              <div 
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FFF7ED',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Building2 size={24} color="#EA580C" />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Cluster</div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginTop: '2px' }}>
+                  {selectedCluster}
+                </div>
+              </div>
+            </div>
+
+            {/* School */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px'
+              }}
+            >
+              <div 
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#EFF6FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <School size={24} color="#2563EB" />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>School</div>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: '#1E3A8A', marginTop: '2px' }}>
+                  {selectedSchool}
+                </div>
+              </div>
+            </div>
+
+            {/* File */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px'
+              }}
+            >
+              <div 
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#ECFDF5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <FileSpreadsheet size={24} color="#059669" />
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>File</div>
                 <div 
-                  style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '50%',
-                    backgroundColor: '#FFF7ED',
-                    color: '#EA580C',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 14px rgba(234, 88, 12, 0.2)'
+                  style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 700, 
+                    color: '#0F172A', 
+                    marginTop: '2px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                   }}
+                  title={selectedFile?.name || 'Greenwood_Students_2026.xlsx'}
                 >
-                  <FileSpreadsheet size={32} />
+                  {selectedFile?.name || 'Greenwood_Students_2026.xlsx'}
                 </div>
-
-                <div>
-                  <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    Confirm Student Data Import
-                  </h2>
-                  <p style={{ fontSize: '13px', color: '#64748B', margin: '6px 0 0 0', maxWidth: '460px' }}>
-                    You are about to import <strong>126 students</strong> into <strong>{selectedSchool}</strong> ({selectedCluster}).
-                  </p>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  {selectedFile?.size || '248 KB'}
                 </div>
+              </div>
+            </div>
+          </div>
 
-                <div 
-                  style={{
-                    backgroundColor: '#F8FAFC',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: '12px',
-                    padding: '16px 24px',
-                    width: '100%',
-                    maxWidth: '440px',
-                    textAlign: 'left'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #ECEEF2', fontSize: '12.5px' }}>
-                    <span style={{ color: '#64748B' }}>Cluster</span>
-                    <strong style={{ color: '#0F172A' }}>{selectedCluster}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #ECEEF2', fontSize: '12.5px' }}>
-                    <span style={{ color: '#64748B' }}>School</span>
-                    <strong style={{ color: '#0F172A' }}>{selectedSchool}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '12.5px' }}>
-                    <span style={{ color: '#64748B' }}>Students to Import</span>
-                    <strong style={{ color: '#EA580C' }}>126 records</strong>
-                  </div>
+          {/* 3 Metric Cards */}
+          <div 
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isStacked ? '1fr' : 'repeat(3, 1fr)', 
+              gap: '16px',
+              marginTop: '16px'
+            }}
+          >
+            {/* Imported */}
+            <div 
+              style={{
+                backgroundColor: '#F0FDF4',
+                border: '1px solid #DCFCE7',
+                borderRadius: '12px',
+                padding: '18px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '10px',
+                  backgroundColor: '#DCFCE7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Users size={22} color="#059669" />
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#059669' }}>Imported</div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  122
                 </div>
+              </div>
+            </div>
 
-                <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
-                  <button
-                    type="button"
-                    onClick={handlePrevStep}
+            {/* Skipped */}
+            <div 
+              style={{
+                backgroundColor: '#FFFBEB',
+                border: '1px solid #FEF3C7',
+                borderRadius: '12px',
+                padding: '18px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FEF3C7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <FastForward size={22} color="#D97706" />
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#D97706' }}>Skipped</div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  4
+                </div>
+              </div>
+            </div>
+
+            {/* Errors */}
+            <div 
+              style={{
+                backgroundColor: '#FEF2F2',
+                border: '1px solid #FEE2E2',
+                borderRadius: '12px',
+                padding: '18px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FEE2E2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <AlertCircle size={22} color="#DC2626" />
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: '#DC2626' }}>Errors</div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  0
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Blue info banner */}
+          <div 
+            style={{
+              backgroundColor: '#F0F9FF',
+              border: '1px solid #E0F2FE',
+              borderLeft: '4px solid #0284C7',
+              borderRadius: '10px',
+              padding: '14px 20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginTop: '20px'
+            }}
+          >
+            <div 
+              style={{
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                backgroundColor: '#0284C7',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+                fontSize: '13px',
+                flexShrink: 0
+              }}
+            >
+              i
+            </div>
+            <span style={{ fontSize: '13.5px', fontWeight: 500, color: '#0369A1' }}>
+              The imported students are now available in the mobile application for further assessments.
+            </span>
+          </div>
+
+          {/* 3 Action Buttons */}
+          <div 
+            style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', 
+              gap: '14px', 
+              marginTop: '28px' 
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateTab) onNavigateTab('students');
+              }}
+              style={{
+                backgroundColor: '#EB5A1D',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '12px 20px',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(235, 90, 29, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D94D12'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+            >
+              <Users size={16} />
+              <span>View Students</span>
+              <ArrowRight size={16} />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentStep(1);
+              }}
+              style={{
+                backgroundColor: '#FFFFFF',
+                color: '#0F172A',
+                border: '1.5px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '12px 20px',
+                fontSize: '13.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+            >
+              <Upload size={16} />
+              <span>Import Another File</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setImportView('history');
+              }}
+              style={{
+                backgroundColor: '#FFFFFF',
+                color: '#0F172A',
+                border: '1.5px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '12px 20px',
+                fontSize: '13.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+            >
+              <FileText size={16} />
+              <span>View Import History</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IMPORT HISTORY VIEW (MATCHES IMAGE 3 EXACTLY - FULLY DYNAMIC)             */}
+      {/* ========================================================================= */}
+      {importView === 'history' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+          {/* Top Filter Card */}
+          <div 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #ECEEF2',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px'
+            }}
+          >
+            {/* Top row of 4 dropdowns */}
+            <div 
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(4, 1fr)',
+                gap: '14px'
+              }}
+            >
+              {/* Cluster */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Cluster</span>
+                <div style={{ position: 'relative' }}>
+                  <Building2 size={15} color="#94A3B8" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <select
+                    value={historyClusterFilter}
+                    onChange={(e) => setHistoryClusterFilter(e.target.value)}
                     style={{
+                      width: '100%',
+                      padding: '8px 10px 8px 34px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12.5px',
+                      color: '#0F172A',
                       backgroundColor: '#FFFFFF',
-                      color: '#475569',
-                      border: '1.5px solid #E2E8F0',
-                      borderRadius: '9px',
-                      padding: '11px 22px',
-                      fontSize: '13px',
-                      fontWeight: 600,
+                      outline: 'none',
                       cursor: 'pointer'
                     }}
                   >
-                    Back
-                  </button>
+                    <option value="All Clusters">All Clusters</option>
+                    <option value="Cluster A">Cluster A</option>
+                    <option value="Cluster B">Cluster B</option>
+                    <option value="Cluster C">Cluster C</option>
+                    <option value="Cluster D">Cluster D</option>
+                  </select>
+                </div>
+              </div>
 
-                  <button
-                    type="button"
-                    onClick={handleNextStep}
+              {/* School */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>School</span>
+                <div style={{ position: 'relative' }}>
+                  <School size={15} color="#94A3B8" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <select
+                    value={historySchoolFilter}
+                    onChange={(e) => setHistorySchoolFilter(e.target.value)}
                     style={{
-                      backgroundColor: '#EB5A1D',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '9px',
-                      padding: '11px 32px',
-                      fontSize: '13.5px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 14px rgba(235, 90, 29, 0.35)'
+                      width: '100%',
+                      padding: '8px 10px 8px 34px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12.5px',
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      cursor: 'pointer'
                     }}
                   >
-                    Confirm &amp; Complete Import
-                  </button>
+                    <option value="All Schools">All Schools</option>
+                    <option value="Greenwood Public School">Greenwood Public School</option>
+                    <option value="Oakridge Academy">Oakridge Academy</option>
+                    <option value="Riverside International">Riverside International</option>
+                    <option value="Sunrise Public School">Sunrise Public School</option>
+                    <option value="Maplewood High School">Maplewood High School</option>
+                    <option value="Hillview School">Hillview School</option>
+                    <option value="Lakeside Public School">Lakeside Public School</option>
+                    <option value="Cedar High School">Cedar High School</option>
+                    <option value="Pinehill Academy">Pinehill Academy</option>
+                    <option value="Valleyview School">Valleyview School</option>
+                  </select>
                 </div>
-              </>
-            ) : (
-              /* Success State */
-              <>
-                <div 
-                  style={{
-                    width: '72px',
-                    height: '72px',
-                    borderRadius: '50%',
-                    backgroundColor: '#ECFDF5',
-                    color: '#059669',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 4px 14px rgba(16, 185, 129, 0.25)'
-                  }}
-                >
-                  <CheckCircle2 size={38} />
-                </div>
+              </div>
 
-                <div>
-                  <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    Students Imported Successfully!
-                  </h2>
-                  <p style={{ fontSize: '13px', color: '#64748B', margin: '6px 0 0 0', maxWidth: '440px' }}>
-                    126 student records have been added to {selectedSchool} and synced for mobile health assessments.
-                  </p>
+              {/* Date */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Date</span>
+                <div style={{ position: 'relative' }}>
+                  <Calendar size={15} color="#94A3B8" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <select
+                    value={historyDateFilter}
+                    onChange={(e) => setHistoryDateFilter(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px 8px 34px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12.5px',
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="Select Date Range">Select Date Range</option>
+                    <option value="Last 7 Days">Last 7 Days</option>
+                    <option value="Last 30 Days">Last 30 Days</option>
+                    <option value="September 2026">September 2026</option>
+                    <option value="All Time">All Time</option>
+                  </select>
                 </div>
+              </div>
+
+              {/* Status */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Status</span>
+                <div style={{ position: 'relative' }}>
+                  <CheckCircle2 size={15} color="#94A3B8" style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <select
+                    value={historyStatusFilter}
+                    onChange={(e) => setHistoryStatusFilter(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px 10px 8px 34px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12.5px',
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="All Status">All Status</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Partial">Partial</option>
+                    <option value="Failed">Failed</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom row: Search input + Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : '320px' }}>
+                <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  placeholder="Search file name..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px 8px 36px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12.5px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleClearHistoryFilters}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    color: '#475569',
+                    border: '1.5px solid #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '8px 18px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                >
+                  Clear Filters
+                </button>
 
                 <button
                   type="button"
-                  onClick={handleResetImport}
+                  onClick={() => {}}
                   style={{
                     backgroundColor: '#EB5A1D',
                     color: '#FFFFFF',
                     border: 'none',
-                    borderRadius: '9px',
-                    padding: '11px 28px',
-                    fontSize: '13.5px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
+                    borderRadius: '8px',
+                    padding: '8px 20px',
+                    fontSize: '13px',
+                    fontWeight: 600,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    marginTop: '12px'
+                    gap: '6px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 8px rgba(235, 90, 29, 0.35)',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D94D12'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+                >
+                  <Filter size={15} />
+                  <span>Apply Filters</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 KPI Summary Cards */}
+          <div 
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(4, 1fr)',
+              gap: '16px'
+            }}
+          >
+            {/* Total Imports */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ECFDF5',
+                  color: '#059669',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Total Imports</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  28
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  All time imports
+                </div>
+              </div>
+            </div>
+
+            {/* Completed */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ECFDF5',
+                  color: '#059669',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Completed</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  20
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  71% of total
+                </div>
+              </div>
+            </div>
+
+            {/* Partial */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#FFFBEB',
+                  color: '#D97706',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Clock size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Partial</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  5
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  18% of total
+                </div>
+              </div>
+            </div>
+
+            {/* Failed */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#FEF2F2',
+                  color: '#DC2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Failed</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  3
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  11% of total
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Import Records Table Card */}
+          <div 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #ECEEF2',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+            }}
+          >
+            <div 
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}
+            >
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                Import Records
+              </h3>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <select
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: '#0F172A',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    cursor: 'pointer'
                   }}
                 >
-                  <RotateCcw size={16} />
-                  <span>Import Another Batch</span>
-                </button>
-              </>
-            )}
+                  <option>10 per page</option>
+                  <option>25 per page</option>
+                  <option>50 per page</option>
+                </select>
+
+                <div style={{ fontSize: '12.5px', color: '#64748B' }}>
+                  Showing 1–{filteredHistory.length} of 28 records
+                </div>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      Import ID ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      File Name ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      Cluster ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      School ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      Records ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      Uploaded By ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      Date ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', cursor: 'pointer' }}>
+                      Status ↕
+                    </th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredHistory.map((item) => (
+                    <tr 
+                      key={item.id} 
+                      style={{ 
+                        borderBottom: '1px solid #F1F5F9',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 600, color: '#0F172A' }}>
+                        {item.id}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#0F172A' }}>
+                        {item.fileName}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
+                        {item.cluster}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
+                        {item.school}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
+                        {item.records}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
+                        {item.uploadedBy}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
+                        {item.date}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px' }}>
+                        {item.status === 'Completed' && (
+                          <div 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              backgroundColor: '#ECFDF5',
+                              color: '#059669',
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: 600
+                            }}
+                          >
+                            <CheckCircle2 size={13} />
+                            <span>Completed</span>
+                          </div>
+                        )}
+                        {item.status === 'Partial' && (
+                          <div 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              backgroundColor: '#FFFBEB',
+                              color: '#D97706',
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: 600
+                            }}
+                          >
+                            <Clock size={13} />
+                            <span>Partial</span>
+                          </div>
+                        )}
+                        {item.status === 'Failed' && (
+                          <div 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              backgroundColor: '#FEF2F2',
+                              color: '#DC2626',
+                              padding: '3px 10px',
+                              borderRadius: '12px',
+                              fontSize: '12px',
+                              fontWeight: 600
+                            }}
+                          >
+                            <AlertCircle size={13} />
+                            <span>Failed</span>
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRecord(item);
+                              setImportView('details');
+                            }}
+                            title="View Details"
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              border: '1px solid #E2E8F0',
+                              backgroundColor: '#FFFFFF',
+                              color: '#64748B',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = '#EA580C';
+                              e.currentTarget.style.color = '#EA580C';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#E2E8F0';
+                              e.currentTarget.style.color = '#64748B';
+                            }}
+                          >
+                            <Eye size={14} />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadRecordReport(item)}
+                            title="Download Report"
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              border: '1px solid #E2E8F0',
+                              backgroundColor: '#FFFFFF',
+                              color: '#64748B',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = '#EA580C';
+                              e.currentTarget.style.color = '#EA580C';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#E2E8F0';
+                              e.currentTarget.style.color = '#64748B';
+                            }}
+                          >
+                            <Download size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
+              <button
+                type="button"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '6px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#FFFFFF',
+                  color: '#64748B',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                &lt;
+              </button>
+
+              <button
+                type="button"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#EB5A1D',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                1
+              </button>
+
+              <button
+                type="button"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '6px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                2
+              </button>
+
+              <button
+                type="button"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '6px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                3
+              </button>
+
+              <button
+                type="button"
+                style={{
+                  width: '30px',
+                  height: '30px',
+                  borderRadius: '6px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#FFFFFF',
+                  color: '#64748B',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                &gt;
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* IMPORT DETAILS VIEW (MATCHES IMAGE 4 EXACTLY - FULLY DYNAMIC)             */}
+      {/* ========================================================================= */}
+      {importView === 'details' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+          {/* Top 5 Info Cards */}
+          <div 
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(5, 1fr)',
+              gap: '14px'
+            }}
+          >
+            {/* File */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#ECFDF5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <FileSpreadsheet size={22} color="#059669" />
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 500 }}>File</div>
+                <div 
+                  style={{ 
+                    fontSize: '13.5px', 
+                    fontWeight: 700, 
+                    color: '#0F172A', 
+                    marginTop: '2px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                  title={selectedRecord?.fileName || 'Greenwood_Students.xlsx'}
+                >
+                  {selectedRecord?.fileName || 'Greenwood_Students.xlsx'}
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '1px' }}>
+                  {selectedRecord?.fileSize || '248 KB'}
+                </div>
+              </div>
+            </div>
+
+            {/* Cluster */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FFF7ED',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Building2 size={22} color="#EA580C" />
+              </div>
+              <div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 500 }}>Cluster</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginTop: '2px' }}>
+                  {selectedRecord?.cluster || selectedCluster}
+                </div>
+              </div>
+            </div>
+
+            {/* School */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#EFF6FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <School size={22} color="#2563EB" />
+              </div>
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 500 }}>School</div>
+                <div 
+                  style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 700, 
+                    color: '#0F172A', 
+                    marginTop: '2px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                  title={selectedRecord?.school || selectedSchool}
+                >
+                  {selectedRecord?.school || selectedSchool}
+                </div>
+              </div>
+            </div>
+
+            {/* Uploaded By */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#EFF6FF',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Users size={22} color="#2563EB" />
+              </div>
+              <div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 500 }}>Uploaded By</div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginTop: '2px' }}>
+                  {selectedRecord?.uploadedBy === 'Admin' ? 'Administrator' : selectedRecord?.uploadedBy || 'Administrator'}
+                </div>
+              </div>
+            </div>
+
+            {/* Uploaded Date */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#F1F5F9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Calendar size={22} color="#475569" />
+              </div>
+              <div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', fontWeight: 500 }}>Uploaded Date</div>
+                <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A', marginTop: '2px' }}>
+                  30 September 2026
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '1px' }}>
+                  {selectedRecord?.time || '10:24 AM'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4 Metric Cards */}
+          <div 
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(4, 1fr)',
+              gap: '16px'
+            }}
+          >
+            {/* Total Records */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#EFF6FF',
+                  color: '#2563EB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Users size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Total Records</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  {selectedRecord?.total || 126}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  Total rows in file
+                </div>
+              </div>
+            </div>
+
+            {/* Imported */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#ECFDF5',
+                  color: '#059669',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <CheckCircle2 size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Imported</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  {selectedRecord?.records || 122}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  Successfully imported
+                </div>
+              </div>
+            </div>
+
+            {/* Failed */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#FEF2F2',
+                  color: '#DC2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Failed</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1, marginTop: '2px' }}>
+                  {selectedRecord?.failed || 4}
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '1px' }}>
+                  Records with errors
+                </div>
+              </div>
+            </div>
+
+            {/* Status */}
+            <div 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '16px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              <div 
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: '#FFFBEB',
+                  color: '#D97706',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Clock size={24} />
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>Status</div>
+                <div style={{ marginTop: '2px' }}>
+                  <span 
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      backgroundColor: '#FEF3C7',
+                      color: '#D97706',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      fontSize: '12px',
+                      fontWeight: 700
+                    }}
+                  >
+                    + {selectedRecord?.status || 'Partial'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748B', marginTop: '2px' }}>
+                  Completed with some errors
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Import Timeline Section */}
+          <div 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #ECEEF2',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+            }}
+          >
+            <div>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                Import Timeline
+              </h3>
+              <p style={{ fontSize: '12.5px', color: '#64748B', margin: '3px 0 0 0' }}>
+                Track the progress of this import process.
+              </p>
+            </div>
+
+            {/* Timeline Track with 4 connected stages */}
+            <div style={{ marginTop: '20px', position: 'relative' }}>
+              {/* Connecting line */}
+              <div 
+                style={{
+                  position: 'absolute',
+                  top: '13px',
+                  left: '12.5%',
+                  right: '12.5%',
+                  height: '2px',
+                  backgroundColor: '#10B981',
+                  zIndex: 1
+                }}
+              />
+
+              <div 
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(4, 1fr)',
+                  gap: '16px',
+                  position: 'relative',
+                  zIndex: 2
+                }}
+              >
+                {/* Stage 1 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                  <div 
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <Check size={16} strokeWidth={3} />
+                  </div>
+                  <div 
+                    style={{
+                      backgroundColor: '#F0FDF4',
+                      border: '1px solid #DCFCE7',
+                      borderRadius: '10px',
+                      padding: '12px 14px',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>File Uploaded</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '11.5px', color: '#64748B', marginTop: '4px' }}>
+                      <Calendar size={12} />
+                      <span>{selectedRecord?.date || '30 Sep 2026'}, {selectedRecord?.time || '10:24 AM'}</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '3px' }}>
+                      Excel file uploaded successfully.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage 2 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                  <div 
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <Check size={16} strokeWidth={3} />
+                  </div>
+                  <div 
+                    style={{
+                      backgroundColor: '#F0FDF4',
+                      border: '1px solid #DCFCE7',
+                      borderRadius: '10px',
+                      padding: '12px 14px',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>Validation Completed</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '11.5px', color: '#64748B', marginTop: '4px' }}>
+                      <Calendar size={12} />
+                      <span>{selectedRecord?.date || '30 Sep 2026'}, 10:25 AM</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '3px' }}>
+                      Data validation finished. 4 errors found.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage 3 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                  <div 
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <Check size={16} strokeWidth={3} />
+                  </div>
+                  <div 
+                    style={{
+                      backgroundColor: '#F0FDF4',
+                      border: '1px solid #DCFCE7',
+                      borderRadius: '10px',
+                      padding: '12px 14px',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>Import Confirmed</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '11.5px', color: '#64748B', marginTop: '4px' }}>
+                      <Calendar size={12} />
+                      <span>{selectedRecord?.date || '30 Sep 2026'}, 10:26 AM</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '3px' }}>
+                      Import process started.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage 4 */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                  <div 
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      backgroundColor: '#10B981',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                      marginBottom: '10px'
+                    }}
+                  >
+                    <Check size={16} strokeWidth={3} />
+                  </div>
+                  <div 
+                    style={{
+                      backgroundColor: '#F0FDF4',
+                      border: '1px solid #DCFCE7',
+                      borderRadius: '10px',
+                      padding: '12px 14px',
+                      width: '100%',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>Students Created</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', fontSize: '11.5px', color: '#64748B', marginTop: '4px' }}>
+                      <Calendar size={12} />
+                      <span>{selectedRecord?.date || '30 Sep 2026'}, 10:26 AM</span>
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748B', marginTop: '3px' }}>
+                      {selectedRecord?.records || 122} students imported successfully.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Error Records Section */}
+          <div 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #ECEEF2',
+              padding: '18px 20px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+            }}
+          >
+            <div 
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                  Error Records
+                </h3>
+                <p style={{ fontSize: '12.5px', color: '#64748B', margin: '3px 0 0 0' }}>
+                  List of records that could not be imported.
+                </p>
+              </div>
+
+              <div style={{ position: 'relative', width: isMobile ? '100%' : '270px' }}>
+                <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  value={detailErrorSearch}
+                  onChange={(e) => setDetailErrorSearch(e.target.value)}
+                  placeholder="Search by student name or issue..."
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px 7px 32px',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
+                    fontSize: '12px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Table */}
+            <div style={{ overflowX: 'auto', border: '1px solid #FEE2E2', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '60px' }}>Row</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '80px' }}>Class</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '80px' }}>Section</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '130px' }}>DOB</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '120px' }}>Height</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '120px' }}>Weight</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '160px' }}>Issue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredErrorRecords.map((item) => (
+                    <tr 
+                      key={item.row} 
+                      style={{ 
+                        backgroundColor: '#FFF5F5',
+                        borderBottom: '1px solid #FEE2E2',
+                        transition: 'background-color 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF5F5'}
+                    >
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.row}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.name}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.classVal}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.section}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.dob}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.height}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.weight}</td>
+                      <td style={{ padding: '10px 14px', fontSize: '12.5px' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', color: '#DC2626', fontWeight: 600 }}>
+                          <AlertCircle size={14} color="#DC2626" />
+                          <span>{item.issue}</span>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Action Buttons Row */}
+          <div 
+            style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginTop: '8px',
+              paddingBottom: '20px'
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setImportView('history')}
+              style={{
+                backgroundColor: '#FFFFFF',
+                color: '#0F172A',
+                border: '1.5px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '9px 20px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+            >
+              <ArrowLeft size={16} />
+              <span>Back to Import History</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadErrorReport}
+              style={{
+                backgroundColor: '#EB5A1D',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '9px 24px',
+                fontSize: '13.5px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(235, 90, 29, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D94D12'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+            >
+              <Download size={16} />
+              <span>Download Error Report</span>
+            </button>
           </div>
         </div>
       )}

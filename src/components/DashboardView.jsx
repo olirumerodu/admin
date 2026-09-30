@@ -721,7 +721,7 @@ export default function DashboardView() {
               boxSizing: 'border-box'
             }}
           >
-            <StudentDataImportView />
+            <StudentDataImportView onNavigateTab={(tab) => setActiveNav(tab)} />
           </main>
         ) : (
           /* Compact, Unscrollable Dashboard Main Screen */
