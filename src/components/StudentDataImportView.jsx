@@ -455,6 +455,68 @@ export default function StudentDataImportView({ onNavigateTab }) {
           </p>
         </div>
 
+        {/* Top-right action on Wizard screen */}
+        {importView === 'wizard' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              type="button"
+              onClick={() => setImportView('history')}
+              style={{
+                backgroundColor: '#FFFFFF',
+                color: '#475569',
+                border: '1.5px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#FFF7ED';
+                e.currentTarget.style.borderColor = '#EA580C';
+                e.currentTarget.style.color = '#EA580C';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.color = '#475569';
+              }}
+            >
+              <FileText size={15} />
+              <span>Import History</span>
+            </button>
+          </div>
+        )}
+
+        {/* Top-right action on History screen */}
+        {importView === 'history' && (
+          <button
+            type="button"
+            onClick={() => { setImportView('wizard'); setCurrentStep(4); }}
+            style={{
+              backgroundColor: '#EB5A1D',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '8px 18px',
+              fontSize: '12.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 6px rgba(235, 90, 29, 0.3)'
+            }}
+          >
+            <Upload size={14} />
+            <span>New Import</span>
+          </button>
+        )}
+
         {/* Top-right badge on Import Details screen */}
         {importView === 'details' && (
           <div 
@@ -3548,9 +3610,14 @@ export default function StudentDataImportView({ onNavigateTab }) {
                   {filteredHistory.map((item) => (
                     <tr 
                       key={item.id} 
+                      onClick={() => {
+                        setSelectedRecord(item);
+                        setImportView('details');
+                      }}
                       style={{ 
                         borderBottom: '1px solid #F1F5F9',
-                        transition: 'background-color 0.15s ease'
+                        transition: 'background-color 0.15s ease',
+                        cursor: 'pointer'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
                       onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -3636,7 +3703,8 @@ export default function StudentDataImportView({ onNavigateTab }) {
                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedRecord(item);
                               setImportView('details');
                             }}
@@ -3668,7 +3736,10 @@ export default function StudentDataImportView({ onNavigateTab }) {
 
                           <button
                             type="button"
-                            onClick={() => handleDownloadRecordReport(item)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownloadRecordReport(item);
+                            }}
                             title="Download Report"
                             style={{
                               width: '28px',
