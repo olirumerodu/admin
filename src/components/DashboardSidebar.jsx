@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StudentHealthLogo from './StudentHealthLogo';
+import sidebarBg from '../assets/sidebar-bg.png';
 
 export default function DashboardSidebar({ activeTab, onTabSelect, mobileOpen, onCloseMobile }) {
   const { user } = useAuth();
@@ -34,7 +35,16 @@ export default function DashboardSidebar({ activeTab, onTabSelect, mobileOpen, o
         />
       )}
 
-      <aside className={`dashboard-sidebar ${mobileOpen ? 'mobile-open' : ''}`}>
+      <aside 
+        className={`dashboard-sidebar ${mobileOpen ? 'mobile-open' : ''}`}
+        style={{
+          backgroundImage: `url(${sidebarBg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'bottom center',
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#0D1527'
+        }}
+      >
         <div className="sidebar-header">
           <div className="sidebar-logo-group">
             <StudentHealthLogo size={36} showText={false} isWhite={true} />

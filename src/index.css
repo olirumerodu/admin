@@ -496,9 +496,14 @@ html, body {
 }
 
 /* Sidebar */
-.dash-sidebar {
+.dash-sidebar,
+.dashboard-sidebar {
   width: 250px;
   background-color: var(--navy-sidebar);
+  background-image: url(/images/sidebar-bg.png);
+  background-size: cover;
+  background-position: bottom center;
+  background-repeat: no-repeat;
   color: #FFFFFF;
   display: flex;
   flex-direction: column;

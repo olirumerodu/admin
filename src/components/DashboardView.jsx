@@ -27,6 +27,7 @@ import StudentHealthLogo from './StudentHealthLogo';
 import { api } from '../services/api';
 import UserManagementView from './UserManagementView';
 import StudentDataImportView from './StudentDataImportView';
+import sidebarBg from '../assets/sidebar-bg.png';
 
 // React hook for responsive dimension detection
 function useWindowWidth() {
@@ -225,6 +226,10 @@ export default function DashboardView() {
         style={{
           width: '235px',
           backgroundColor: '#0D1527',
+          backgroundImage: `url(${sidebarBg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'bottom center',
+          backgroundRepeat: 'no-repeat',
           color: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
@@ -239,19 +244,6 @@ export default function DashboardView() {
           height: '100vh'
         }}
       >
-        {/* Warm abstract wave watermark at bottom */}
-        <div 
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            width: '100%',
-            height: '200px',
-            pointerEvents: 'none',
-            background: 'radial-gradient(circle at 10% 100%, rgba(235, 90, 29, 0.4) 0%, rgba(180, 70, 20, 0.2) 45%, rgba(13, 21, 39, 0) 75%)',
-            zIndex: 1
-          }}
-        />
 
         <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
           {/* Logo Header */}
