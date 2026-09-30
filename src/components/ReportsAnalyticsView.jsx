@@ -19,7 +19,11 @@ import {
   User,
   CheckCircle2,
   Layers,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Printer,
+  GraduationCap,
+  SlidersHorizontal,
+  Edit3
 } from 'lucide-react';
 
 // Master Dataset for schools, years, gender, nutrition and assessments
@@ -165,8 +169,201 @@ const YEAR_TRENDS = [
   { year: 2026, students: 2486, male: 1266, female: 1220, assessed: 2312, coverage: '93.0%' }
 ];
 
+// Cluster Health Statistics Data (Screenshot 1)
+const CLUSTER_HEALTH_STATS = [
+  {
+    cluster: 'Cluster A',
+    normal: '512 (66.8%)',
+    wasted: '124 (16.2%)',
+    severelyWasted: '64 (8.4%)',
+    overweight: '46 (6.0%)',
+    obesity: '20 (2.6%)',
+    total: 766
+  },
+  {
+    cluster: 'Cluster B',
+    normal: '428 (69.1%)',
+    wasted: '92 (14.8%)',
+    severelyWasted: '50 (8.1%)',
+    overweight: '27 (4.4%)',
+    obesity: '22 (3.6%)',
+    total: 619
+  },
+  {
+    cluster: 'Cluster C',
+    normal: '398 (70.2%)',
+    wasted: '86 (15.2%)',
+    severelyWasted: '40 (7.1%)',
+    overweight: '28 (4.9%)',
+    obesity: '15 (2.6%)',
+    total: 567
+  },
+  {
+    cluster: 'Cluster D',
+    normal: '221 (64.6%)',
+    wasted: '76 (22.2%)',
+    severelyWasted: '28 (8.2%)',
+    overweight: '18 (5.3%)',
+    obesity: '13 (3.8%)',
+    total: 356
+  },
+  {
+    cluster: 'Cluster E',
+    normal: '142 (67.9%)',
+    wasted: '36 (17.2%)',
+    severelyWasted: '12 (5.7%)',
+    overweight: '8 (3.8%)',
+    obesity: '16 (5.4%)',
+    total: 214
+  }
+];
+
+// Detailed School-wise Student Reports (Screenshot 2)
+const DETAILED_STUDENT_REPORTS = [
+  {
+    no: 1,
+    school: 'Greenwood Public School',
+    total: 938,
+    male: 486,
+    female: 452,
+    assessed: 812,
+    pending: 126,
+    normal: 642,
+    wasted: 142,
+    severelyWasted: 64,
+    overweight: 56,
+    obesity: 34
+  },
+  {
+    no: 2,
+    school: 'Oakridge Academy',
+    total: 622,
+    male: 324,
+    female: 298,
+    assessed: 540,
+    pending: 82,
+    normal: 428,
+    wasted: 92,
+    severelyWasted: 50,
+    overweight: 27,
+    obesity: 22
+  },
+  {
+    no: 3,
+    school: 'St. Jude High School',
+    total: 420,
+    male: 214,
+    female: 206,
+    assessed: 356,
+    pending: 64,
+    normal: 298,
+    wasted: 66,
+    severelyWasted: 32,
+    overweight: 18,
+    obesity: 6
+  },
+  {
+    no: 4,
+    school: 'Riverside International',
+    total: 374,
+    male: 198,
+    female: 176,
+    assessed: 318,
+    pending: 56,
+    normal: 221,
+    wasted: 76,
+    severelyWasted: 28,
+    overweight: 18,
+    obesity: 13
+  },
+  {
+    no: 5,
+    school: 'Sunrise Global School',
+    total: 132,
+    male: 58,
+    female: 74,
+    assessed: 110,
+    pending: 22,
+    normal: 89,
+    wasted: 24,
+    severelyWasted: 12,
+    overweight: 5,
+    obesity: 2
+  },
+  {
+    no: 6,
+    school: 'Maple Leaf School',
+    total: 128,
+    male: 64,
+    female: 64,
+    assessed: 106,
+    pending: 22,
+    normal: 92,
+    wasted: 20,
+    severelyWasted: 8,
+    overweight: 6,
+    obesity: 2
+  },
+  {
+    no: 7,
+    school: 'Horizon International',
+    total: 116,
+    male: 62,
+    female: 54,
+    assessed: 98,
+    pending: 18,
+    normal: 80,
+    wasted: 22,
+    severelyWasted: 6,
+    overweight: 5,
+    obesity: 3
+  },
+  {
+    no: 8,
+    school: 'Lotus Valley School',
+    total: 104,
+    male: 56,
+    female: 48,
+    assessed: 92,
+    pending: 12,
+    normal: 76,
+    wasted: 16,
+    severelyWasted: 6,
+    overweight: 4,
+    obesity: 2
+  },
+  {
+    no: 9,
+    school: 'Riverdale Academy',
+    total: 96,
+    male: 52,
+    female: 44,
+    assessed: 86,
+    pending: 10,
+    normal: 70,
+    wasted: 14,
+    severelyWasted: 6,
+    overweight: 4,
+    obesity: 2
+  },
+  {
+    no: 10,
+    school: 'Cedar Grove School',
+    total: 84,
+    male: 46,
+    female: 38,
+    assessed: 74,
+    pending: 10,
+    normal: 62,
+    wasted: 12,
+    severelyWasted: 4,
+    overweight: 4,
+    obesity: 2
+  }
+];
+
 export default function ReportsAnalyticsView() {
-  // Navigation Mode: 'overview' (Image 1) | 'gender' (Images 2/3) | 'school_wise' (Image 4) | 'year_wise' (Image 5)
+  // Navigation Mode: 'overview' | 'gender' | 'school_wise' | 'year_wise' | 'health_stats' | 'student_report'
   const [viewMode, setViewMode] = useState('overview');
 
   // Filter States
@@ -175,7 +372,12 @@ export default function ReportsAnalyticsView() {
   const [selectedSchool, setSelectedSchool] = useState('ALL');
   const [selectedGender, setSelectedGender] = useState('ALL');
   const [selectedClass, setSelectedClass] = useState('ALL');
+  const [selectedGrade, setSelectedGrade] = useState('All Grades');
   const [selectedHealthCategory, setSelectedHealthCategory] = useState('ALL');
+
+  // Pagination for detailed report
+  const [reportPage, setReportPage] = useState(1);
+  const [reportPageSize, setReportPageSize] = useState(10);
 
   // Filtered dataset
   const filteredSchools = useMemo(() => {
@@ -201,34 +403,6 @@ export default function ReportsAnalyticsView() {
 
   const malePercent = ((totalMale / (totalStudents || 1)) * 100).toFixed(1);
   const femalePercent = ((totalFemale / (totalStudents || 1)) * 100).toFixed(1);
-
-  // Nutrition status breakdown
-  const nutritionCounts = useMemo(() => {
-    return filteredSchools.reduce(
-      (acc, s) => {
-        acc.normal += s.nutrition.normal;
-        acc.wasted += s.nutrition.wasted;
-        acc.severelyWasted += s.nutrition.severelyWasted;
-        acc.overweight += s.nutrition.overweight;
-        acc.obesity += s.nutrition.obesity;
-        return acc;
-      },
-      { normal: 0, wasted: 0, severelyWasted: 0, overweight: 0, obesity: 0 }
-    );
-  }, [filteredSchools]);
-
-  const totalNutr =
-    nutritionCounts.normal +
-      nutritionCounts.wasted +
-      nutritionCounts.severelyWasted +
-      nutritionCounts.overweight +
-      nutritionCounts.obesity || 2486;
-
-  const normalPct = ((nutritionCounts.normal / totalNutr) * 100).toFixed(1);
-  const wastedPct = ((nutritionCounts.wasted / totalNutr) * 100).toFixed(1);
-  const severelyWastedPct = ((nutritionCounts.severelyWasted / totalNutr) * 100).toFixed(1);
-  const overweightPct = ((nutritionCounts.overweight / totalNutr) * 100).toFixed(1);
-  const obesityPct = ((nutritionCounts.obesity / totalNutr) * 100).toFixed(1);
 
   // Download Handlers
   const handleDownloadExcel = () => {
@@ -296,6 +470,30 @@ export default function ReportsAnalyticsView() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={() => setViewMode('student_report')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#0F172A',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
+              >
+                <FileSpreadsheet size={15} color="#16A34A" />
+                <span>Student Report</span>
+              </button>
+
               <button
                 onClick={handleDownloadExcel}
                 style={{
@@ -799,10 +997,8 @@ export default function ReportsAnalyticsView() {
 
               {/* Donut Chart and Legend */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '36px', minHeight: '190px' }}>
-                {/* SVG Donut */}
                 <div style={{ position: 'relative', width: '160px', height: '160px' }}>
                   <svg width="160" height="160" viewBox="0 0 160 160">
-                    {/* Male arc (51.5% -> ~185.4 deg) */}
                     <circle
                       cx="80"
                       cy="80"
@@ -814,7 +1010,6 @@ export default function ReportsAnalyticsView() {
                       strokeDashoffset="0"
                       transform="rotate(-90 80 80)"
                     />
-                    {/* Female arc (48.5% -> ~174.6 deg) */}
                     <circle
                       cx="80"
                       cy="80"
@@ -827,7 +1022,6 @@ export default function ReportsAnalyticsView() {
                       transform="rotate(-90 80 80)"
                     />
                   </svg>
-                  {/* Center Text */}
                   <div
                     style={{
                       position: 'absolute',
@@ -846,7 +1040,6 @@ export default function ReportsAnalyticsView() {
                   </div>
                 </div>
 
-                {/* Legend Breakdown */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#0D9488' }} />
@@ -969,7 +1162,6 @@ export default function ReportsAnalyticsView() {
                   );
                 })}
 
-                {/* X Axis ticks */}
                 <div
                   style={{
                     display: 'flex',
@@ -1034,9 +1226,7 @@ export default function ReportsAnalyticsView() {
                 </span>
               </div>
 
-              {/* Vertical Bars Chart */}
               <div style={{ display: 'flex', alignItems: 'flex-end', height: '180px', gap: '14px', padding: '10px 10px 0 20px', position: 'relative' }}>
-                {/* Y Axis Grid & Labels */}
                 <div
                   style={{
                     position: 'absolute',
@@ -1107,35 +1297,49 @@ export default function ReportsAnalyticsView() {
               </div>
             </div>
 
-            {/* Chart 4: Health Category Distribution (Nutritional status) */}
+            {/* Chart 4: Health Category Distribution (Clickable to Health Statistics) */}
             <div
+              onClick={() => setViewMode('health_stats')}
               style={{
                 backgroundColor: '#FFFFFF',
                 borderRadius: '12px',
                 border: '1px solid #E2E8F0',
                 padding: '20px',
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#F05A24';
+                e.currentTarget.style.boxShadow = '0 6px 18px rgba(0, 0, 0, 0.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E2E8F0';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <PieChart size={18} color="#F05A24" />
-                <div>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                    Health Category Distribution
-                  </h3>
-                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                    Nutritional status of all students
-                  </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <PieChart size={18} color="#F05A24" />
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                      Health Category Distribution
+                    </h3>
+                    <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
+                      Nutritional status of all students
+                    </p>
+                  </div>
                 </div>
+                <span style={{ fontSize: '11.5px', color: '#F05A24', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  View Statistics <ArrowRight size={13} />
+                </span>
               </div>
 
               {/* Donut and Legend */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '28px', minHeight: '190px' }}>
-                {/* SVG Donut */}
                 <div style={{ position: 'relative', width: '150px', height: '150px' }}>
                   <svg width="150" height="150" viewBox="0 0 150 150">
-                    {/* Normal: 68.4% (258 / 377) */}
                     <circle
                       cx="75"
                       cy="75"
@@ -1147,7 +1351,6 @@ export default function ReportsAnalyticsView() {
                       strokeDashoffset="0"
                       transform="rotate(-90 75 75)"
                     />
-                    {/* Wasted: 15.2% (52 / 339) */}
                     <circle
                       cx="75"
                       cy="75"
@@ -1159,7 +1362,6 @@ export default function ReportsAnalyticsView() {
                       strokeDashoffset="-232"
                       transform="rotate(-90 75 75)"
                     />
-                    {/* Severely Wasted: 7.8% (26 / 339) */}
                     <circle
                       cx="75"
                       cy="75"
@@ -1171,7 +1373,6 @@ export default function ReportsAnalyticsView() {
                       strokeDashoffset="-284"
                       transform="rotate(-90 75 75)"
                     />
-                    {/* Overweight: 5.1% (17 / 339) */}
                     <circle
                       cx="75"
                       cy="75"
@@ -1183,7 +1384,6 @@ export default function ReportsAnalyticsView() {
                       strokeDashoffset="-310"
                       transform="rotate(-90 75 75)"
                     />
-                    {/* Obesity: 3.5% (12 / 339) */}
                     <circle
                       cx="75"
                       cy="75"
@@ -1196,7 +1396,6 @@ export default function ReportsAnalyticsView() {
                       transform="rotate(-90 75 75)"
                     />
                   </svg>
-                  {/* Center Text */}
                   <div
                     style={{
                       position: 'absolute',
@@ -1215,7 +1414,6 @@ export default function ReportsAnalyticsView() {
                   </div>
                 </div>
 
-                {/* Legend list */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {[
                     { label: 'Normal', color: '#22C55E', count: 1701, pct: '68.4%' },
@@ -1239,9 +1437,9 @@ export default function ReportsAnalyticsView() {
       )}
 
       {/* ========================================================================= */}
-      {/* SCREEN 2 & 3: GENDER ANALYSIS (IMAGES 2 & 3)                               */}
+      {/* SCREEN 2: HEALTH STATISTICS (SCREENSHOT 1)                                */}
       {/* ========================================================================= */}
-      {viewMode === 'gender' && (
+      {viewMode === 'health_stats' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Breadcrumbs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748B' }}>
@@ -1275,32 +1473,86 @@ export default function ReportsAnalyticsView() {
               Reports & Analytics
             </button>
             <ChevronRight size={14} color="#94A3B8" />
-            <span style={{ color: '#0F172A', fontWeight: 600 }}>Gender Analysis</span>
+            <span style={{ color: '#0F172A', fontWeight: 600 }}>Health Statistics</span>
           </div>
 
-          {/* Title */}
-          <div>
-            <h1
-              style={{
-                fontSize: '24px',
-                fontWeight: 800,
-                color: '#0F172A',
-                letterSpacing: '-0.02em',
-                margin: 0
-              }}
-            >
-              Gender Analysis
-            </h1>
-            <p
-              style={{
-                fontSize: '13.5px',
-                color: '#64748B',
-                margin: '4px 0 0 0',
-                fontWeight: 400
-              }}
-            >
-              View the gender distribution of students across schools
-            </p>
+          {/* Header Row */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}
+          >
+            <div>
+              <h1
+                style={{
+                  fontSize: '24px',
+                  fontWeight: 800,
+                  color: '#0F172A',
+                  letterSpacing: '-0.02em',
+                  margin: 0
+                }}
+              >
+                Health Statistics
+              </h1>
+              <p
+                style={{
+                  fontSize: '13.5px',
+                  color: '#64748B',
+                  margin: '4px 0 0 0',
+                  fontWeight: 400
+                }}
+              >
+                View the nutritional status distribution of students
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button
+                onClick={handleDownloadExcel}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#0F172A',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}
+              >
+                <Download size={14} />
+                <span>Download Excel</span>
+              </button>
+
+              <button
+                onClick={handleDownloadPDF}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#0F172A',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}
+              >
+                <Download size={14} />
+                <span>Download PDF</span>
+              </button>
+            </div>
           </div>
 
           {/* Filter Bar */}
@@ -1318,7 +1570,6 @@ export default function ReportsAnalyticsView() {
             }}
           >
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
-              {/* Year */}
               <div style={{ minWidth: '140px' }}>
                 <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   Year
@@ -1343,7 +1594,6 @@ export default function ReportsAnalyticsView() {
                 </select>
               </div>
 
-              {/* Cluster */}
               <div style={{ minWidth: '160px' }}>
                 <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   Cluster
@@ -1369,7 +1619,6 @@ export default function ReportsAnalyticsView() {
                 </select>
               </div>
 
-              {/* School */}
               <div style={{ minWidth: '180px' }}>
                 <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   School
@@ -1392,8 +1641,33 @@ export default function ReportsAnalyticsView() {
                   <option value="Greenwood Public School">Greenwood Public School</option>
                   <option value="Oakridge Academy">Oakridge Academy</option>
                   <option value="St. Jude High School">St. Jude High School</option>
-                  <option value="Riverside International">Riverside International</option>
-                  <option value="Sunrise Global School">Sunrise Global School</option>
+                </select>
+              </div>
+
+              <div style={{ minWidth: '140px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
+                  Grade
+                </label>
+                <select
+                  value={selectedGrade}
+                  onChange={(e) => setSelectedGrade(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
+                    fontSize: '12.5px',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    color: '#0F172A'
+                  }}
+                >
+                  <option value="All Grades">All Grades</option>
+                  <option value="Grade 1">Grade 1</option>
+                  <option value="Grade 2">Grade 2</option>
+                  <option value="Grade 3">Grade 3</option>
+                  <option value="Grade 4">Grade 4</option>
+                  <option value="Grade 5">Grade 5</option>
                 </select>
               </div>
             </div>
@@ -1422,64 +1696,30 @@ export default function ReportsAnalyticsView() {
             </div>
           </div>
 
-          {/* Top 3 KPI Cards */}
+          {/* Top 5 KPI Cards */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-              gap: '14px'
+              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+              gap: '12px'
             }}
           >
-            {/* Total Students */}
+            {/* Normal */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
                 borderRadius: '12px',
                 border: '1px solid #E2E8F0',
-                padding: '16px 20px',
+                padding: '16px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '16px'
+                gap: '14px'
               }}
             >
               <div
                 style={{
-                  width: '50px',
-                  height: '50px',
-                  borderRadius: '12px',
-                  backgroundColor: '#E0F2FE',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                <Users size={24} color="#0284C7" />
-              </div>
-              <div>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Total Students</span>
-                <div style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                  2,486
-                </div>
-              </div>
-            </div>
-
-            {/* Male Students */}
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1px solid #E2E8F0',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px'
-              }}
-            >
-              <div
-                style={{
-                  width: '50px',
-                  height: '50px',
+                  width: '46px',
+                  height: '46px',
                   borderRadius: '12px',
                   backgroundColor: '#DCFCE7',
                   display: 'flex',
@@ -1488,37 +1728,115 @@ export default function ReportsAnalyticsView() {
                   flexShrink: 0
                 }}
               >
-                <User size={24} color="#16A34A" />
+                <User size={22} color="#16A34A" />
               </div>
               <div>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Male Students</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                    1,280
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Normal</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
+                    1,701
                   </span>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>
-                    51.5%
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#16A34A' }}>
+                    68.4%
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Female Students */}
+            {/* Wasted */}
             <div
               style={{
                 backgroundColor: '#FFFFFF',
                 borderRadius: '12px',
                 border: '1px solid #E2E8F0',
-                padding: '16px 20px',
+                padding: '16px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '16px'
+                gap: '14px'
               }}
             >
               <div
                 style={{
-                  width: '50px',
-                  height: '50px',
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FEF3C7',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <User size={22} color="#D97706" />
+              </div>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Wasted</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
+                    378
+                  </span>
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#D97706' }}>
+                    15.2%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Severely Wasted */}
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px'
+              }}
+            >
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FFEDD5',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <User size={22} color="#EA580C" />
+              </div>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Severely Wasted</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
+                    194
+                  </span>
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#EA580C' }}>
+                    7.8%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Overweight */}
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px'
+              }}
+            >
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
                   borderRadius: '12px',
                   backgroundColor: '#FCE7F3',
                   display: 'flex',
@@ -1527,23 +1845,62 @@ export default function ReportsAnalyticsView() {
                   flexShrink: 0
                 }}
               >
-                <User size={24} color="#DB2777" />
+                <User size={22} color="#DB2777" />
               </div>
               <div>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Female Students</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                    1,206
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Overweight</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
+                    127
                   </span>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>
-                    48.5%
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#DB2777' }}>
+                    5.1%
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Obesity */}
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #E2E8F0',
+                padding: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px'
+              }}
+            >
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  borderRadius: '12px',
+                  backgroundColor: '#FEE2E2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <User size={22} color="#DC2626" />
+              </div>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Obesity</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
+                    86
+                  </span>
+                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#DC2626' }}>
+                    3.5%
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Middle Section: Gender Distribution Donut */}
+          {/* Middle Section: Overall Health Distribution Donut */}
           <div
             style={{
               backgroundColor: '#FFFFFF',
@@ -1559,7 +1916,7 @@ export default function ReportsAnalyticsView() {
               <BarChart2 size={18} color="#F05A24" />
               <div>
                 <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                  Overall Gender Distribution
+                  Overall Health Distribution
                 </h3>
                 <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
                   Total 2,486 students
@@ -1568,30 +1925,67 @@ export default function ReportsAnalyticsView() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '60px', padding: '16px 0' }}>
-              {/* SVG Donut */}
-              <div style={{ position: 'relative', width: '180px', height: '180px' }}>
-                <svg width="180" height="180" viewBox="0 0 180 180">
+              <div style={{ position: 'relative', width: '200px', height: '200px' }}>
+                <svg width="200" height="200" viewBox="0 0 200 200">
+                  {/* Normal: 68.4% (309 / 452) */}
                   <circle
-                    cx="90"
-                    cy="90"
-                    r="68"
+                    cx="100"
+                    cy="100"
+                    r="72"
                     fill="none"
-                    stroke="#0D9488"
+                    stroke="#22C55E"
                     strokeWidth="32"
-                    strokeDasharray="220 427"
+                    strokeDasharray="309 452"
                     strokeDashoffset="0"
-                    transform="rotate(-90 90 90)"
+                    transform="rotate(-90 100 100)"
                   />
+                  {/* Wasted: 15.2% (69 / 452) */}
                   <circle
-                    cx="90"
-                    cy="90"
-                    r="68"
+                    cx="100"
+                    cy="100"
+                    r="72"
+                    fill="none"
+                    stroke="#F59E0B"
+                    strokeWidth="32"
+                    strokeDasharray="69 452"
+                    strokeDashoffset="-309"
+                    transform="rotate(-90 100 100)"
+                  />
+                  {/* Severely Wasted: 7.8% (35 / 452) */}
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="72"
                     fill="none"
                     stroke="#F97316"
                     strokeWidth="32"
-                    strokeDasharray="207 427"
-                    strokeDashoffset="-220"
-                    transform="rotate(-90 90 90)"
+                    strokeDasharray="35 452"
+                    strokeDashoffset="-378"
+                    transform="rotate(-90 100 100)"
+                  />
+                  {/* Overweight: 5.1% (23 / 452) */}
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="72"
+                    fill="none"
+                    stroke="#EF4444"
+                    strokeWidth="32"
+                    strokeDasharray="23 452"
+                    strokeDashoffset="-413"
+                    transform="rotate(-90 100 100)"
+                  />
+                  {/* Obesity: 3.5% (16 / 452) */}
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="72"
+                    fill="none"
+                    stroke="#991B1B"
+                    strokeWidth="32"
+                    strokeDasharray="16 452"
+                    strokeDashoffset="-436"
+                    transform="rotate(-90 100 100)"
                   />
                 </svg>
                 <div
@@ -1612,38 +2006,27 @@ export default function ReportsAnalyticsView() {
                 </div>
               </div>
 
-              {/* Legend Breakdown */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#0D9488' }} />
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A', minWidth: '70px' }}>
-                    Male
-                  </span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>
-                    1,280
-                  </span>
-                  <span style={{ fontSize: '13px', color: '#64748B' }}>
-                    51.5%
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#F97316' }} />
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A', minWidth: '70px' }}>
-                    Female
-                  </span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>
-                    1,206
-                  </span>
-                  <span style={{ fontSize: '13px', color: '#64748B' }}>
-                    48.5%
-                  </span>
-                </div>
+              {/* Legend List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {[
+                  { label: 'Normal', color: '#22C55E', count: '1,701', pct: '68.4%' },
+                  { label: 'Wasted', color: '#F59E0B', count: '378', pct: '15.2%' },
+                  { label: 'Severely Wasted', color: '#F97316', count: '194', pct: '7.8%' },
+                  { label: 'Overweight', color: '#EF4444', count: '127', pct: '5.1%' },
+                  { label: 'Obesity', color: '#991B1B', count: '86', pct: '3.5%' }
+                ].map((item) => (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '13px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: item.color }} />
+                    <span style={{ minWidth: '120px', color: '#475569', fontWeight: 600 }}>{item.label}</span>
+                    <span style={{ minWidth: '55px', fontWeight: 800, color: '#0F172A' }}>{item.count}</span>
+                    <span style={{ color: '#64748B' }}>{item.pct}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
 
-          {/* Bottom Section: School-wise Gender Distribution Table */}
+          {/* Bottom Section: Cluster-wise Health Statistics Table */}
           <div
             style={{
               backgroundColor: '#FFFFFF',
@@ -1659,46 +2042,77 @@ export default function ReportsAnalyticsView() {
               <School size={18} color="#F05A24" />
               <div>
                 <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                  School-wise Gender Distribution
+                  Cluster-wise Health Statistics
                 </h3>
                 <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                  Number of male and female students in each school
+                  Distribution of nutritional status across clusters
                 </p>
               </div>
             </div>
 
             <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '600px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '750px' }}>
                 <thead>
                   <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>School ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Male ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Female ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Total ↕</th>
+                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Cluster</th>
+                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22C55E' }} />
+                        Normal
+                      </span>
+                    </th>
+                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#F59E0B' }} />
+                        Wasted
+                      </span>
+                    </th>
+                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#F97316' }} />
+                        Severely Wasted
+                      </span>
+                    </th>
+                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EF4444' }} />
+                        Overweight
+                      </span>
+                    </th>
+                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#991B1B' }} />
+                        Obesity
+                      </span>
+                    </th>
+                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { name: 'Greenwood Public School', male: 486, female: 452, total: 938 },
-                    { name: 'Oakridge Academy', male: 324, female: 298, total: 622 },
-                    { name: 'St. Jude High School', male: 214, female: 206, total: 420 },
-                    { name: 'Riverside International', male: 198, female: 176, total: 374 },
-                    { name: 'Sunrise Global School', male: 58, female: 74, total: 132 }
-                  ].map((row) => (
+                  {CLUSTER_HEALTH_STATS.map((row) => (
                     <tr
-                      key={row.name}
+                      key={row.cluster}
                       style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s ease' }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>
-                        {row.name}
+                      <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 600, color: '#0F172A' }}>
+                        {row.cluster}
                       </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.male}
+                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#16A34A', fontWeight: 500 }}>
+                        {row.normal}
                       </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.female}
+                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#D97706', fontWeight: 500 }}>
+                        {row.wasted}
+                      </td>
+                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#EA580C', fontWeight: 500 }}>
+                        {row.severelyWasted}
+                      </td>
+                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#DC2626', fontWeight: 500 }}>
+                        {row.overweight}
+                      </td>
+                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#991B1B', fontWeight: 500 }}>
+                        {row.obesity}
                       </td>
                       <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
                         {row.total}
@@ -1709,9 +2123,8 @@ export default function ReportsAnalyticsView() {
               </table>
             </div>
 
-            {/* Pagination */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
-              <span style={{ fontSize: '12px', color: '#64748B' }}>Showing 1-5 of 5 schools</span>
+              <span style={{ fontSize: '12px', color: '#64748B' }}>Showing 1-5 of 5 clusters</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   style={{
@@ -1767,9 +2180,9 @@ export default function ReportsAnalyticsView() {
       )}
 
       {/* ========================================================================= */}
-      {/* SCREEN 4: SCHOOL-WISE ANALYSIS (IMAGE 4)                                   */}
+      {/* SCREEN 3: SCHOOL-WISE STUDENT REPORT (SCREENSHOT 2)                        */}
       {/* ========================================================================= */}
-      {viewMode === 'school_wise' && (
+      {viewMode === 'student_report' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Breadcrumbs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748B' }}>
@@ -1803,7 +2216,7 @@ export default function ReportsAnalyticsView() {
               Reports & Analytics
             </button>
             <ChevronRight size={14} color="#94A3B8" />
-            <span style={{ color: '#0F172A', fontWeight: 600 }}>School-wise Analysis</span>
+            <span style={{ color: '#0F172A', fontWeight: 600 }}>School-wise Student Report</span>
           </div>
 
           {/* Header Row */}
@@ -1826,7 +2239,7 @@ export default function ReportsAnalyticsView() {
                   margin: 0
                 }}
               >
-                School-wise Analysis
+                School-wise Student Report
               </h1>
               <p
                 style={{
@@ -1836,7 +2249,7 @@ export default function ReportsAnalyticsView() {
                   fontWeight: 400
                 }}
               >
-                Compare student health data across schools
+                Detailed list of students and health status by school
               </p>
             </div>
 
@@ -1858,7 +2271,7 @@ export default function ReportsAnalyticsView() {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
                 }}
               >
-                <Download size={14} />
+                <FileSpreadsheet size={15} color="#16A34A" />
                 <span>Download Excel</span>
               </button>
 
@@ -1879,149 +2292,526 @@ export default function ReportsAnalyticsView() {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
                 }}
               >
+                <FileText size={15} color="#DC2626" />
+                <span>Download PDF</span>
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#0F172A',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}
+              >
+                <Printer size={15} />
+                <span>Print</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Summary Card */}
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    backgroundColor: '#E0F2FE',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Filter size={16} color="#0284C7" />
+                </div>
+                <div>
+                  <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                    Filter Summary
+                  </h4>
+                  <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+                    Showing data based on the applied filters
+                  </span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setViewMode('overview')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid #0284C7',
+                  backgroundColor: '#FFFFFF',
+                  color: '#0284C7',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                <Filter size={13} />
+                <span>Edit Filters</span>
+              </button>
+            </div>
+
+            {/* 5 Filter Blocks Row */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                gap: '12px'
+              }}
+            >
+              {/* Year */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', backgroundColor: '#F8FAFC', borderRadius: '8px' }}>
+                <Calendar size={16} color="#64748B" />
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>Year</div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>2026</div>
+                </div>
+              </div>
+
+              {/* Cluster */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', backgroundColor: '#F8FAFC', borderRadius: '8px' }}>
+                <Network size={16} color="#64748B" />
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>Cluster</div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>All Clusters</div>
+                </div>
+              </div>
+
+              {/* School */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', backgroundColor: '#F8FAFC', borderRadius: '8px' }}>
+                <School size={16} color="#64748B" />
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>School</div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>All Schools</div>
+                </div>
+              </div>
+
+              {/* Grade */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', backgroundColor: '#F8FAFC', borderRadius: '8px' }}>
+                <GraduationCap size={16} color="#64748B" />
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>Grade</div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>All Grades</div>
+                </div>
+              </div>
+
+              {/* Report Type */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', backgroundColor: '#F8FAFC', borderRadius: '8px' }}>
+                <FileText size={16} color="#64748B" />
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748B' }}>Report Type</div>
+                  <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>School-wise Student Report</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Report Table Card */}
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #E2E8F0',
+              padding: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <School size={18} color="#F05A24" />
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                    School-wise Student Report
+                  </h3>
+                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
+                    Showing detailed student data for each school
+                  </p>
+                </div>
+              </div>
+              <div style={{ fontSize: '13px', color: '#64748B' }}>
+                Total Students: <strong style={{ color: '#0F172A', fontWeight: 800 }}>2,486</strong>
+              </div>
+            </div>
+
+            {/* 12-Column Comprehensive Table */}
+            <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '1050px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>#</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>School</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Total Students</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Male</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Female</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Assessed</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Pending</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Normal</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Wasted</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Severely Wasted</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Overweight</th>
+                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Obesity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {DETAILED_STUDENT_REPORTS.map((row) => (
+                    <tr
+                      key={row.no}
+                      style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s ease' }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <td style={{ padding: '10px 12px', fontSize: '12px', color: '#64748B' }}>{row.no}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>
+                        {row.school}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                        {row.total}
+                      </td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', color: '#475569' }}>{row.male}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', color: '#475569' }}>{row.female}</td>
+                      {/* Assessed pill */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 8px', borderRadius: '10px' }}>
+                          {row.assessed}
+                        </span>
+                      </td>
+                      {/* Pending pill */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FFEDD5', color: '#EA580C', padding: '2px 8px', borderRadius: '10px' }}>
+                          {row.pending}
+                        </span>
+                      </td>
+                      {/* Normal pill */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#16A34A', padding: '2px 8px', borderRadius: '10px' }}>
+                          {row.normal}
+                        </span>
+                      </td>
+                      {/* Wasted pill */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FEF3C7', color: '#D97706', padding: '2px 8px', borderRadius: '10px' }}>
+                          {row.wasted}
+                        </span>
+                      </td>
+                      {/* Severely Wasted pill */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FFEDD5', color: '#EA580C', padding: '2px 8px', borderRadius: '10px' }}>
+                          {row.severelyWasted}
+                        </span>
+                      </td>
+                      {/* Overweight pill */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FCE7F3', color: '#DB2777', padding: '2px 8px', borderRadius: '10px' }}>
+                          {row.overweight}
+                        </span>
+                      </td>
+                      {/* Obesity pill */}
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FEE2E2', color: '#DC2626', padding: '2px 8px', borderRadius: '10px' }}>
+                          {row.obesity}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Table Footer with Page size and pagination */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', paddingTop: '4px' }}>
+              <span style={{ fontSize: '12px', color: '#64748B' }}>
+                Showing 1-10 of 25 schools
+              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <select
+                  value={reportPageSize}
+                  onChange={(e) => setReportPageSize(Number(e.target.value))}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    backgroundColor: '#FFFFFF',
+                    color: '#0F172A',
+                    outline: 'none'
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#FFFFFF',
+                      color: '#94A3B8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <button
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      backgroundColor: '#F05A24',
+                      color: '#FFFFFF',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    1
+                  </button>
+                  <button
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#FFFFFF',
+                      color: '#475569',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    2
+                  </button>
+                  <button
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#FFFFFF',
+                      color: '#475569',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    3
+                  </button>
+                  <button
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '6px',
+                      border: '1px solid #E2E8F0',
+                      backgroundColor: '#FFFFFF',
+                      color: '#475569',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SCREEN 4: GENDER ANALYSIS (PREVIOUS IMAGES)                                */}
+      {/* ========================================================================= */}
+      {viewMode === 'gender' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748B' }}>
+            <button
+              onClick={() => setViewMode('overview')}
+              style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}
+            >
+              <Home size={15} />
+            </button>
+            <ChevronRight size={14} color="#94A3B8" />
+            <button
+              onClick={() => setViewMode('overview')}
+              style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', fontWeight: 500, fontSize: '13px', padding: 0 }}
+            >
+              Reports & Analytics
+            </button>
+            <ChevronRight size={14} color="#94A3B8" />
+            <span style={{ color: '#0F172A', fontWeight: 600 }}>Gender Analysis</span>
+          </div>
+
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0 }}>
+              Gender Analysis
+            </h1>
+            <p style={{ fontSize: '13.5px', color: '#64748B', margin: '4px 0 0 0', fontWeight: 400 }}>
+              View the gender distribution of students across schools
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Users size={24} color="#0284C7" />
+              </div>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Total Students</span>
+                <div style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A' }}>2,486</div>
+              </div>
+            </div>
+
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <User size={24} color="#16A34A" />
+              </div>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Male Students</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A' }}>1,280</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>51.5%</span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#FCE7F3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <User size={24} color="#DB2777" />
+              </div>
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Female Students</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A' }}>1,206</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>48.5%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <BarChart2 size={18} color="#F05A24" />
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                  Overall Gender Distribution
+                </h3>
+                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>Total 2,486 students</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '60px', padding: '16px 0' }}>
+              <div style={{ position: 'relative', width: '180px', height: '180px' }}>
+                <svg width="180" height="180" viewBox="0 0 180 180">
+                  <circle cx="90" cy="90" r="68" fill="none" stroke="#0D9488" strokeWidth="32" strokeDasharray="220 427" strokeDashoffset="0" transform="rotate(-90 90 90)" />
+                  <circle cx="90" cy="90" r="68" fill="none" stroke="#F97316" strokeWidth="32" strokeDasharray="207 427" strokeDashoffset="-220" transform="rotate(-90 90 90)" />
+                </svg>
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>2,486</div>
+                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Students</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#0D9488' }} />
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A', minWidth: '70px' }}>Male</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>1,280</span>
+                  <span style={{ fontSize: '13px', color: '#64748B' }}>51.5%</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#F97316' }} />
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#0F172A', minWidth: '70px' }}>Female</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>1,206</span>
+                  <span style={{ fontSize: '13px', color: '#64748B' }}>48.5%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SCREEN 5: SCHOOL-WISE ANALYSIS                                            */}
+      {/* ========================================================================= */}
+      {viewMode === 'school_wise' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748B' }}>
+            <button onClick={() => setViewMode('overview')} style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
+              <Home size={15} />
+            </button>
+            <ChevronRight size={14} color="#94A3B8" />
+            <button onClick={() => setViewMode('overview')} style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', fontWeight: 500, fontSize: '13px', padding: 0 }}>
+              Reports & Analytics
+            </button>
+            <ChevronRight size={14} color="#94A3B8" />
+            <span style={{ color: '#0F172A', fontWeight: 600 }}>School-wise Analysis</span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0 }}>
+                School-wise Analysis
+              </h1>
+              <p style={{ fontSize: '13.5px', color: '#64748B', margin: '4px 0 0 0', fontWeight: 400 }}>
+                Compare student health data across schools
+              </p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button onClick={handleDownloadExcel} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '8px 16px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
+                <Download size={14} />
+                <span>Download Excel</span>
+              </button>
+              <button onClick={handleDownloadPDF} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#FFFFFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '8px 16px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
                 <Download size={14} />
                 <span>Download PDF</span>
               </button>
             </div>
           </div>
 
-          {/* Filter Bar */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #E2E8F0',
-              padding: '14px 18px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '12px'
-            }}
-          >
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
-              <div style={{ minWidth: '140px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  Year
-                </label>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '12.5px',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    color: '#0F172A'
-                  }}
-                >
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                </select>
-              </div>
-
-              <div style={{ minWidth: '160px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  Cluster
-                </label>
-                <select
-                  value={selectedCluster}
-                  onChange={(e) => setSelectedCluster(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '12.5px',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    color: '#0F172A'
-                  }}
-                >
-                  <option value="ALL">All Clusters</option>
-                  <option value="Cluster A">Cluster A</option>
-                  <option value="Cluster B">Cluster B</option>
-                  <option value="Cluster C">Cluster C</option>
-                </select>
-              </div>
-
-              <div style={{ minWidth: '180px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  School
-                </label>
-                <select
-                  value={selectedSchool}
-                  onChange={(e) => setSelectedSchool(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '12.5px',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    color: '#0F172A'
-                  }}
-                >
-                  <option value="ALL">All Schools</option>
-                  <option value="Greenwood Public School">Greenwood Public School</option>
-                  <option value="Oakridge Academy">Oakridge Academy</option>
-                  <option value="St. Jude High School">St. Jude High School</option>
-                  <option value="Riverside International">Riverside International</option>
-                  <option value="Sunrise Global School">Sunrise Global School</option>
-                </select>
-              </div>
-            </div>
-
-            <div style={{ paddingTop: '18px' }}>
-              <button
-                type="button"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: '#F05A24',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '9px 18px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 3px 12px rgba(240, 90, 36, 0.35)'
-                }}
-              >
-                <Filter size={14} />
-                <span>Apply Filters</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Top Section: Multi-colored Horizontal Bar Chart */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #E2E8F0',
-              padding: '20px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px'
-            }}
-          >
+          {/* Horizontal multi-color bar chart */}
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <BarChart2 size={18} color="#F05A24" />
               <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                  School-wise Student Count
-                </h3>
-                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                  Total number of students in each school (2026)
-                </p>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>School-wise Student Count</h3>
+                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>Total number of students in each school (2026)</p>
               </div>
             </div>
 
@@ -2036,814 +2826,82 @@ export default function ReportsAnalyticsView() {
                 const widthPercent = (item.count / 1000) * 100;
                 return (
                   <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span
-                      style={{
-                        width: '160px',
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        color: '#475569',
-                        textAlign: 'right',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}
-                    >
+                    <span style={{ width: '160px', fontSize: '12px', fontWeight: 500, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.name}
                     </span>
-                    <div
-                      style={{
-                        flex: 1,
-                        height: '18px',
-                        backgroundColor: '#F1F5F9',
-                        borderRadius: '6px',
-                        overflow: 'hidden'
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${widthPercent}%`,
-                          height: '100%',
-                          backgroundColor: item.color,
-                          borderRadius: '6px',
-                          transition: 'width 0.4s ease'
-                        }}
-                      />
+                    <div style={{ flex: 1, height: '18px', backgroundColor: '#F1F5F9', borderRadius: '6px', overflow: 'hidden' }}>
+                      <div style={{ width: `${widthPercent}%`, height: '100%', backgroundColor: item.color, borderRadius: '6px', transition: 'width 0.4s ease' }} />
                     </div>
-                    <span style={{ width: '40px', fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
-                      {item.count}
-                    </span>
+                    <span style={{ width: '40px', fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>{item.count}</span>
                   </div>
                 );
               })}
-
-              {/* X Axis scale */}
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  paddingLeft: '172px',
-                  paddingRight: '46px',
-                  fontSize: '10.5px',
-                  color: '#94A3B8',
-                  marginTop: '4px'
-                }}
-              >
-                <span>0</span>
-                <span>200</span>
-                <span>400</span>
-                <span>600</span>
-                <span>800</span>
-                <span>1,000</span>
-              </div>
-              <div style={{ textAlign: 'center', fontSize: '11px', color: '#94A3B8', paddingLeft: '130px' }}>
-                Number of Students
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Section: School-wise Details Table */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #E2E8F0',
-              padding: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '14px'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <School size={18} color="#F05A24" />
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                  School-wise Details
-                </h3>
-                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                  Breakdown of total, gender and assessment status for each school
-                </p>
-              </div>
-            </div>
-
-            <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>School ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Total Students ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Male ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Female ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Assessed ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Pending ↕</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { name: 'Greenwood Public School', total: 938, male: 486, female: 452, assessed: 812, pending: 126 },
-                    { name: 'Oakridge Academy', total: 622, male: 324, female: 298, assessed: 540, pending: 82 },
-                    { name: 'St. Jude High School', total: 420, male: 214, female: 206, assessed: 356, pending: 64 },
-                    { name: 'Riverside International', total: 374, male: 198, female: 176, assessed: 318, pending: 56 },
-                    { name: 'Sunrise Global School', total: 132, male: 58, female: 74, assessed: 110, pending: 22 }
-                  ].map((row) => (
-                    <tr
-                      key={row.name}
-                      style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s ease' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>
-                        {row.name}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                        {row.total}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.male}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.female}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.assessed}
-                      </td>
-                      <td style={{ padding: '11px 16px' }}>
-                        <span
-                          style={{
-                            fontSize: '11.5px',
-                            fontWeight: 700,
-                            backgroundColor: '#FFEDD5',
-                            color: '#EA580C',
-                            padding: '3px 12px',
-                            borderRadius: '12px',
-                            display: 'inline-block'
-                          }}
-                        >
-                          {row.pending}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '4px' }}>
-              <span style={{ fontSize: '12px', color: '#64748B' }}>Showing 1-5 of 5 schools</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <button
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '6px',
-                    border: '1px solid #E2E8F0',
-                    backgroundColor: '#FFFFFF',
-                    color: '#94A3B8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <button
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: '#F05A24',
-                    color: '#FFFFFF',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  1
-                </button>
-                <button
-                  style={{
-                    width: '28px',
-                    height: '28px',
-                    borderRadius: '6px',
-                    border: '1px solid #E2E8F0',
-                    backgroundColor: '#FFFFFF',
-                    color: '#94A3B8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <ChevronRight size={14} />
-                </button>
-              </div>
             </div>
           </div>
         </div>
       )}
 
       {/* ========================================================================= */}
-      {/* SCREEN 5: YEAR-WISE STATISTICS (IMAGE 5)                                   */}
+      {/* SCREEN 6: YEAR-WISE STATISTICS                                            */}
       {/* ========================================================================= */}
       {viewMode === 'year_wise' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Breadcrumbs */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#64748B' }}>
-            <button
-              onClick={() => setViewMode('overview')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#64748B',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                padding: 0
-              }}
-            >
+            <button onClick={() => setViewMode('overview')} style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0 }}>
               <Home size={15} />
             </button>
             <ChevronRight size={14} color="#94A3B8" />
-            <button
-              onClick={() => setViewMode('overview')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#64748B',
-                cursor: 'pointer',
-                fontWeight: 500,
-                fontSize: '13px',
-                padding: 0
-              }}
-            >
+            <button onClick={() => setViewMode('overview')} style={{ background: 'transparent', border: 'none', color: '#64748B', cursor: 'pointer', fontWeight: 500, fontSize: '13px', padding: 0 }}>
               Reports & Analytics
             </button>
             <ChevronRight size={14} color="#94A3B8" />
             <span style={{ color: '#0F172A', fontWeight: 600 }}>Year-wise Statistics</span>
           </div>
 
-          {/* Header Row */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '12px'
-            }}
-          >
-            <div>
-              <h1
-                style={{
-                  fontSize: '24px',
-                  fontWeight: 800,
-                  color: '#0F172A',
-                  letterSpacing: '-0.02em',
-                  margin: 0
-                }}
-              >
-                Year-wise Statistics
-              </h1>
-              <p
-                style={{
-                  fontSize: '13.5px',
-                  color: '#64748B',
-                  margin: '4px 0 0 0',
-                  fontWeight: 400
-                }}
-              >
-                Track student health data trends across academic years
-              </p>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <button
-                onClick={handleDownloadExcel}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  backgroundColor: '#FFFFFF',
-                  color: '#0F172A',
-                  border: '1px solid #CBD5E1',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}
-              >
-                <Download size={14} />
-                <span>Download Excel</span>
-              </button>
-
-              <button
-                onClick={handleDownloadPDF}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  backgroundColor: '#FFFFFF',
-                  color: '#0F172A',
-                  border: '1px solid #CBD5E1',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  fontSize: '12.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}
-              >
-                <Download size={14} />
-                <span>Download PDF</span>
-              </button>
-            </div>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0 }}>
+              Year-wise Statistics
+            </h1>
+            <p style={{ fontSize: '13.5px', color: '#64748B', margin: '4px 0 0 0', fontWeight: 400 }}>
+              Track student health data trends across academic years
+            </p>
           </div>
 
-          {/* Filter Bar */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #E2E8F0',
-              padding: '14px 18px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: '12px'
-            }}
-          >
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', flex: 1 }}>
-              <div style={{ minWidth: '140px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  Year
-                </label>
-                <select
-                  value="All Years"
-                  onChange={() => {}}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '12.5px',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    color: '#0F172A'
-                  }}
-                >
-                  <option value="All Years">All Years</option>
-                  <option value="2026">2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                </select>
-              </div>
-
-              <div style={{ minWidth: '160px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  Cluster
-                </label>
-                <select
-                  value="All Clusters"
-                  onChange={() => {}}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '12.5px',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    color: '#0F172A'
-                  }}
-                >
-                  <option value="All Clusters">All Clusters</option>
-                  <option value="Cluster A">Cluster A</option>
-                  <option value="Cluster B">Cluster B</option>
-                </select>
-              </div>
-
-              <div style={{ minWidth: '180px' }}>
-                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                  School
-                </label>
-                <select
-                  value="All Schools"
-                  onChange={() => {}}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '12.5px',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    color: '#0F172A'
-                  }}
-                >
-                  <option value="All Schools">All Schools</option>
-                  <option value="Greenwood Public School">Greenwood Public School</option>
-                  <option value="Oakridge Academy">Oakridge Academy</option>
-                </select>
-              </div>
-            </div>
-
-            <div style={{ paddingTop: '18px' }}>
-              <button
-                type="button"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  backgroundColor: '#F05A24',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  borderRadius: '8px',
-                  padding: '9px 18px',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: '0 3px 12px rgba(240, 90, 36, 0.35)'
-                }}
-              >
-                <Filter size={14} />
-                <span>Apply Filters</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Top 3 KPI Cards */}
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-              gap: '14px'
-            }}
-          >
-            {/* Total Students (All Years) */}
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1px solid #E2E8F0',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px'
-              }}
-            >
-              <div
-                style={{
-                  width: '50px',
-                  height: '50px',
-                  borderRadius: '12px',
-                  backgroundColor: '#E0F2FE',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' }}>
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Users size={24} color="#0284C7" />
               </div>
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Total Students (All Years)</span>
-                <div style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                  6,446
-                </div>
+                <div style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A' }}>6,446</div>
               </div>
             </div>
 
-            {/* Total Male Students */}
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1px solid #E2E8F0',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px'
-              }}
-            >
-              <div
-                style={{
-                  width: '50px',
-                  height: '50px',
-                  borderRadius: '12px',
-                  backgroundColor: '#DCFCE7',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={24} color="#16A34A" />
               </div>
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Total Male Students</span>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                    3,312
-                  </span>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>
-                    51.4%
-                  </span>
+                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A' }}>3,312</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>51.4%</span>
                 </div>
               </div>
             </div>
 
-            {/* Total Female Students */}
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1px solid #E2E8F0',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '16px'
-              }}
-            >
-              <div
-                style={{
-                  width: '50px',
-                  height: '50px',
-                  borderRadius: '12px',
-                  backgroundColor: '#FCE7F3',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
+            <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '50px', height: '50px', borderRadius: '12px', backgroundColor: '#FCE7F3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <User size={24} color="#DB2777" />
               </div>
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Total Female Students</span>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                    3,134
-                  </span>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>
-                    48.6%
-                  </span>
+                  <span style={{ fontSize: '26px', fontWeight: 800, color: '#0F172A' }}>3,134</span>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>48.6%</span>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Middle Section: Clustered Multi-Bar Chart */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #E2E8F0',
-              padding: '20px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <BarChart2 size={18} color="#F05A24" />
-                <div>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                    Student Count by Year
-                  </h3>
-                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                    Total number of students across academic years
-                  </p>
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '18px', fontSize: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#0D9488' }} />
-                  <span style={{ color: '#475569', fontWeight: 500 }}>Total Students</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#3B82F6' }} />
-                  <span style={{ color: '#475569', fontWeight: 500 }}>Male</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#F43F5E' }} />
-                  <span style={{ color: '#475569', fontWeight: 500 }}>Female</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Clustered Bars Chart */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', height: '240px', gap: '14px', padding: '16px 10px 0 20px', position: 'relative' }}>
-              {/* Y Axis Grid & Labels */}
-              <div
-                style={{
-                  position: 'absolute',
-                  left: '0',
-                  top: '0',
-                  bottom: '24px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  fontSize: '10px',
-                  color: '#94A3B8',
-                  textAlign: 'right',
-                  width: '36px'
-                }}
-              >
-                <span>3,000</span>
-                <span>2,500</span>
-                <span>2,000</span>
-                <span>1,500</span>
-                <span>1,000</span>
-                <span>500</span>
-                <span>0</span>
-              </div>
-
-              <div
-                style={{
-                  flex: 1,
-                  marginLeft: '42px',
-                  height: '100%',
-                  borderLeft: '1px solid #E2E8F0',
-                  borderBottom: '1px solid #E2E8F0',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'space-around',
-                  paddingBottom: '2px'
-                }}
-              >
-                {[
-                  { year: 2024, total: 1820, male: 940, female: 880 },
-                  { year: 2025, total: 2140, male: 1106, female: 1034 },
-                  { year: 2026, total: 2486, male: 1266, female: 1220 }
-                ].map((item) => {
-                  const totalH = (item.total / 3000) * 100;
-                  const maleH = (item.male / 3000) * 100;
-                  const femaleH = (item.female / 3000) * 100;
-
-                  return (
-                    <div
-                      key={item.year}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: '8px'
-                      }}
-                    >
-                      {/* 3 bars clustered */}
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px' }}>
-                        {/* Total Bar */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 700, color: '#0F172A' }}>
-                            {item.total.toLocaleString()}
-                          </span>
-                          <div
-                            style={{
-                              width: '54px',
-                              height: `${totalH * 1.8}px`,
-                              maxHeight: '170px',
-                              backgroundColor: '#0D9488',
-                              borderRadius: '4px 4px 0 0'
-                            }}
-                          />
-                        </div>
-
-                        {/* Male Bar */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 700, color: '#0F172A' }}>
-                            {item.male.toLocaleString()}
-                          </span>
-                          <div
-                            style={{
-                              width: '54px',
-                              height: `${maleH * 1.8}px`,
-                              maxHeight: '170px',
-                              backgroundColor: '#3B82F6',
-                              borderRadius: '4px 4px 0 0'
-                            }}
-                          />
-                        </div>
-
-                        {/* Female Bar */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: 700, color: '#0F172A' }}>
-                            {item.female.toLocaleString()}
-                          </span>
-                          <div
-                            style={{
-                              width: '54px',
-                              height: `${femaleH * 1.8}px`,
-                              maxHeight: '170px',
-                              backgroundColor: '#F43F5E',
-                              borderRadius: '4px 4px 0 0'
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Year label below */}
-                      <span style={{ fontSize: '11.5px', color: '#475569', fontWeight: 600 }}>
-                        {item.year}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Section: Year-wise Details Table */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #E2E8F0',
-              padding: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '14px'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <School size={18} color="#F05A24" />
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                  Year-wise Details
-                </h3>
-                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                  Detailed breakdown of student statistics by year
-                </p>
-              </div>
-            </div>
-
-            <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '700px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Year ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Total Students ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Male ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Female ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Assessed ↕</th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Coverage ↕</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[
-                    { year: '2024', total: '1,820', male: '940 (51.6%)', female: '880 (48.4%)', assessed: '1,650', coverage: '90.7%' },
-                    { year: '2025', total: '2,140', male: '1,106 (51.7%)', female: '1,034 (48.3%)', assessed: '1,980', coverage: '92.5%' },
-                    { year: '2026', total: '2,486', male: '1,266 (50.9%)', female: '1,220 (49.1%)', assessed: '2,312', coverage: '93.0%' }
-                  ].map((row) => (
-                    <tr
-                      key={row.year}
-                      style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s ease' }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                        {row.year}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 600, color: '#0F172A' }}>
-                        {row.total}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.male}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.female}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#475569' }}>
-                        {row.assessed}
-                      </td>
-                      <td style={{ padding: '11px 16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '80px', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div
-                              style={{
-                                width: row.coverage,
-                                height: '100%',
-                                backgroundColor: '#16A34A',
-                                borderRadius: '3px'
-                              }}
-                            />
-                          </div>
-                          <span style={{ fontSize: '12px', fontWeight: 600, color: '#16A34A' }}>
-                            {row.coverage}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
