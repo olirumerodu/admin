@@ -46,16 +46,18 @@ export default function LoginScreen({ onLoginSuccess }) {
 
   return (
     <div className="login-page-container">
-      {/* Soft radial overlay for text readability */}
-      <div className="login-ambient-overlay" />
+      {/* ================= LEFT HERO BRANDING ================= */}
+      <section className="login-hero-section">
+        {/* Soft radial overlay for text readability */}
+        <div className="login-ambient-overlay" />
 
-      <div className="login-content-wrapper">
-        {/* ================= LEFT HERO BRANDING ================= */}
-        <section className="login-hero-section">
-          {/* Brand Logo Header */}
+        {/* Top Logo */}
+        <div className="login-hero-top">
           <StudentHealthLogo size={46} showText={true} />
+        </div>
 
-          {/* Accent Line */}
+        {/* Center Hero Content */}
+        <div className="login-hero-content">
           <div className="brand-accent-pill" />
 
           {/* Large Hero Headline */}
@@ -68,153 +70,179 @@ export default function LoginScreen({ onLoginSuccess }) {
           <p className="hero-description">
             Manage access, monitor student data and understand school health insights.
           </p>
-        </section>
 
-        {/* ================= RIGHT FLOATING CARD ================= */}
-        <section className="login-card-wrapper">
-          <div className="login-card">
-            {/* Card Header */}
-            <div className="login-card-header">
-              <h2 className="card-heading">Welcome back</h2>
-              <p className="card-subheading">Sign in to Admin Portal</p>
+          {/* Feature Highlights */}
+          <div className="hero-highlights">
+            <div className="hero-highlight-item">
+              <span className="hero-highlight-dot" />
+              <span>Student Health Profiling & Vital Records</span>
             </div>
-
-            {/* Error Notification */}
-            {errorMsg && (
-              <div className="alert-banner danger" style={{ marginBottom: '18px' }}>
-                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            {/* Form */}
-            <form className="login-form" onSubmit={handleSubmit} noValidate>
-              {/* Email Field */}
-              <div className="form-group">
-                <label className="form-label" htmlFor="admin-email">
-                  Email Address
-                </label>
-                <div 
-                  className={`input-container ${focusedField === 'email' ? 'focused' : ''} ${errorMsg && !email ? 'error' : ''}`}
-                >
-                  <span className="input-icon">
-                    <Mail size={18} />
-                  </span>
-                  <input
-                    id="admin-email"
-                    type="email"
-                    className="form-input"
-                    placeholder="Enter your email address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    onFocus={() => setFocusedField('email')}
-                    onBlur={() => setFocusedField(null)}
-                    autoComplete="email"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Password Field */}
-              <div className="form-group">
-                <label className="form-label" htmlFor="admin-password">
-                  Password
-                </label>
-                <div 
-                  className={`input-container ${focusedField === 'password' ? 'focused' : ''} ${errorMsg && !password ? 'error' : ''}`}
-                >
-                  <span className="input-icon">
-                    <Lock size={18} />
-                  </span>
-                  <input
-                    id="admin-password"
-                    type={showPassword ? 'text' : 'password'}
-                    className="form-input"
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onFocus={() => setFocusedField('password')}
-                    onBlur={() => setFocusedField(null)}
-                    autoComplete="current-password"
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="input-action-btn"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Options Row: Remember Me & Forgot Password */}
-              <div className="form-options-row">
-                <label className="checkbox-label" onClick={() => setRememberMe(!rememberMe)}>
-                  <div className={`custom-checkbox ${rememberMe ? 'checked' : ''}`}>
-                    {rememberMe && <Check size={14} strokeWidth={3} />}
-                  </div>
-                  <span className="checkbox-text">Remember me</span>
-                </label>
-
-                <button
-                  type="button"
-                  className="forgot-password-link"
-                  onClick={() => setIsForgotModalOpen(true)}
-                >
-                  Forgot Password?
-                </button>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                className="btn-submit-primary"
-                disabled={loading}
-                id="sign-in-submit-btn"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 size={19} className="animate-spin" />
-                    <span>Signing In...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Sign In</span>
-                    <ArrowRight size={19} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Quick Demo Access Bar */}
-            <div style={{ marginTop: '20px' }}>
-              <div className="demo-credentials-pill">
-                <span>Credentials: <strong>admin@gmail.com / admin@123</strong></span>
-                <button 
-                  type="button" 
-                  className="demo-btn"
-                  onClick={handleDemoSignIn}
-                >
-                  Instant Access
-                </button>
-              </div>
+            <div className="hero-highlight-item">
+              <span className="hero-highlight-dot" />
+              <span>School-wise Analytics & Reports</span>
             </div>
-
-            {/* Card Footer: Authorized Badge */}
-            <div className="login-card-footer">
-              <div className="auth-badge">
-                <span className="auth-badge-icon">
-                  <ShieldCheck size={16} />
-                </span>
-                <span>Authorized administrators only</span>
-              </div>
+            <div className="hero-highlight-item">
+              <span className="hero-highlight-dot" />
+              <span>Real-time Alerts & Push Notifications</span>
             </div>
           </div>
-        </section>
-      </div>
+        </div>
+
+        {/* Hero Footer */}
+        <div className="hero-footer-row">
+          <span>© {new Date().getFullYear()} Student Health System • Enterprise Admin Platform</span>
+        </div>
+      </section>
+
+      {/* ================= RIGHT FULL HEIGHT WELCOME BACK PANEL ================= */}
+      <section className="login-panel-fullheight">
+        <div className="login-panel-inner">
+          {/* Mobile brand logo shown on small screens */}
+          <div className="login-mobile-brand">
+            <StudentHealthLogo size={40} showText={true} />
+          </div>
+
+          {/* Panel Header */}
+          <div className="login-card-header">
+            <h2 className="card-heading">Welcome back</h2>
+            <p className="card-subheading">Sign in to Admin Portal</p>
+          </div>
+
+          {/* Error Notification */}
+          {errorMsg && (
+            <div className="alert-banner danger" style={{ marginBottom: '18px' }}>
+              <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Form */}
+          <form className="login-form" onSubmit={handleSubmit} noValidate>
+            {/* Email Field */}
+            <div className="form-group">
+              <label className="form-label" htmlFor="admin-email">
+                Email Address
+              </label>
+              <div 
+                className={`input-container ${focusedField === 'email' ? 'focused' : ''} ${errorMsg && !email ? 'error' : ''}`}
+              >
+                <span className="input-icon">
+                  <Mail size={18} />
+                </span>
+                <input
+                  id="admin-email"
+                  type="email"
+                  className="form-input"
+                  placeholder="Enter your email address"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
+                  autoComplete="email"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div className="form-group">
+              <label className="form-label" htmlFor="admin-password">
+                Password
+              </label>
+              <div 
+                className={`input-container ${focusedField === 'password' ? 'focused' : ''} ${errorMsg && !password ? 'error' : ''}`}
+              >
+                <span className="input-icon">
+                  <Lock size={18} />
+                </span>
+                <input
+                  id="admin-password"
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-input"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => setFocusedField(null)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="input-action-btn"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <Eye size={18} /> : <EyeOff size={18} />}
+                </button>
+              </div>
+            </div>
+
+            {/* Options Row: Remember Me & Forgot Password */}
+            <div className="form-options-row">
+              <label className="checkbox-label" onClick={() => setRememberMe(!rememberMe)}>
+                <div className={`custom-checkbox ${rememberMe ? 'checked' : ''}`}>
+                  {rememberMe && <Check size={14} strokeWidth={3} />}
+                </div>
+                <span className="checkbox-text">Remember me</span>
+              </label>
+
+              <button
+                type="button"
+                className="forgot-password-link"
+                onClick={() => setIsForgotModalOpen(true)}
+              >
+                Forgot Password?
+              </button>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="btn-submit-primary"
+              disabled={loading}
+              id="sign-in-submit-btn"
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={19} className="animate-spin" />
+                  <span>Signing In...</span>
+                </>
+              ) : (
+                <>
+                  <span>Sign In</span>
+                  <ArrowRight size={19} />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Quick Demo Access Bar */}
+          <div style={{ marginTop: '22px' }}>
+            <div className="demo-credentials-pill">
+              <span>Credentials: <strong>admin@gmail.com / admin@123</strong></span>
+              <button 
+                type="button" 
+                className="demo-btn"
+                onClick={handleDemoSignIn}
+              >
+                Instant Access
+              </button>
+            </div>
+          </div>
+
+          {/* Card Footer: Authorized Badge */}
+          <div className="login-card-footer">
+            <div className="auth-badge">
+              <span className="auth-badge-icon">
+                <ShieldCheck size={16} />
+              </span>
+              <span>Authorized administrators only</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Forgot Password Modal */}
       <ForgotPasswordModal
