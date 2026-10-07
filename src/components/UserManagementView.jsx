@@ -15,116 +15,19 @@ import {
   Check, 
   ChevronLeft, 
   ChevronRight,
-  Shield,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { api } from '../services/api';
 import CreateUserView from './CreateUserView';
 import UserDetailsView from './UserDetailsView';
+import EditUserView from './EditUserView';
 
 export default function UserManagementView() {
-  // Initial users dataset matching the screenshot exactly
-  const initialUsers = [
-    {
-      id: 'USR001',
-      name: 'Arun Kumar',
-      email: 'arun.kumar@school.com',
-      cluster: 'North Cluster',
-      school: 'Greenwood Public School',
-      role: 'Super Admin',
-      status: 'Active',
-      lastLoginDate: '29 Sep 2026',
-      lastLoginTime: '10:24 AM',
-      accessType: 'Full Access'
-    },
-    {
-      id: 'USR002',
-      name: 'Priya Sharma',
-      email: 'priya.sharma@school.com',
-      cluster: 'East Cluster',
-      school: 'Sunrise International School',
-      role: 'Admin',
-      status: 'Active',
-      lastLoginDate: '29 Sep 2026',
-      lastLoginTime: '09:12 AM',
-      accessType: 'Full Access'
-    },
-    {
-      id: 'USR003',
-      name: 'Ravi Mohan',
-      email: 'ravi.mohan@school.com',
-      cluster: 'West Cluster',
-      school: 'Riverdale Higher Secondary',
-      role: 'School Staff',
-      status: 'Active',
-      lastLoginDate: '28 Sep 2026',
-      lastLoginTime: '05:40 PM',
-      accessType: 'Limited Access'
-    },
-    {
-      id: 'USR004',
-      name: 'Sneha Nair',
-      email: 'sneha.nair@school.com',
-      cluster: 'North Cluster',
-      school: 'Maple Leaf Public School',
-      role: 'Staff',
-      status: 'Inactive',
-      lastLoginDate: '12 Sep 2026',
-      lastLoginTime: '11:20 AM',
-      accessType: 'Inactive Users'
-    },
-    {
-      id: 'USR005',
-      name: 'Karthik Raj',
-      email: 'karthik.raj@school.com',
-      cluster: 'Central Cluster',
-      school: 'St. Mary\'s Matriculation School',
-      role: 'Staff',
-      status: 'Active',
-      lastLoginDate: '27 Sep 2026',
-      lastLoginTime: '03:18 PM',
-      accessType: 'Limited Access'
-    },
-    {
-      id: 'USR006',
-      name: 'Meena Iyer',
-      email: 'meena.iyer@school.com',
-      cluster: 'East Cluster',
-      school: 'Sunrise International School',
-      role: 'View Only',
-      status: 'Active',
-      lastLoginDate: '26 Sep 2026',
-      lastLoginTime: '01:05 PM',
-      accessType: 'Limited Access'
-    },
-    {
-      id: 'USR007',
-      name: 'Vignesh S',
-      email: 'vignesh.s@school.com',
-      cluster: 'West Cluster',
-      school: 'Riverdale Higher Secondary',
-      role: 'Staff',
-      status: 'Inactive',
-      lastLoginDate: '15 Sep 2026',
-      lastLoginTime: '09:14 AM',
-      accessType: 'Inactive Users'
-    },
-    {
-      id: 'USR008',
-      name: 'Divya R',
-      email: 'divya.r@school.com',
-      cluster: 'North Cluster',
-      school: 'Greenwood Public School',
-      role: 'Admin',
-      status: 'Active',
-      lastLoginDate: '29 Sep 2026',
-      lastLoginTime: '08:10 AM',
-      accessType: 'Full Access'
-    }
-  ];
-
-  const [users, setUsers] = useState(initialUsers);
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   
   // Filter States
@@ -143,74 +46,161 @@ export default function UserManagementView() {
   const [pageSize, setPageSize] = useState(10);
 
   // Navigation and Modal States
-  const [viewMode, setViewMode] = useState('list'); // 'list' | 'create' | 'details'
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'create' | 'details' | 'edit'
   const [selectedUser, setSelectedUser] = useState(null);
+  const [previousView, setPreviousView] = useState('list');
   const [successToast, setSuccessToast] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [viewingUser, setViewingUser] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
+
+  // Confirmation Pop-up states for deletion and creation
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showCreateConfirmModal, setShowCreateConfirmModal] = useState(false);
 
   // New User Form State
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
     role: 'Staff',
-    cluster: 'North Cluster',
-    school: 'Greenwood Public School',
+    cluster: 'All Clusters',
+    school: 'All Assigned Schools',
     status: 'Active'
   });
 
-  // Sync with backend API on mount
-  useEffect(() => {
-    async function loadBackendUsers() {
-      try {
-        const backendData = await api.getUsers();
-        if (backendData && backendData.length > 0) {
-          // Merge real backend users with rich dataset
-          const merged = backendData.map((u, idx) => ({
-            id: u.id?.startsWith('USR') ? u.id : `USR00${idx + 1}`,
-            name: u.name || 'User',
-            email: u.email || `${u.id}@school.com`,
-            cluster: u.assigned_cluster_id ? `${u.assigned_cluster_id} Cluster` : 'North Cluster',
-            school: 'Greenwood Public School',
-            role: u.role === 'admin' ? 'Super Admin' : u.role === 'health_officer' ? 'School Staff' : 'Staff',
-            status: u.is_active !== false ? 'Active' : 'Inactive',
-            lastLoginDate: '29 Sep 2026',
-            lastLoginTime: '10:24 AM',
-            accessType: u.role === 'admin' ? 'Full Access' : 'Limited Access'
-          }));
+  // Dynamic clusters map for resolving IDs to human-readable names
+  const [clustersMap, setClustersMap] = useState({});
 
-          // If backend has fewer than 8, combine with template to maintain visual match
-          if (merged.length < 8) {
-            const combined = [...merged, ...initialUsers.slice(merged.length)];
-            setUsers(combined);
-          } else {
-            setUsers(merged);
-          }
-        }
-      } catch (err) {
-        console.warn('Using initial users dataset:', err);
+  // Map backend user response into UI row representation
+  const formatUser = (u, idx, clusterMap = null) => {
+    const roleDisplay = u.role === 'admin' 
+      ? 'Super Admin' 
+      : u.role === 'health_officer' 
+        ? 'School Staff' 
+        : u.role || 'Staff';
+    const isAct = u.is_active !== false;
+    const createdDt = u.created_at ? new Date(u.created_at) : new Date();
+
+    // Resolve clean human-readable Cluster Name:
+    // If admin selected "All Clusters" or cluster is null/empty, show "All Clusters".
+    // Otherwise show the resolved cluster name (e.g. "ERODE"), NEVER a UUID hash!
+    let clusterName = 'All Clusters';
+    const effectiveMap = clusterMap || clustersMap;
+    if (u.cluster_name && u.cluster_name !== 'All Clusters' && !/^[0-9a-fA-F-]{20,}$/.test(u.cluster_name)) {
+      clusterName = u.cluster_name;
+    } else if (u.assigned_cluster_id && u.assigned_cluster_id !== 'All Clusters' && u.assigned_cluster_id !== 'all') {
+      const resolved = effectiveMap ? effectiveMap[u.assigned_cluster_id] : null;
+      if (resolved) {
+        clusterName = resolved;
+      } else if (!/^[0-9a-fA-F-]{20,}$/.test(u.assigned_cluster_id)) {
+        clusterName = u.assigned_cluster_id;
+      } else {
+        clusterName = 'All Clusters';
       }
+    } else {
+      clusterName = 'All Clusters';
     }
+
+    const schoolName = u.school_name || (roleDisplay === 'Super Admin' || roleDisplay === 'Admin' ? 'All Schools' : 'All Assigned Schools');
+
+    return {
+      id: u.id || `USR00${idx + 1}`,
+      name: u.name || 'User',
+      email: u.email || `${(u.id || '').toLowerCase()}@oehealth.org`,
+      phone: u.phone || '',
+      cluster: clusterName,
+      school: schoolName,
+      role: roleDisplay,
+      status: isAct ? 'Active' : 'Inactive',
+      joinedOn: createdDt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      createdAtFormatted: `${createdDt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, ${createdDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`,
+      created_at: u.created_at,
+      lastLoginDate: createdDt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      lastLoginTime: createdDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      accessType: (roleDisplay === 'Super Admin' || roleDisplay === 'Admin') 
+        ? 'Full Access' 
+        : isAct ? 'Limited Access' : 'Inactive Users',
+      raw: u
+    };
+  };
+
+  // Sync real-time users from backend API
+  const loadBackendUsers = async (silent = false) => {
+    try {
+      if (!silent) setLoading(true);
+      const [backendData, clustersData] = await Promise.allSettled([
+        api.getUsers(),
+        api.getClusters()
+      ]);
+
+      const cMap = {};
+      if (clustersData.status === 'fulfilled' && Array.isArray(clustersData.value)) {
+        clustersData.value.forEach(c => {
+          if (c.id && c.name) cMap[c.id] = c.name;
+          if (c.name) cMap[c.name] = c.name;
+        });
+        setClustersMap(cMap);
+      }
+
+      if (backendData.status === 'fulfilled' && Array.isArray(backendData.value)) {
+        const mapped = backendData.value.map((u, idx) => formatUser(u, idx, cMap));
+        setUsers(mapped);
+      }
+    } catch (err) {
+      console.warn('Real-time Users sync notice:', err.message);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     loadBackendUsers();
+    // Real-time polling every 5 seconds to merge user application changes
+    const timer = setInterval(() => {
+      loadBackendUsers(true);
+    }, 5000);
+    return () => clearInterval(timer);
   }, []);
 
-  // Dynamic KPI counts calculation
-  const totalUsersCount = 24; // Representative baseline matching screenshot
+  // Pure dynamic KPI counts calculation directly from real database
+  const totalUsersCount = users.length;
   const activeCount = users.filter(u => u.status === 'Active').length;
   const inactiveCount = users.filter(u => u.status === 'Inactive').length;
-  const fullAccessCount = users.filter(u => u.role === 'Super Admin' || u.role === 'Admin').length * 2;
-  const limitedAccessCount = users.filter(u => u.role === 'Staff' || u.role === 'School Staff' || u.role === 'View Only').length * 2;
+  const fullAccessCount = users.filter(u => u.accessType === 'Full Access').length;
+  const limitedAccessCount = users.filter(u => u.accessType === 'Limited Access').length;
 
-  // Toggle user Active / Inactive status
-  const handleToggleStatus = (userId) => {
+  // Real cluster and school options dynamically derived from users
+  const uniqueClusters = Array.from(new Set(users.map(u => u.cluster).filter(Boolean)));
+  const uniqueSchools = Array.from(new Set(users.map(u => u.school).filter(Boolean)));
+
+  // Toggle user Active / Inactive status and persist to backend
+  const handleToggleStatus = async (userId) => {
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return;
+    const nextStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
+    const nextIsActive = nextStatus === 'Active';
+
+    // Optimistic UI update
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        const nextStatus = u.status === 'Active' ? 'Inactive' : 'Active';
-        return { ...u, status: nextStatus, accessType: nextStatus === 'Active' ? 'Limited Access' : 'Inactive Users' };
+        return { 
+          ...u, 
+          status: nextStatus, 
+          accessType: nextStatus === 'Active' ? ((u.role === 'Super Admin' || u.role === 'Admin') ? 'Full Access' : 'Limited Access') : 'Inactive Users' 
+        };
       }
       return u;
     }));
+
+    try {
+      await api.updateUser(userId, { is_active: nextIsActive });
+      setSuccessToast(`User ${targetUser.name} status updated to ${nextStatus}`);
+      setTimeout(() => setSuccessToast(''), 3000);
+    } catch (err) {
+      console.error('Failed to update status on server:', err);
+      // Revert if error
+      loadBackendUsers(true);
+    }
   };
 
   // Reset Filters
@@ -240,8 +230,8 @@ export default function UserManagementView() {
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.id.toLowerCase().includes(searchQuery.toLowerCase());
       
-      const matchesCluster = clusterFilter === 'ALL' || u.cluster === clusterFilter;
-      const matchesSchool = schoolFilter === 'ALL' || u.school === schoolFilter;
+      const matchesCluster = clusterFilter === 'ALL' || u.cluster === clusterFilter || u.cluster === 'All Clusters';
+      const matchesSchool = schoolFilter === 'ALL' || u.school === schoolFilter || u.school === 'All Schools in District' || u.school === 'All Assigned Schools';
       const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
       const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
 
@@ -270,63 +260,104 @@ export default function UserManagementView() {
     );
   };
 
-  // Create User Handler
+  // Create User Handler with confirmation pop-up
   const handleCreateUser = (e) => {
     e.preventDefault();
     if (!newUser.name.trim() || !newUser.email.trim()) return;
-
-    const nextId = `USR00${users.length + 1}`;
-    const created = {
-      id: nextId,
-      name: newUser.name.trim(),
-      email: newUser.email.trim(),
-      cluster: newUser.cluster,
-      school: newUser.school,
-      role: newUser.role,
-      status: newUser.status,
-      lastLoginDate: 'Just now',
-      lastLoginTime: '',
-      accessType: newUser.role === 'Super Admin' || newUser.role === 'Admin' ? 'Full Access' : 'Limited Access'
-    };
-
-    setUsers([created, ...users]);
-    setIsCreateModalOpen(false);
-    setNewUser({
-      name: '',
-      email: '',
-      role: 'Staff',
-      cluster: 'North Cluster',
-      school: 'Greenwood Public School',
-      status: 'Active'
-    });
+    setShowCreateConfirmModal(true);
   };
 
-  const [isEditMode, setIsEditMode] = useState(false);
+  const handleConfirmCreateUser = async () => {
+    try {
+      const created = await api.createUser({
+        name: newUser.name.trim(),
+        email: newUser.email.trim(),
+        role: newUser.role,
+        assigned_cluster_id: newUser.cluster === 'All Clusters' ? null : newUser.cluster,
+        is_active: newUser.status === 'Active'
+      });
+      await loadBackendUsers(true);
+      setShowCreateConfirmModal(false);
+      setIsCreateModalOpen(false);
+      setSuccessToast(`User ${created.name} (${created.id}) created successfully.`);
+      setTimeout(() => setSuccessToast(''), 4000);
+      setNewUser({
+        name: '',
+        email: '',
+        role: 'Staff',
+        cluster: 'All Clusters',
+        school: 'All Assigned Schools',
+        status: 'Active'
+      });
+    } catch (err) {
+      console.error('Failed to create user:', err);
+      setSuccessToast(`Error: ${err.message}`);
+      setTimeout(() => setSuccessToast(''), 4000);
+      setShowCreateConfirmModal(false);
+    }
+  };
 
-  // Open User Edit full-screen view (from edit pen icon)
-  const handleOpenEditUser = (targetUser) => {
-    setSelectedUser(targetUser);
-    setIsEditMode(true);
-    setViewMode('details');
+  // Confirm delete user handler
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteUser(userToDelete.id);
+      setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+      setSuccessToast(`User ${userToDelete.name} (${userToDelete.id}) deleted successfully.`);
+      setTimeout(() => setSuccessToast(''), 4000);
+      setShowDeleteModal(false);
+      setUserToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      setSuccessToast(`Failed to delete user: ${err.message}`);
+      setTimeout(() => setSuccessToast(''), 4000);
+      setShowDeleteModal(false);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Open User Details full-screen view
   const handleOpenUserDetails = (targetUser) => {
     setSelectedUser(targetUser);
-    setIsEditMode(false);
     setViewMode('details');
   };
 
-  // If in details or edit view, render full-screen UserDetailsView matching screenshot
+  // Open Edit User full-screen form (pencil icon or Edit User button — full edit form)
+  const handleOpenEditUser = (targetUser, fromView = 'list') => {
+    setSelectedUser(targetUser);
+    setPreviousView(fromView);
+    setViewMode('edit');
+  };
+
+  // If in details view
   if (viewMode === 'details') {
     return (
       <UserDetailsView 
         user={selectedUser || users[0]}
-        initialEditMode={isEditMode}
         onNavigateBack={() => setViewMode('list')}
+        onEditUser={(u) => handleOpenEditUser(u, 'details')}
         onUpdateUser={(updated) => {
           setUsers(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u));
           setSelectedUser(prev => ({ ...prev, ...updated }));
+          setSuccessToast(`User ${updated.name} updated successfully.`);
+          setTimeout(() => setSuccessToast(''), 4000);
+        }}
+      />
+    );
+  }
+
+  // If in edit view (pencil icon or Edit User button) — full editable form without hiding anything
+  if (viewMode === 'edit') {
+    return (
+      <EditUserView
+        user={selectedUser}
+        onNavigateBack={() => setViewMode(previousView === 'details' ? 'details' : 'list')}
+        onUserUpdated={(updated) => {
+          setUsers(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u));
+          setSelectedUser(prev => ({ ...prev, ...updated }));
+          setViewMode(previousView === 'details' ? 'details' : 'list');
           setSuccessToast(`User ${updated.name} updated successfully.`);
           setTimeout(() => setSuccessToast(''), 4000);
         }}
@@ -472,10 +503,10 @@ export default function UserManagementView() {
           </div>
           <div style={{ marginTop: '8px' }}>
             <span style={kpiLabelStyle}>Active Users</span>
-            <div style={kpiNumberStyle}>20</div>
+            <div style={kpiNumberStyle}>{activeCount}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '11px' }}>
-              <span style={{ color: '#16A34A', fontWeight: 700 }}>↑ 8%</span>
-              <span style={{ color: '#94A3B8' }}>vs last month</span>
+              <span style={{ color: '#16A34A', fontWeight: 700 }}>↑ Live</span>
+              <span style={{ color: '#94A3B8' }}>from database</span>
             </div>
           </div>
         </div>
@@ -490,10 +521,10 @@ export default function UserManagementView() {
           </div>
           <div style={{ marginTop: '8px' }}>
             <span style={kpiLabelStyle}>Inactive Users</span>
-            <div style={kpiNumberStyle}>4</div>
+            <div style={kpiNumberStyle}>{inactiveCount}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '11px' }}>
-              <span style={{ color: '#DC2626', fontWeight: 700 }}>↑ 2%</span>
-              <span style={{ color: '#94A3B8' }}>vs last month</span>
+              <span style={{ color: '#DC2626', fontWeight: 700 }}>•</span>
+              <span style={{ color: '#94A3B8' }}>Deactivated accounts</span>
             </div>
           </div>
         </div>
@@ -509,21 +540,21 @@ export default function UserManagementView() {
             {/* Full Access */}
             <div>
               <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Full Access</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>12</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>{fullAccessCount}</div>
               <div style={{ height: '3.5px', backgroundColor: '#10B981', borderRadius: '99px', marginTop: '4px' }} />
             </div>
 
             {/* Limited Access */}
             <div>
               <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Limited Access</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>8</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>{limitedAccessCount}</div>
               <div style={{ height: '3.5px', backgroundColor: '#F59E0B', borderRadius: '99px', marginTop: '4px' }} />
             </div>
 
             {/* Inactive Users */}
             <div>
               <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Inactive Users</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>4</div>
+              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>{inactiveCount}</div>
               <div style={{ height: '3.5px', backgroundColor: '#EF4444', borderRadius: '99px', marginTop: '4px' }} />
             </div>
           </div>
@@ -565,6 +596,7 @@ export default function UserManagementView() {
             type="text"
             placeholder="Search by name, email or user ID..."
             value={searchQuery}
+            maxLength={60}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               border: 'none',
@@ -589,10 +621,9 @@ export default function UserManagementView() {
               onChange={(e) => setClusterFilter(e.target.value)}
             >
               <option value="ALL">All Clusters</option>
-              <option value="North Cluster">North Cluster</option>
-              <option value="East Cluster">East Cluster</option>
-              <option value="West Cluster">West Cluster</option>
-              <option value="Central Cluster">Central Cluster</option>
+              {uniqueClusters.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
             </select>
           </div>
 
@@ -605,11 +636,9 @@ export default function UserManagementView() {
               onChange={(e) => setSchoolFilter(e.target.value)}
             >
               <option value="ALL">All Schools</option>
-              <option value="Greenwood Public School">Greenwood Public School</option>
-              <option value="Sunrise International School">Sunrise International School</option>
-              <option value="Riverdale Higher Secondary">Riverdale Higher Secondary</option>
-              <option value="Maple Leaf Public School">Maple Leaf Public School</option>
-              <option value="St. Mary's Matriculation School">St. Mary's Matriculation School</option>
+              {uniqueSchools.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
           </div>
 
@@ -796,7 +825,7 @@ export default function UserManagementView() {
 
                       {/* Cluster */}
                       <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
-                        {u.cluster}
+                        {(!u.cluster || /^[0-9a-fA-F-]{20,}$/.test(u.cluster)) ? 'All Clusters' : u.cluster}
                       </td>
 
                       {/* School */}
@@ -854,13 +883,17 @@ export default function UserManagementView() {
                             <Pencil size={14} />
                           </button>
 
-                          {/* Shield / Permissions */}
+
+                          {/* Delete User */}
                           <button 
-                            style={actionBtnStyle} 
-                            onClick={() => alert(`Permissions for ${u.name}: ${u.accessType}`)}
-                            title="Access Permissions"
+                            style={{ ...actionBtnStyle, color: '#EF4444' }} 
+                            onClick={() => {
+                              setUserToDelete(u);
+                              setShowDeleteModal(true);
+                            }}
+                            title="Delete User"
                           >
-                            <Shield size={14} />
+                            <Trash2 size={14} />
                           </button>
 
                           {/* Toggle Switch */}
@@ -1083,40 +1116,133 @@ export default function UserManagementView() {
         </div>
       )}
 
-      {/* ================= VIEW USER DETAILS MODAL ================= */}
-      {viewingUser && (
-        <div style={modalBackdropStyle} onClick={() => setViewingUser(null)}>
+      {/* ================= CONFIRM CREATE USER MODAL ================= */}
+      {showCreateConfirmModal && (
+        <div style={modalBackdropStyle} onClick={() => setShowCreateConfirmModal(false)}>
           <div style={modalBoxStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={modalHeaderStyle}>
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: 0 }}>User Profile</h3>
-                <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>{viewingUser.id}</p>
+            <div style={{ ...modalHeaderStyle, backgroundColor: '#FFF7ED' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FFEDD5', color: '#EA580C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <UserCheck size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Confirm User Creation</h3>
+                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>Review user details before adding to database</p>
+                </div>
               </div>
-              <button onClick={() => setViewingUser(null)} style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}>
+              <button 
+                onClick={() => setShowCreateConfirmModal(false)}
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer' }}
+              >
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
-              <div style={viewDetailRow}><strong>Full Name:</strong> <span>{viewingUser.name}</span></div>
-              <div style={viewDetailRow}><strong>Email:</strong> <span>{viewingUser.email}</span></div>
-              <div style={viewDetailRow}><strong>Assigned Role:</strong> <span style={getRoleBadgeStyle(viewingUser.role)}>{viewingUser.role}</span></div>
-              <div style={viewDetailRow}><strong>Cluster:</strong> <span>{viewingUser.cluster}</span></div>
-              <div style={viewDetailRow}><strong>School:</strong> <span>{viewingUser.school}</span></div>
-              <div style={viewDetailRow}><strong>Access Level:</strong> <span>{viewingUser.accessType}</span></div>
-              <div style={viewDetailRow}><strong>Account Status:</strong> <span style={getStatusBadgeStyle(viewingUser.status === 'Active')}>{viewingUser.status}</span></div>
-              <div style={viewDetailRow}><strong>Last Login:</strong> <span>{viewingUser.lastLoginDate} {viewingUser.lastLoginTime}</span></div>
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13px', color: '#334155', margin: 0 }}>
+                Are you sure you want to create a new user account with active login privileges?
+              </p>
+
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px', fontSize: '12.5px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div><span style={{ color: '#64748B' }}>Full Name:</span> <strong style={{ color: '#0F172A' }}>{newUser.name}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Email:</span> <strong style={{ color: '#0F172A' }}>{newUser.email}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Role:</span> <strong style={{ color: '#0F172A' }}>{newUser.role}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Cluster:</span> <strong style={{ color: '#0F172A' }}>{newUser.cluster}</strong></div>
+                <div><span style={{ color: '#64748B' }}>School:</span> <strong style={{ color: '#0F172A' }}>{newUser.school}</strong></div>
+              </div>
+
+              <div style={{ backgroundColor: '#EFF6FF', border: '1px solid #DBEAFE', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#1E40AF', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <CheckCircle2 size={16} style={{ flexShrink: 0, color: '#2563EB' }} />
+                <span>The user will be assigned a unique sequential User ID starting from USR001 and will be able to log in to the application.</span>
+              </div>
             </div>
 
-            <button 
-              onClick={() => setViewingUser(null)}
-              style={{ ...modalSubmitBtnStyle, width: '100%', marginTop: '16px' }}
-            >
-              Close
-            </button>
+            <div style={{ padding: '12px 20px 16px 20px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowCreateConfirmModal(false)}
+                style={modalCancelBtnStyle}
+              >
+                Cancel / Edit
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCreateUser}
+                style={modalSubmitBtnStyle}
+              >
+                Confirm & Create User
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* ================= CONFIRM DELETE USER MODAL ================= */}
+      {showDeleteModal && userToDelete && (
+        <div style={modalBackdropStyle} onClick={() => { setShowDeleteModal(false); setUserToDelete(null); }}>
+          <div style={modalBoxStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={{ ...modalHeaderStyle, backgroundColor: '#FEF2F2' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#FEE2E2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Trash2 size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Confirm User Deletion</h3>
+                  <span style={{ fontSize: '11.5px', color: '#64748B' }}>This action cannot be undone</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => { setShowDeleteModal(false); setUserToDelete(null); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13px', color: '#334155', margin: 0, lineHeight: 1.5 }}>
+                Are you sure you want to permanently delete user <strong style={{ color: '#0F172A' }}>{userToDelete.name}</strong> (<strong style={{ color: '#EA580C' }}>{userToDelete.id}</strong>)?
+              </p>
+
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div><span style={{ color: '#64748B' }}>User ID:</span> <strong>{userToDelete.id}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Email:</span> <strong>{userToDelete.email}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Role:</span> <strong>{userToDelete.role}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Assigned Cluster:</span> <strong>{userToDelete.cluster || 'None'}</strong></div>
+              </div>
+
+              <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>This user will immediately lose all login access to the mobile application and admin panel.</span>
+              </div>
+            </div>
+
+            <div style={{ padding: '12px 20px 16px 20px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => { setShowDeleteModal(false); setUserToDelete(null); }}
+                style={modalCancelBtnStyle}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteUser}
+                disabled={isDeleting}
+                style={{
+                  ...modalSubmitBtnStyle,
+                  backgroundColor: '#DC2626',
+                  borderColor: '#DC2626',
+                  opacity: isDeleting ? 0.7 : 1
+                }}
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm & Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

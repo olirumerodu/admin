@@ -25,8 +25,15 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
-  ChevronDown
+  ChevronDown,
+  Printer,
+  Download,
+  AlertTriangle,
+  Sparkles
 } from 'lucide-react';
+import { api } from '../services/api';
+import StudentGrowthChartModal from './StudentGrowthChartModal';
+import SchoolGrowthChartModal from './SchoolGrowthChartModal';
 
 // Responsive width hook
 function useWindowWidth() {
@@ -96,10 +103,16 @@ export default function StudentsManagementView() {
   // Navigation Level: 'clusters' | 'schools' | 'students' | 'student_details' | 'health_history'
   const [viewLevel, setViewLevel] = useState('clusters');
 
+  // Raw live data from backend
+  const [rawClusters, setRawClusters] = useState([]);
+  const [rawSchools, setRawSchools] = useState([]);
+  const [rawStudents, setRawStudents] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
+
   // Active selections
-  const [selectedClusterId, setSelectedClusterId] = useState('cluster-a');
-  const [selectedSchoolId, setSelectedSchoolId] = useState('greenwood');
-  const [selectedStudentId, setSelectedStudentId] = useState('GW001');
+  const [selectedClusterId, setSelectedClusterId] = useState('');
+  const [selectedSchoolId, setSelectedSchoolId] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState('');
 
   // Search & Filter States
   const [clusterSearch, setClusterSearch] = useState('');
@@ -111,122 +124,282 @@ export default function StudentsManagementView() {
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [studentPage, setStudentPage] = useState(1);
 
+  // Sub-tab for School Students View: 'all' | 'priority'
+  const [studentViewTab, setStudentViewTab] = useState('all');
+  // Priority Follow-Up Filters
+  const [priorityCategoryFilter, setPriorityCategoryFilter] = useState('ALL'); // 'ALL' | 'SEVERELY_WASTED' | 'WASTED'
+  const [upcomingMonthFilter, setUpcomingMonthFilter] = useState('ALL'); // 'ALL' | 'THIS_MONTH' | 'NEXT_MONTH' | 'OVERDUE'
+
+  // Modals for PDF Growth Chart
+  const [showStudentGrowthModal, setShowStudentGrowthModal] = useState(false);
+  const [modalStudent, setModalStudent] = useState(null);
+  const [showSchoolGrowthModal, setShowSchoolGrowthModal] = useState(false);
+  const [modalSchool, setModalSchool] = useState(null);
+
   // Growth Trend Chart metric toggle: 'Weight' | 'Height' | 'BMI'
   const [trendMetric, setTrendMetric] = useState('Weight');
 
-  // ================= DYNAMIC DATA ENGINE =================
+  const THEME_PALETTES = [
+    { themeColor: '#EA580C', bgColor: '#FFF7ED', accentColor: '#FFEDD5', waveColor: 'rgba(234, 88, 12, 0.08)' },
+    { themeColor: '#059669', bgColor: '#ECFDF5', accentColor: '#D1FAE5', waveColor: 'rgba(5, 150, 105, 0.08)' },
+    { themeColor: '#2563EB', bgColor: '#EFF6FF', accentColor: '#DBEAFE', waveColor: 'rgba(37, 99, 235, 0.08)' },
+    { themeColor: '#8B5CF6', bgColor: '#F5F3FF', accentColor: '#EDE9FE', waveColor: 'rgba(139, 92, 246, 0.08)' },
+    { themeColor: '#E11D48', bgColor: '#FFF1F2', accentColor: '#FFE4E6', waveColor: 'rgba(225, 29, 72, 0.08)' },
+    { themeColor: '#D97706', bgColor: '#FFFBEB', accentColor: '#FEF3C7', waveColor: 'rgba(217, 119, 6, 0.08)' },
+  ];
 
-  // Clusters Data
-  const [clustersData, setClustersData] = useState([
-    {
-      id: 'cluster-a',
-      name: 'Cluster A',
-      schoolsCount: 12,
-      studentsCount: 486,
-      themeColor: '#EA580C',
-      bgColor: '#FFF7ED',
-      accentColor: '#FFEDD5',
-      waveColor: 'rgba(234, 88, 12, 0.08)'
-    },
-    {
-      id: 'cluster-b',
-      name: 'Cluster B',
-      schoolsCount: 8,
-      studentsCount: 324,
-      themeColor: '#059669',
-      bgColor: '#ECFDF5',
-      accentColor: '#D1FAE5',
-      waveColor: 'rgba(5, 150, 105, 0.08)'
-    },
-    {
-      id: 'cluster-c',
-      name: 'Cluster C',
-      schoolsCount: 10,
-      studentsCount: 412,
-      themeColor: '#2563EB',
-      bgColor: '#EFF6FF',
-      accentColor: '#DBEAFE',
-      waveColor: 'rgba(37, 99, 235, 0.08)'
-    },
-    {
-      id: 'cluster-d',
-      name: 'Cluster D',
-      schoolsCount: 8,
-      studentsCount: 368,
-      themeColor: '#8B5CF6',
-      bgColor: '#F5F3FF',
-      accentColor: '#EDE9FE',
-      waveColor: 'rgba(139, 92, 246, 0.08)'
-    },
-    {
-      id: 'cluster-e',
-      name: 'Cluster E',
-      schoolsCount: 6,
-      studentsCount: 298,
-      themeColor: '#E11D48',
-      bgColor: '#FFF1F2',
-      accentColor: '#FFE4E6',
-      waveColor: 'rgba(225, 29, 72, 0.08)'
-    },
-    {
-      id: 'cluster-f',
-      name: 'Cluster F',
-      schoolsCount: 9,
-      studentsCount: 312,
-      themeColor: '#D97706',
-      bgColor: '#FFFBEB',
-      accentColor: '#FEF3C7',
-      waveColor: 'rgba(217, 119, 6, 0.08)'
+  // Fetch all backend data and poll every 5s for real-time sync with mobile app
+  const loadLiveStudentsData = async (silent = false) => {
+    try {
+      if (!silent) setLoadingData(true);
+      const [clustersRes, schoolsRes, studentsRes] = await Promise.all([
+        api.getClusters(),
+        api.getSchools(),
+        api.getStudents(),
+      ]);
+
+      if (Array.isArray(clustersRes)) {
+        setRawClusters(clustersRes);
+        setSelectedClusterId(prev => prev || (clustersRes.length > 0 ? clustersRes[0].id : ''));
+      }
+      if (Array.isArray(schoolsRes)) {
+        setRawSchools(schoolsRes);
+        setSelectedSchoolId(prev => prev || (schoolsRes.length > 0 ? schoolsRes[0].id : ''));
+      }
+      if (Array.isArray(studentsRes)) {
+        setRawStudents(studentsRes);
+        setSelectedStudentId(prev => prev || (studentsRes.length > 0 ? studentsRes[0].id : ''));
+      }
+    } catch (err) {
+      console.warn('Real-time Students Sync notice:', err);
+    } finally {
+      if (!silent) setLoadingData(false);
     }
-  ]);
-
-  // Schools mapping by cluster
-  const schoolsByCluster = {
-    'cluster-a': [
-      { id: 'greenwood', name: 'Greenwood Public School', students: 126, assessed: 98, pending: 28, pct: 78, barColor: '#10B981', iconColor: '#EA580C', iconBg: '#FFF7ED' },
-      { id: 'oakridge', name: 'Oakridge Academy', students: 98, assessed: 76, pending: 22, pct: 78, barColor: '#3B82F6', iconColor: '#2563EB', iconBg: '#EFF6FF' },
-      { id: 'stjude', name: 'St. Jude High School', students: 74, assessed: 52, pending: 22, pct: 70, barColor: '#F59E0B', iconColor: '#059669', iconBg: '#ECFDF5' },
-      { id: 'riverside', name: 'Riverside International', students: 68, assessed: 61, pending: 7, pct: 90, barColor: '#10B981', iconColor: '#8B5CF6', iconBg: '#F5F3FF' },
-      { id: 'sunrise', name: 'Sunrise Public School', students: 42, assessed: 30, pending: 12, pct: 71, barColor: '#F59E0B', iconColor: '#EA580C', iconBg: '#FFF7ED' },
-      { id: 'maplewood', name: 'Maplewood High School', students: 38, assessed: 25, pending: 13, pct: 66, barColor: '#F59E0B', iconColor: '#059669', iconBg: '#ECFDF5' },
-      { id: 'hillview', name: 'Hillview School', students: 28, assessed: 20, pending: 8, pct: 71, barColor: '#F59E0B', iconColor: '#2563EB', iconBg: '#EFF6FF' },
-      { id: 'lakeside', name: 'Lakeside Public School', students: 12, assessed: 10, pending: 2, pct: 83, barColor: '#10B981', iconColor: '#8B5CF6', iconBg: '#F5F3FF' },
-    ],
-    'cluster-b': [
-      { id: 'pinehill', name: 'Pinehill Academy', students: 110, assessed: 88, pending: 22, pct: 80, barColor: '#10B981', iconColor: '#059669', iconBg: '#ECFDF5' },
-      { id: 'cedar', name: 'Cedar High School', students: 94, assessed: 70, pending: 24, pct: 74, barColor: '#3B82F6', iconColor: '#2563EB', iconBg: '#EFF6FF' },
-    ]
   };
 
-  // Students Data for Greenwood Public School (matching Image 3)
-  const [studentsData, setStudentsData] = useState([
-    { sno: 1, id: 'GW001', idCode: '1042', name: 'Aarav Sharma', gender: 'Male', classVal: '3', section: 'A', dob: '15/05/2019', dobFormatted: '15 May 2019', latestAssessment: '12 Sep 2026', healthStatus: 'Healthy', currentStatus: 'Normal' },
-    { sno: 2, id: 'GW002', idCode: '1043', name: 'Diya Patel', gender: 'Female', classVal: '4', section: 'B', dob: '20/08/2018', dobFormatted: '20 Aug 2018', latestAssessment: '10 Sep 2026', healthStatus: 'Needs Attention', currentStatus: 'Needs Attention' },
-    { sno: 3, id: 'GW003', idCode: '1044', name: 'Rohan Kumar', gender: 'Male', classVal: '2', section: 'C', dob: '10/02/2020', dobFormatted: '10 Feb 2020', latestAssessment: '08 Sep 2026', healthStatus: 'Healthy', currentStatus: 'Normal' },
-    { sno: 4, id: 'GW004', idCode: '1045', name: 'Sneha Reddy', gender: 'Female', classVal: '3', section: 'A', dob: '11/06/2019', dobFormatted: '11 Jun 2019', latestAssessment: '14 Sep 2026', healthStatus: 'Under Observation', currentStatus: 'Under Observation' },
-    { sno: 5, id: 'GW005', idCode: '1046', name: 'Aditya Menon', gender: 'Male', classVal: '5', section: 'B', dob: '02/03/2017', dobFormatted: '02 Mar 2017', latestAssessment: '09 Sep 2026', healthStatus: 'Healthy', currentStatus: 'Normal' },
-    { sno: 6, id: 'GW006', idCode: '1047', name: 'Ishita Singh', gender: 'Female', classVal: '1', section: 'A', dob: '25/11/2020', dobFormatted: '25 Nov 2020', latestAssessment: '13 Sep 2026', healthStatus: 'Healthy', currentStatus: 'Normal' },
-    { sno: 7, id: 'GW007', idCode: '1048', name: 'Kabir Khan', gender: 'Male', classVal: '4', section: 'C', dob: '17/07/2018', dobFormatted: '17 Jul 2018', latestAssessment: '11 Sep 2026', healthStatus: 'Needs Attention', currentStatus: 'Needs Attention' },
-    { sno: 8, id: 'GW008', idCode: '1049', name: 'Ananya Iyer', gender: 'Female', classVal: '3', section: 'B', dob: '28/09/2019', dobFormatted: '28 Sep 2019', latestAssessment: '12 Sep 2026', healthStatus: 'Healthy', currentStatus: 'Normal' },
-    { sno: 9, id: 'GW009', idCode: '1050', name: 'Vihaan Gupta', gender: 'Male', classVal: '2', section: 'A', dob: '05/01/2020', dobFormatted: '05 Jan 2020', latestAssessment: '07 Sep 2026', healthStatus: 'Under Observation', currentStatus: 'Under Observation' },
-    { sno: 10, id: 'GW010', idCode: '1051', name: 'Meera Nair', gender: 'Female', classVal: '5', section: 'C', dob: '21/04/2017', dobFormatted: '21 Apr 2017', latestAssessment: '14 Sep 2026', healthStatus: 'Healthy', currentStatus: 'Normal' },
-  ]);
+  useEffect(() => {
+    loadLiveStudentsData();
+    const timer = setInterval(() => {
+      loadLiveStudentsData(true);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Formatted Clusters
+  const clustersData = useMemo(() => {
+    if (rawClusters.length === 0) return [];
+    return rawClusters.map((c, i) => {
+      const palette = THEME_PALETTES[i % THEME_PALETTES.length];
+      const clusterSchools = rawSchools.filter(s => s.cluster_id === c.id || s.cluster_name?.toLowerCase() === c.name?.toLowerCase());
+      const clusterStudents = rawStudents.filter(st => st.cluster_name?.toLowerCase() === c.name?.toLowerCase() || clusterSchools.some(sc => sc.id === st.school_id));
+      return {
+        id: c.id,
+        name: c.name,
+        schoolsCount: clusterSchools.length || c.schools_count || 0,
+        studentsCount: clusterStudents.length || c.students_count || 0,
+        coverage: c.coverage_percentage || 0,
+        ...palette
+      };
+    });
+  }, [rawClusters, rawSchools, rawStudents]);
 
   // Selected Entities
-  const activeCluster = clustersData.find(c => c.id === selectedClusterId) || clustersData[0];
-  const schoolsList = schoolsByCluster[selectedClusterId] || schoolsByCluster['cluster-a'];
-  const activeSchool = schoolsList.find(s => s.id === selectedSchoolId) || schoolsList[0];
-  const activeStudent = studentsData.find(s => s.id === selectedStudentId) || studentsData[0];
+  const activeCluster = clustersData.find(c => c.id === selectedClusterId) || clustersData[0] || { name: 'Cluster', id: '' };
 
-  // Assessment monthly records for Aarav Sharma (matching Image 5)
-  const assessmentHistory = [
-    { month: 'November 2026', date: '12 Nov 2026', height: 131.2, weight: 24.1, bmi: 14.0, classification: 'Normal' },
-    { month: 'October 2026', date: '10 Oct 2026', height: 129.8, weight: 23.4, bmi: 13.9, classification: 'Normal' },
-    { month: 'September 2026', date: '12 Sep 2026', height: 128.5, weight: 22.3, bmi: 13.5, classification: 'Normal' },
-    { month: 'August 2026', date: '14 Aug 2026', height: 126.1, weight: 21.0, bmi: 13.2, classification: 'Normal' },
-    { month: 'July 2026', date: '12 Jul 2026', height: 124.3, weight: 20.1, bmi: 13.0, classification: 'Normal' },
-    { month: 'June 2026', date: '10 Jun 2026', height: 122.0, weight: 19.2, bmi: 12.9, classification: 'Normal' },
-  ];
+  // Schools mapping by cluster
+  const schoolsList = useMemo(() => {
+    const clusterSchools = rawSchools.filter(s => 
+      selectedClusterId ? (s.cluster_id === selectedClusterId || s.cluster_name?.toLowerCase() === activeCluster?.name?.toLowerCase()) : true
+    );
+    return clusterSchools.map((s, idx) => {
+      const studentsInSchool = rawStudents.filter(st => st.school_id === s.id || st.school_name === s.name);
+      const studentCount = studentsInSchool.length || s.students_count || 0;
+      const assessedCount = studentsInSchool.filter(st => (st.assessments && st.assessments.length > 0) || st.latest_assessment_date).length;
+      const pct = studentCount > 0 ? Math.round((assessedCount / studentCount) * 100) : (s.coverage_percentage || 0);
+      return {
+        id: s.id,
+        name: s.name,
+        students: studentCount,
+        assessed: assessedCount,
+        pending: Math.max(0, studentCount - assessedCount),
+        pct: pct,
+        barColor: pct >= 80 ? '#10B981' : pct >= 50 ? '#3B82F6' : '#F59E0B',
+        iconColor: idx % 2 === 0 ? '#EA580C' : '#2563EB',
+        iconBg: idx % 2 === 0 ? '#FFF7ED' : '#EFF6FF'
+      };
+    });
+  }, [rawSchools, rawStudents, selectedClusterId, activeCluster]);
+
+  const activeSchool = schoolsList.find(s => s.id === selectedSchoolId) || schoolsList[0] || { name: 'School', id: '' };
+
+  // Students Data for selected school
+  const studentsData = useMemo(() => {
+    const filtered = rawStudents.filter(s => 
+      selectedSchoolId ? (s.school_id === selectedSchoolId || s.school_name === activeSchool?.name) : true
+    );
+    return filtered.map((s, idx) => {
+      const hasAssessments = Array.isArray(s.assessments) && s.assessments.length > 0;
+      const latestA = hasAssessments ? s.assessments[0] : null;
+      const assessDate = s.latest_assessment_date || latestA?.assessment_date || 'Pending';
+      const healthStatus = s.is_follow_up_required ? 'Needs Attention' : (s.nutrition_status?.toLowerCase().includes('normal') ? 'Healthy' : 'Under Observation');
+
+      // Real-time classification strictly from database
+      const rawStatus = s.nutrition_status || latestA?.nutrition_status || null;
+      const rawZ = typeof s.latest_bmi_for_age_zscore === 'number' 
+        ? s.latest_bmi_for_age_zscore 
+        : (typeof latestA?.bmi_for_age_zscore === 'number' ? latestA.bmi_for_age_zscore : null);
+
+      const currentStatus = rawStatus || (s.is_follow_up_required ? 'Follow-up Required' : 'Pending Assessment');
+      const bmiZ = typeof rawZ === 'number' ? rawZ : null;
+      const heightZ = typeof s.latest_height_for_age_zscore === 'number' ? s.latest_height_for_age_zscore : (typeof latestA?.height_for_age_zscore === 'number' ? latestA.height_for_age_zscore : null);
+      const weightZ = typeof s.latest_weight_for_age_zscore === 'number' ? s.latest_weight_for_age_zscore : (typeof latestA?.weight_for_age_zscore === 'number' ? latestA.weight_for_age_zscore : null);
+
+      const statusLower = (currentStatus || '').toLowerCase();
+      const isSeverelyWasted = statusLower.includes('severely wasted') || statusLower.includes('severe thinness') || (typeof bmiZ === 'number' && bmiZ < -3.0);
+      const isWasted = !isSeverelyWasted && (statusLower.includes('wasted') || statusLower.includes('thinness') || (typeof bmiZ === 'number' && bmiZ < -2.0));
+      const isCritical = isSeverelyWasted || isWasted;
+
+      // Real-time Upcoming Monthly Assessment Schedule (based strictly on real last assessment date)
+      let nextDueFormatted = 'Pending Assessment';
+      let dueStatus = 'Pending Screening';
+      let dueBadgeColor = '#64748B';
+      let dueBadgeBg = '#F1F5F9';
+
+      const validLastDate = assessDate && assessDate !== 'Pending' && assessDate !== 'None' ? new Date(assessDate) : null;
+      if (validLastDate && !isNaN(validLastDate.getTime())) {
+        const nextDueDate = new Date(validLastDate);
+        nextDueDate.setDate(nextDueDate.getDate() + 30); // Monthly follow-up 30 days after last screening
+        nextDueFormatted = nextDueDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        
+        const today = new Date();
+        const diffMs = nextDueDate.getTime() - today.getTime();
+        const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+          dueStatus = `Overdue (${Math.abs(diffDays)}d)`;
+          dueBadgeColor = '#DC2626';
+          dueBadgeBg = '#FEE2E2';
+        } else if (diffDays <= 7) {
+          dueStatus = `Due in ${diffDays} days`;
+          dueBadgeColor = '#DC2626';
+          dueBadgeBg = '#FEE2E2';
+        } else if (nextDueDate.getMonth() === today.getMonth() && nextDueDate.getFullYear() === today.getFullYear()) {
+          dueStatus = 'Due This Month';
+          dueBadgeColor = '#EA580C';
+          dueBadgeBg = '#FFEDD5';
+        } else {
+          dueStatus = 'Due Next Month';
+          dueBadgeColor = '#2563EB';
+          dueBadgeBg = '#EFF6FF';
+        }
+      }
+
+      return {
+        sno: idx + 1,
+        id: s.id,
+        idCode: s.id,
+        name: s.name,
+        gender: s.gender || 'Unknown',
+        classVal: s.class_name ? String(s.class_name).replace(/class\s*/i, '').trim() : '1',
+        section: s.section ? String(s.section).replace(/section\s*/i, '').trim() : 'A',
+        dob: s.dob || '2019-01-01',
+        dobFormatted: s.dob ? new Date(s.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
+        latestAssessment: assessDate,
+        healthStatus: healthStatus,
+        currentStatus: currentStatus,
+        isSeverelyWasted: isSeverelyWasted,
+        isWasted: isWasted,
+        isCritical: isCritical,
+        nextDueDateFormatted: nextDueFormatted,
+        dueStatus: dueStatus,
+        dueBadgeColor: dueBadgeColor,
+        dueBadgeBg: dueBadgeBg,
+        height: s.height_cm || latestA?.height_cm || 0,
+        weight: s.weight_kg || latestA?.weight_kg || 0,
+        bmi: s.bmi || latestA?.bmi || 0,
+        bmiZScore: bmiZ,
+        heightZScore: heightZ,
+        weightZScore: weightZ,
+        ageDisplay: s.age_string || s.latest_age_display || '',
+        raw: s
+      };
+    });
+  }, [rawStudents, selectedSchoolId, activeSchool]);
+
+  // Critical follow-up students (Severely Wasted & Wasted)
+  const criticalStudents = useMemo(() => {
+    return studentsData.filter(s => s.isCritical);
+  }, [studentsData]);
+
+  // Filtered Critical Students for Priority Tracking Tab
+  const filteredCriticalStudents = useMemo(() => {
+    return criticalStudents.filter(s => {
+      if (studentSearch) {
+        const q = studentSearch.toLowerCase();
+        const match = s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      if (classFilter !== 'All Classes' && s.classVal !== classFilter.replace('Class ', '')) return false;
+      if (sectionFilter !== 'All Sections' && s.section !== sectionFilter.replace('Section ', '')) return false;
+      if (genderFilter !== 'All Genders' && s.gender !== genderFilter) return false;
+
+      if (priorityCategoryFilter === 'SEVERELY_WASTED' && !s.isSeverelyWasted) return false;
+      if (priorityCategoryFilter === 'WASTED' && !s.isWasted) return false;
+
+      if (upcomingMonthFilter === 'THIS_MONTH' && !s.dueStatus?.toLowerCase().includes('this month') && !s.dueStatus?.toLowerCase().includes('days')) return false;
+      if (upcomingMonthFilter === 'NEXT_MONTH' && !s.dueStatus?.toLowerCase().includes('next month')) return false;
+      if (upcomingMonthFilter === 'OVERDUE' && !s.dueStatus?.toLowerCase().includes('overdue')) return false;
+
+      return true;
+    });
+  }, [criticalStudents, studentSearch, classFilter, sectionFilter, genderFilter, priorityCategoryFilter, upcomingMonthFilter]);
+
+  const activeStudent = studentsData.find(s => s.id === selectedStudentId) || studentsData[0] || {
+    id: '',
+    idCode: '',
+    name: 'Student',
+    gender: 'Unknown',
+    classVal: '1',
+    section: 'A',
+    dobFormatted: '-',
+    latestAssessment: 'None',
+    healthStatus: 'Normal',
+    currentStatus: 'Normal',
+    height: 0,
+    weight: 0,
+    bmi: 0,
+    bmiZScore: 0,
+    heightZScore: 0,
+    weightZScore: 0,
+  };
+
+  // Assessment monthly records from active student
+  const assessmentHistory = useMemo(() => {
+    if (!activeStudent?.raw?.assessments || activeStudent.raw.assessments.length === 0) {
+      if (activeStudent.height > 0 && activeStudent.weight > 0) {
+        return [{
+          month: 'Current Screening',
+          date: activeStudent.latestAssessment || 'Today',
+          height: activeStudent.height,
+          weight: activeStudent.weight,
+          bmi: activeStudent.bmi,
+          classification: activeStudent.currentStatus || 'Normal'
+        }];
+      }
+      return [];
+    }
+    return activeStudent.raw.assessments.map(a => {
+      const dt = new Date(a.assessment_date || a.created_at || Date.now());
+      return {
+        month: dt.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+        date: dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        height: a.height_cm,
+        weight: a.weight_kg,
+        bmi: a.bmi,
+        classification: a.nutrition_status || a.bmi_for_age_classification || 'Normal'
+      };
+    });
+  }, [activeStudent]);
 
   // Dynamic Filtering for Clusters
   const filteredClusters = clustersData.filter(c =>
@@ -847,39 +1020,74 @@ export default function StudentsManagementView() {
                         </div>
                       </td>
                       <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedSchoolId(item.id);
-                            setViewLevel('students');
-                          }}
-                          style={{
-                            backgroundColor: '#FFFFFF',
-                            color: '#0F172A',
-                            border: '1.5px solid #CBD5E1',
-                            borderRadius: '6px',
-                            padding: '6px 14px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '5px',
-                            transition: 'all 0.15s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = '#EA580C';
-                            e.currentTarget.style.color = '#EA580C';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = '#CBD5E1';
-                            e.currentTarget.style.color = '#0F172A';
-                          }}
-                        >
-                          <span>View</span>
-                          <ArrowRight size={13} />
-                        </button>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setModalSchool(item);
+                              setShowSchoolGrowthModal(true);
+                            }}
+                            style={{
+                              backgroundColor: '#EFF6FF',
+                              color: '#2563EB',
+                              border: '1px solid #BFDBFE',
+                              borderRadius: '6px',
+                              padding: '6px 11px',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title="Download School Growth Report (PDF)"
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#DBEAFE';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#EFF6FF';
+                            }}
+                          >
+                            <FileText size={13} color="#2563EB" />
+                            <span>Growth Report</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedSchoolId(item.id);
+                              setViewLevel('students');
+                            }}
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              color: '#0F172A',
+                              border: '1.5px solid #CBD5E1',
+                              borderRadius: '6px',
+                              padding: '6px 14px',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.borderColor = '#EA580C';
+                              e.currentTarget.style.color = '#EA580C';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.borderColor = '#CBD5E1';
+                              e.currentTarget.style.color = '#0F172A';
+                            }}
+                          >
+                            <span>View</span>
+                            <ArrowRight size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -895,391 +1103,787 @@ export default function StudentsManagementView() {
       {/* ========================================================================= */}
       {viewLevel === 'students' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', width: '100%' }}>
-          {/* Header row with Title and Right Summary Card */}
+          {/* Header row with Title and Right Summary Card & PDF Button */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
             <div>
               <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.15 }}>
                 {activeSchool.name}
               </h1>
               <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0' }}>
-                {activeSchool.students} Students
+                {activeSchool.students} Enrolled Students • Health & Growth Surveillance
               </p>
             </div>
 
-            {/* Total Students Card on Right */}
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1px solid #ECEEF2',
-                padding: '12px 18px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-              }}
-            >
+            {/* Actions & Summary on Right */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {/* School Growth Report (PDF) Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setModalSchool(activeSchool);
+                  setShowSchoolGrowthModal(true);
+                }}
+                style={{
+                  backgroundColor: '#1E293B',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '11px 18px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(15, 23, 42, 0.15)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Download complete School Growth & Nutrition Report (PDF)"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0F172A'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1E293B'}
+              >
+                <FileText size={16} color="#38BDF8" />
+                <span>School Growth Report (PDF)</span>
+              </button>
+
+              {/* Total Students Card on Right */}
               <div
                 style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '10px',
-                  backgroundColor: '#FFF7ED',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '12px',
+                  border: '1px solid #ECEEF2',
+                  padding: '10px 16px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
+                  gap: '12px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                 }}
               >
-                <Users size={22} color="#EA580C" />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Total Students</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
-                  {activeSchool.students}
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    backgroundColor: '#FFF7ED',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  <Users size={20} color="#EA580C" />
                 </div>
-                <div style={{ fontSize: '11px', color: '#64748B' }}>Students in this school</div>
+                <div>
+                  <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Total Students</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
+                    {activeSchool.students}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#64748B' }}>In this school</div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Filter Bar Card */}
+          {/* Sub-Tabs: All Students vs Priority Tracking (Severely Wasted & Wasted) */}
           <div
             style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #ECEEF2',
-              padding: '14px 18px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
               display: 'flex',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '12px'
+              gap: '8px',
+              borderBottom: '1px solid #E2E8F0',
+              paddingBottom: '2px',
+              marginTop: '4px'
             }}
           >
-            {/* Search Input */}
-            <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : '200px' }}>
-              <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                value={studentSearch}
-                onChange={(e) => setStudentSearch(e.target.value)}
-                placeholder="Student name / ID"
-                style={{
-                  width: '100%',
-                  padding: '7px 10px 7px 32px',
-                  borderRadius: '8px',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '12px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-            </div>
-
-            {/* Class Filter */}
-            <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              style={{
-                padding: '7px 10px',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                fontSize: '12px',
-                color: '#0F172A',
-                backgroundColor: '#FFFFFF',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="All Classes">All Classes</option>
-              <option value="Class 1">Class 1</option>
-              <option value="Class 2">Class 2</option>
-              <option value="Class 3">Class 3</option>
-              <option value="Class 4">Class 4</option>
-              <option value="Class 5">Class 5</option>
-            </select>
-
-            {/* Section Filter */}
-            <select
-              value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value)}
-              style={{
-                padding: '7px 10px',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                fontSize: '12px',
-                color: '#0F172A',
-                backgroundColor: '#FFFFFF',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="All Sections">All Sections</option>
-              <option value="Section A">Section A</option>
-              <option value="Section B">Section B</option>
-              <option value="Section C">Section C</option>
-            </select>
-
-            {/* Gender Filter */}
-            <select
-              value={genderFilter}
-              onChange={(e) => setGenderFilter(e.target.value)}
-              style={{
-                padding: '7px 10px',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                fontSize: '12px',
-                color: '#0F172A',
-                backgroundColor: '#FFFFFF',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="All Genders">All Genders</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-
-            {/* Health Status Filter */}
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{
-                padding: '7px 10px',
-                borderRadius: '8px',
-                border: '1px solid #CBD5E1',
-                fontSize: '12px',
-                color: '#0F172A',
-                backgroundColor: '#FFFFFF',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-            >
-              <option value="All Status">All Status</option>
-              <option value="Healthy">Healthy</option>
-              <option value="Needs Attention">Needs Attention</option>
-              <option value="Under Observation">Under Observation</option>
-            </select>
-
-            {/* Clear Filters */}
             <button
               type="button"
-              onClick={handleClearStudentFilters}
+              onClick={() => setStudentViewTab('all')}
               style={{
-                backgroundColor: '#FFFFFF',
-                color: '#475569',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                padding: '7px 14px',
-                fontSize: '12px',
-                fontWeight: 600,
+                padding: '9px 18px',
+                border: 'none',
+                background: 'none',
+                fontSize: '13.5px',
+                fontWeight: studentViewTab === 'all' ? 700 : 500,
+                color: studentViewTab === 'all' ? '#EB5A1D' : '#64748B',
+                borderBottom: studentViewTab === 'all' ? '2.5px solid #EB5A1D' : '2.5px solid transparent',
+                cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
-                cursor: 'pointer'
+                gap: '8px',
+                transition: 'all 0.15s ease'
               }}
             >
-              <RotateCcw size={13} />
-              <span>Clear Filters</span>
+              <Users size={16} />
+              <span>All Students ({studentsData.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStudentViewTab('priority')}
+              style={{
+                padding: '9px 18px',
+                border: 'none',
+                background: 'none',
+                fontSize: '13.5px',
+                fontWeight: studentViewTab === 'priority' ? 700 : 500,
+                color: studentViewTab === 'priority' ? '#DC2626' : '#64748B',
+                borderBottom: studentViewTab === 'priority' ? '2.5px solid #DC2626' : '2.5px solid transparent',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <AlertTriangle size={16} color="#DC2626" />
+              <span>Priority Tracking: Wasted & Severely Wasted</span>
+              <span
+                style={{
+                  backgroundColor: '#FEE2E2',
+                  color: '#DC2626',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: '10px'
+                }}
+              >
+                {criticalStudents.length}
+              </span>
             </button>
           </div>
 
-          {/* Students Table Card */}
-          <div
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #ECEEF2',
-              padding: '18px 20px',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '14px', gap: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#64748B' }}>
-                Showing 1–{filteredStudents.length} of 126 students
+          {/* ================= VIEW TAB 1: PRIORITY TRACKING ================= */}
+          {studentViewTab === 'priority' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+              {/* KPI Summary Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: '12px' }}>
+                {/* Total Priority */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Priority Cases</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>{criticalStudents.length}</div>
+                    <div style={{ fontSize: '10.5px', color: '#64748B' }}>Requiring follow-up</div>
+                  </div>
+                </div>
+
+                {/* Severely Wasted */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1.5px solid #FECACA', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
+                    <Activity size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#B91C1C', fontWeight: 700 }}>Severely Wasted</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#DC2626', lineHeight: 1.1 }}>
+                      {criticalStudents.filter(s => s.isSeverelyWasted).length}
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: '#991B1B' }}>Z-Score &lt; -3.0 SD (Critical)</div>
+                  </div>
+                </div>
+
+                {/* Wasted */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1.5px solid #FED7AA', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C', flexShrink: 0 }}>
+                    <Scale size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#C2410C', fontWeight: 700 }}>Wasted (Moderate)</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#EA580C', lineHeight: 1.1 }}>
+                      {criticalStudents.filter(s => s.isWasted).length}
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: '#9A3412' }}>Z-Score &lt; -2.0 SD (Moderate)</div>
+                  </div>
+                </div>
+
+                {/* Upcoming This Month */}
+                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', flexShrink: 0 }}>
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#1E40AF', fontWeight: 600 }}>Due This Month</div>
+                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#1E40AF', lineHeight: 1.1 }}>
+                      {criticalStudents.filter(s => s.dueStatus?.includes('Due in') || s.dueStatus?.includes('This Month')).length}
+                    </div>
+                    <div style={{ fontSize: '10.5px', color: '#64748B' }}>October 2026 Assessment</div>
+                  </div>
+                </div>
               </div>
-              <select
+
+              {/* Filter Bar for Priority Students */}
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', padding: '14px 18px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                {/* Search Input */}
+                <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : '200px' }}>
+                  <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="Search by student name or ID..."
+                    style={{ width: '100%', padding: '7px 10px 7px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                {/* Category Filter */}
+                <select
+                  value={priorityCategoryFilter}
+                  onChange={(e) => setPriorityCategoryFilter(e.target.value)}
+                  style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', color: '#0F172A', backgroundColor: '#FFFFFF', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Priority Categories</option>
+                  <option value="SEVERELY_WASTED">🔴 Severely Wasted Only</option>
+                  <option value="WASTED">🟠 Wasted (Moderate) Only</option>
+                </select>
+
+                {/* Class Filter */}
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', color: '#0F172A', backgroundColor: '#FFFFFF', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="All Classes">All Classes</option>
+                  <option value="Class 1">Class 1</option>
+                  <option value="Class 2">Class 2</option>
+                  <option value="Class 3">Class 3</option>
+                  <option value="Class 4">Class 4</option>
+                  <option value="Class 5">Class 5</option>
+                </select>
+
+                {/* Upcoming Month Filter */}
+                <select
+                  value={upcomingMonthFilter}
+                  onChange={(e) => setUpcomingMonthFilter(e.target.value)}
+                  style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', color: '#0F172A', backgroundColor: '#FFFFFF', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="ALL">All Upcoming Assessments</option>
+                  <option value="THIS_MONTH">Due This Month (October 2026)</option>
+                  <option value="NEXT_MONTH">Due Next Month (November 2026)</option>
+                </select>
+
+                {/* Clear Filters */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentSearch('');
+                    setClassFilter('All Classes');
+                    setSectionFilter('All Sections');
+                    setGenderFilter('All Genders');
+                    setPriorityCategoryFilter('ALL');
+                    setUpcomingMonthFilter('ALL');
+                  }}
+                  style={{ backgroundColor: '#FFFFFF', color: '#475569', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
+                >
+                  <RotateCcw size={13} />
+                  <span>Clear Filters</span>
+                </button>
+              </div>
+
+              {/* Table of Priority Tracking Students */}
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', padding: '18px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                      Critical Nutrition Surveillance Roster
+                    </h3>
+                    <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
+                      Showing {filteredCriticalStudents.length} students requiring upcoming monthly assessment
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '920px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#FEF2F2', borderBottom: '1px solid #FECACA' }}>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', width: '45px' }}>#</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Student ID</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Student Name</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Grade-Sec</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Gender</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Status</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>BMI (kg/m²)</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Z-Score</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Last Assessed</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Next Assessment Due</th>
+                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', textAlign: 'center' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCriticalStudents.length > 0 ? (
+                        filteredCriticalStudents.map((item, idx) => (
+                          <tr
+                            key={item.id}
+                            style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: item.isSeverelyWasted ? '#FFFBFB' : '#FFFFFF', transition: 'background-color 0.15s ease' }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = item.isSeverelyWasted ? '#FFFBFB' : '#FFFFFF'}
+                          >
+                            <td style={{ padding: '10px 12px', fontSize: '12px', color: '#64748B' }}>{idx + 1}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 600, color: '#0F172A' }}>{item.id}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>{item.name}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '12px', color: '#475569' }}>Class {item.classVal}-{item.section}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '11.5px', color: '#475569' }}>{item.gender}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '11.5px' }}>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 8px',
+                                borderRadius: '12px',
+                                fontWeight: 700,
+                                backgroundColor: item.isSeverelyWasted ? '#FEE2E2' : '#FFEDD5',
+                                color: item.isSeverelyWasted ? '#DC2626' : '#EA580C',
+                                border: `1px solid ${item.isSeverelyWasted ? '#FECACA' : '#FED7AA'}`
+                              }}>
+                                {item.isSeverelyWasted ? '🔴 Severely Wasted' : '🟠 Wasted'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>{item.bmi ? item.bmi : '—'}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 700, color: item.isSeverelyWasted ? '#DC2626' : '#EA580C' }}>
+                              {typeof item.bmiZScore === 'number' ? `${item.bmiZScore.toFixed(2)} SD` : '—'}
+                            </td>
+                            <td style={{ padding: '10px 12px', fontSize: '11.5px', color: '#64748B' }}>{item.latestAssessment}</td>
+                            <td style={{ padding: '10px 12px', fontSize: '11.5px' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{
+                                  display: 'inline-block',
+                                  padding: '2px 8px',
+                                  borderRadius: '10px',
+                                  fontWeight: 600,
+                                  fontSize: '11px',
+                                  backgroundColor: item.dueBadgeBg,
+                                  color: item.dueBadgeColor
+                                }}>
+                                  {item.dueStatus}
+                                </span>
+                                <span style={{ color: '#64748B', fontSize: '10.5px' }}>({item.nextDueDateFormatted})</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setModalStudent(item);
+                                    setShowStudentGrowthModal(true);
+                                  }}
+                                  style={{
+                                    backgroundColor: '#EB5A1D',
+                                    color: '#FFFFFF',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    padding: '5px 10px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    cursor: 'pointer',
+                                    boxShadow: '0 1px 3px rgba(235, 90, 29, 0.2)'
+                                  }}
+                                  title="Download WHO Growth Chart (PDF)"
+                                >
+                                  <FileText size={12} />
+                                  <span>Growth Chart PDF</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedStudentId(item.id);
+                                    setViewLevel('health_history');
+                                  }}
+                                  style={{
+                                    backgroundColor: '#FFFFFF',
+                                    color: '#0F172A',
+                                    border: '1px solid #CBD5E1',
+                                    borderRadius: '6px',
+                                    padding: '5px 8px',
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="View Health History & Trends"
+                                >
+                                  <Eye size={12} />
+                                  <span>Health</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="11" style={{ textAlign: 'center', padding: '28px', color: '#64748B' }}>
+                            No students matching the selected priority filter criteria.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* ================= VIEW TAB 2: ALL STUDENTS ================= */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
+              {/* Filter Bar Card */}
+              <div
                 style={{
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  border: '1px solid #CBD5E1',
-                  fontSize: '12px',
-                  color: '#0F172A',
                   backgroundColor: '#FFFFFF',
-                  outline: 'none',
-                  cursor: 'pointer'
+                  borderRadius: '12px',
+                  border: '1px solid #ECEEF2',
+                  padding: '14px 18px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px'
                 }}
               >
-                <option>10 per page</option>
-                <option>25 per page</option>
-                <option>50 per page</option>
-              </select>
-            </div>
+                {/* Search Input */}
+                <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : '200px' }}>
+                  <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="Student name / ID"
+                    style={{
+                      width: '100%',
+                      padding: '7px 10px 7px 32px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
 
-            {/* Table */}
-            <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '50px' }}>S.No</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student ID ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student Name</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Gender</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Class ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Section ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>DOB ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Latest Assessment ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Health Status ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStudents.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => {
-                        setSelectedStudentId(item.id);
-                        setViewLevel('student_details');
-                      }}
-                      style={{
-                        borderBottom: '1px solid #F1F5F9',
-                        transition: 'background-color 0.15s ease',
-                        cursor: 'pointer'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#64748B' }}>{item.sno}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 600, color: '#0F172A' }}>{item.id}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.name}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12px' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '2px 10px',
-                            borderRadius: '12px',
-                            fontWeight: 600,
-                            backgroundColor: item.gender === 'Male' ? '#E0F2FE' : '#FCE7F3',
-                            color: item.gender === 'Male' ? '#0284C7' : '#DB2777'
-                          }}
-                        >
-                          {item.gender}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.classVal}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.section}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.dob}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.latestAssessment}</td>
-                      <td style={{ padding: '10px 14px', fontSize: '12px' }}>
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '3px 10px',
-                            borderRadius: '12px',
-                            fontWeight: 600,
-                            backgroundColor:
-                              item.healthStatus === 'Healthy'
-                                ? '#DCFCE7'
-                                : item.healthStatus === 'Needs Attention'
-                                ? '#FEF3C7'
-                                : '#FEE2E2',
-                            color:
-                              item.healthStatus === 'Healthy'
-                                ? '#15803D'
-                                : item.healthStatus === 'Needs Attention'
-                                ? '#B45309'
-                                : '#B91C1C'
-                          }}
-                        >
-                          {item.healthStatus}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                {/* Class Filter */}
+                <select
+                  value={classFilter}
+                  onChange={(e) => setClassFilter(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: '#0F172A',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="All Classes">All Classes</option>
+                  <option value="Class 1">Class 1</option>
+                  <option value="Class 2">Class 2</option>
+                  <option value="Class 3">Class 3</option>
+                  <option value="Class 4">Class 4</option>
+                  <option value="Class 5">Class 5</option>
+                </select>
+
+                {/* Section Filter */}
+                <select
+                  value={sectionFilter}
+                  onChange={(e) => setSectionFilter(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: '#0F172A',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="All Sections">All Sections</option>
+                  <option value="Section A">Section A</option>
+                  <option value="Section B">Section B</option>
+                  <option value="Section C">Section C</option>
+                  <option value="Section D">Section D</option>
+                  <option value="Section E">Section E</option>
+                  <option value="Section F">Section F</option>
+                  <option value="Section G">Section G</option>
+                  <option value="Section H">Section H</option>
+                </select>
+
+                {/* Gender Filter */}
+                <select
+                  value={genderFilter}
+                  onChange={(e) => setGenderFilter(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: '#0F172A',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="All Genders">All Genders</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+
+                {/* Health Status Filter */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: '#0F172A',
+                    backgroundColor: '#FFFFFF',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="All Status">All Status</option>
+                  <option value="Healthy">Healthy</option>
+                  <option value="Needs Attention">Needs Attention</option>
+                  <option value="Under Observation">Under Observation</option>
+                </select>
+
+                {/* Clear Filters */}
+                <button
+                  type="button"
+                  onClick={handleClearStudentFilters}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    color: '#475569',
+                    border: '1px solid #CBD5E1',
+                    borderRadius: '8px',
+                    padding: '7px 14px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <RotateCcw size={13} />
+                  <span>Clear Filters</span>
+                </button>
+              </div>
+
+              {/* Students Table Card */}
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '12px',
+                  border: '1px solid #ECEEF2',
+                  padding: '18px 20px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '14px', gap: '12px' }}>
+                  <div style={{ fontSize: '12px', color: '#64748B' }}>
+                    Showing 1–{filteredStudents.length} of {studentsData.length} students
+                  </div>
+                  <select
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12px',
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option>10 per page</option>
+                    <option>25 per page</option>
+                    <option>50 per page</option>
+                  </select>
+                </div>
+
+                {/* Table */}
+                <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '50px' }}>S.No</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student ID ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student Name</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Gender</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Class ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Section ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>DOB ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Latest Assessment ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Health Status ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredStudents.map((item) => (
+                        <tr
+                          key={item.id}
+                          onClick={() => {
                             setSelectedStudentId(item.id);
                             setViewLevel('student_details');
                           }}
                           style={{
-                            backgroundColor: '#FFFFFF',
-                            color: '#0F172A',
-                            border: '1px solid #CBD5E1',
-                            borderRadius: '6px',
-                            padding: '4px 10px',
-                            fontSize: '11.5px',
-                            fontWeight: 600,
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px',
+                            borderBottom: '1px solid #F1F5F9',
+                            transition: 'background-color 0.15s ease',
                             cursor: 'pointer'
                           }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
-                          <Eye size={13} />
-                          <span>View</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#64748B' }}>{item.sno}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 600, color: '#0F172A' }}>{item.id}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.name}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12px' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '2px 10px',
+                                borderRadius: '12px',
+                                fontWeight: 600,
+                                backgroundColor: item.gender === 'Male' ? '#E0F2FE' : '#FCE7F3',
+                                color: item.gender === 'Male' ? '#0284C7' : '#DB2777'
+                              }}
+                            >
+                              {item.gender}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.classVal}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.section}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.dob}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.latestAssessment}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12px' }}>
+                            <span
+                              style={{
+                                display: 'inline-block',
+                                padding: '3px 10px',
+                                borderRadius: '12px',
+                                fontWeight: 600,
+                                backgroundColor:
+                                  item.healthStatus === 'Healthy'
+                                    ? '#DCFCE7'
+                                    : item.healthStatus === 'Needs Attention'
+                                    ? '#FEF3C7'
+                                    : '#FEE2E2',
+                                color:
+                                  item.healthStatus === 'Healthy'
+                                    ? '#15803D'
+                                    : item.healthStatus === 'Needs Attention'
+                                    ? '#B45309'
+                                    : '#B91C1C'
+                              }}
+                            >
+                              {item.healthStatus}
+                            </span>
+                          </td>
+                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setModalStudent(item);
+                                  setShowStudentGrowthModal(true);
+                                }}
+                                style={{
+                                  backgroundColor: '#F8FAFC',
+                                  color: '#0F172A',
+                                  border: '1px solid #CBD5E1',
+                                  borderRadius: '6px',
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer'
+                                }}
+                                title="Download Student Growth Chart (PDF)"
+                              >
+                                <FileText size={12} color="#2563EB" />
+                                <span>PDF</span>
+                              </button>
 
-            {/* Pagination Controls */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                &lt;
-              </button>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: '#EB5A1D', color: '#FFFFFF', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                1
-              </button>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                2
-              </button>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                3
-              </button>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                4
-              </button>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                5
-              </button>
-              <span style={{ fontSize: '12px', color: '#94A3B8' }}>...</span>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                13
-              </button>
-              <button
-                type="button"
-                style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-              >
-                &gt;
-              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedStudentId(item.id);
+                                  setViewLevel('student_details');
+                                }}
+                                style={{
+                                  backgroundColor: '#FFFFFF',
+                                  color: '#0F172A',
+                                  border: '1px solid #CBD5E1',
+                                  borderRadius: '6px',
+                                  padding: '4px 10px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 600,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Eye size={13} />
+                                <span>View</span>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
+                  <button
+                    type="button"
+                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    &lt;
+                  </button>
+                  <button
+                    type="button"
+                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: '#EB5A1D', color: '#FFFFFF', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    1
+                  </button>
+                  <button
+                    type="button"
+                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    2
+                  </button>
+                  <button
+                    type="button"
+                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    3
+                  </button>
+                  <span style={{ fontSize: '12px', color: '#94A3B8' }}>...</span>
+                  <button
+                    type="button"
+                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
+                  >
+                    &gt;
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -1310,7 +1914,7 @@ export default function StudentsManagementView() {
                   {activeStudent.name}
                 </h1>
                 <div style={{ fontSize: '13px', color: '#64748B', marginTop: '2px', fontWeight: 500 }}>
-                  Student ID: #{activeStudent.idCode || '1042'}
+                  Student ID: {activeStudent.id || activeStudent.idCode || 'N/A'}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '8px', flexWrap: 'wrap' }}>
@@ -1332,39 +1936,68 @@ export default function StudentsManagementView() {
               </div>
             </div>
 
-            {/* Current Status Box on Right */}
-            <div
-              style={{
-                backgroundColor: '#F0FDF4',
-                border: '1px solid #DCFCE7',
-                borderRadius: '12px',
-                padding: '14px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '14px'
-              }}
-            >
+            {/* Current Status Box & PDF Button on Right */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalStudent(activeStudent);
+                  setShowStudentGrowthModal(true);
+                }}
+                style={{
+                  backgroundColor: '#EB5A1D',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '10px',
+                  padding: '12px 18px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(235, 90, 29, 0.25)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Download official WHO Growth Chart PDF"
+              >
+                <FileText size={15} />
+                <span>Growth Chart (PDF)</span>
+              </button>
+
               <div
                 style={{
-                  width: '42px',
-                  height: '42px',
-                  borderRadius: '10px',
-                  backgroundColor: '#DCFCE7',
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #DCFCE7',
+                  borderRadius: '12px',
+                  padding: '14px 20px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#059669'
+                  gap: '14px'
                 }}
               >
-                <Activity size={24} />
-              </div>
-              <div>
-                <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Current Status</div>
-                <div style={{ fontSize: '18px', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
-                  {activeStudent.currentStatus || 'Normal'}
+                <div
+                  style={{
+                    width: '42px',
+                    height: '42px',
+                    borderRadius: '10px',
+                    backgroundColor: '#DCFCE7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#059669'
+                  }}
+                >
+                  <Activity size={24} />
                 </div>
-                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                  Based on latest assessment
+                <div>
+                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Current Status</div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
+                    {activeStudent.currentStatus || 'Normal'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                    Based on latest assessment
+                  </div>
                 </div>
               </div>
             </div>
@@ -1481,8 +2114,12 @@ export default function StudentsManagementView() {
                     <Ruler size={15} />
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748B' }}>Height</div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>128.5 cm</div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '10px' }}>Normal</span>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>
+                    {activeStudent.height ? `${activeStudent.height} cm` : '—'}
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: activeStudent.heightZScore < -2 ? '#FEE2E2' : '#DCFCE7', color: activeStudent.heightZScore < -2 ? '#DC2626' : '#15803D', padding: '2px 8px', borderRadius: '10px' }}>
+                    {activeStudent.height ? (activeStudent.heightZScore < -2 ? 'Stunted' : 'Normal') : 'Pending'}
+                  </span>
                 </div>
 
                 {/* Weight */}
@@ -1491,8 +2128,12 @@ export default function StudentsManagementView() {
                     <Scale size={15} />
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748B' }}>Weight</div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>22.3 kg</div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '10px' }}>Normal</span>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>
+                    {activeStudent.weight ? `${activeStudent.weight} kg` : '—'}
+                  </div>
+                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: activeStudent.weightZScore < -2 ? '#FFEDD5' : '#DCFCE7', color: activeStudent.weightZScore < -2 ? '#EA580C' : '#15803D', padding: '2px 8px', borderRadius: '10px' }}>
+                    {activeStudent.weight ? (activeStudent.weightZScore < -2 ? 'Underweight' : 'Normal') : 'Pending'}
+                  </span>
                 </div>
 
                 {/* BMI */}
@@ -1501,8 +2142,19 @@ export default function StudentsManagementView() {
                     <Gauge size={15} />
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748B' }}>BMI</div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>13.5</div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '10px' }}>Normal</span>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>
+                    {activeStudent.bmi ? activeStudent.bmi : '—'}
+                  </div>
+                  <span style={{ 
+                    fontSize: '10px', 
+                    fontWeight: 700, 
+                    backgroundColor: activeStudent.isSeverelyWasted ? '#FEE2E2' : activeStudent.isWasted ? '#FFEDD5' : '#DCFCE7', 
+                    color: activeStudent.isSeverelyWasted ? '#DC2626' : activeStudent.isWasted ? '#EA580C' : '#15803D', 
+                    padding: '2px 8px', 
+                    borderRadius: '10px' 
+                  }}>
+                    {activeStudent.bmi ? (activeStudent.isSeverelyWasted ? 'Sev. Wasted' : activeStudent.isWasted ? 'Wasted' : 'Normal') : 'Pending'}
+                  </span>
                 </div>
 
                 {/* Classification */}
@@ -1511,8 +2163,19 @@ export default function StudentsManagementView() {
                     <ShieldCheck size={15} />
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748B' }}>Classification</div>
-                  <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>Normal</div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 8px', borderRadius: '10px' }}>Healthy Range</span>
+                  <div style={{ fontSize: '15px', fontWeight: 800, color: activeStudent.isSeverelyWasted ? '#DC2626' : activeStudent.isWasted ? '#EA580C' : '#0F172A', margin: '2px 0 4px 0' }}>
+                    {activeStudent.currentStatus || 'Pending'}
+                  </div>
+                  <span style={{ 
+                    fontSize: '10px', 
+                    fontWeight: 700, 
+                    backgroundColor: activeStudent.isCritical ? '#FEE2E2' : '#DCFCE7', 
+                    color: activeStudent.isCritical ? '#DC2626' : '#15803D', 
+                    padding: '2px 8px', 
+                    borderRadius: '10px' 
+                  }}>
+                    {activeStudent.isCritical ? 'Follow-up Due' : 'Healthy Range'}
+                  </span>
                 </div>
               </div>
 
@@ -1521,35 +2184,53 @@ export default function StudentsManagementView() {
                 {/* BMI-for-Age Z */}
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>BMI-for-Age Z</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>-0.4</div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: (typeof activeStudent.bmiZScore === 'number' && activeStudent.bmiZScore < -2) ? '#DC2626' : '#0F172A', margin: '2px 0 4px 0' }}>
+                    {typeof activeStudent.bmiZScore === 'number' ? `${activeStudent.bmiZScore.toFixed(2)} SD` : '—'}
+                  </div>
                   {/* Gauge bar */}
                   <div style={{ position: 'relative', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px' }}>
                     <div style={{ position: 'absolute', left: '25%', right: '25%', height: '100%', backgroundColor: '#10B981', borderRadius: '3px' }} />
-                    <div style={{ position: 'absolute', left: `${getZMeterPosition(-0.4)}%`, top: '-3px', width: '2px', height: '12px', backgroundColor: '#0F172A' }} />
+                    {typeof activeStudent.bmiZScore === 'number' && (
+                      <div style={{ position: 'absolute', left: `${getZMeterPosition(activeStudent.bmiZScore)}%`, top: '-3px', width: '2px', height: '12px', backgroundColor: '#0F172A' }} />
+                    )}
                   </div>
-                  <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', marginTop: '3px' }}>Normal range</div>
+                  <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', marginTop: '3px' }}>
+                    {typeof activeStudent.bmiZScore === 'number' ? (activeStudent.bmiZScore < -3 ? 'Severe Deficit (<-3 SD)' : activeStudent.bmiZScore < -2 ? 'Deficit (<-2 SD)' : 'Normal range') : 'No assessment data'}
+                  </div>
                 </div>
 
                 {/* Height-for-Age Z */}
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Height-for-Age Z</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>0.2</div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: (typeof activeStudent.heightZScore === 'number' && activeStudent.heightZScore < -2) ? '#DC2626' : '#0F172A', margin: '2px 0 4px 0' }}>
+                    {typeof activeStudent.heightZScore === 'number' ? `${activeStudent.heightZScore.toFixed(2)} SD` : '—'}
+                  </div>
                   <div style={{ position: 'relative', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px' }}>
                     <div style={{ position: 'absolute', left: '25%', right: '25%', height: '100%', backgroundColor: '#10B981', borderRadius: '3px' }} />
-                    <div style={{ position: 'absolute', left: `${getZMeterPosition(0.2)}%`, top: '-3px', width: '2px', height: '12px', backgroundColor: '#0F172A' }} />
+                    {typeof activeStudent.heightZScore === 'number' && (
+                      <div style={{ position: 'absolute', left: `${getZMeterPosition(activeStudent.heightZScore)}%`, top: '-3px', width: '2px', height: '12px', backgroundColor: '#0F172A' }} />
+                    )}
                   </div>
-                  <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', marginTop: '3px' }}>Normal range</div>
+                  <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', marginTop: '3px' }}>
+                    {typeof activeStudent.heightZScore === 'number' ? (activeStudent.heightZScore < -2 ? 'Stunted (<-2 SD)' : 'Normal range') : 'No assessment data'}
+                  </div>
                 </div>
 
                 {/* Weight-for-Age Z */}
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Weight-for-Age Z</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>-0.3</div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: (typeof activeStudent.weightZScore === 'number' && activeStudent.weightZScore < -2) ? '#DC2626' : '#0F172A', margin: '2px 0 4px 0' }}>
+                    {typeof activeStudent.weightZScore === 'number' ? `${activeStudent.weightZScore.toFixed(2)} SD` : '—'}
+                  </div>
                   <div style={{ position: 'relative', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px' }}>
                     <div style={{ position: 'absolute', left: '25%', right: '25%', height: '100%', backgroundColor: '#10B981', borderRadius: '3px' }} />
-                    <div style={{ position: 'absolute', left: `${getZMeterPosition(-0.3)}%`, top: '-3px', width: '2px', height: '12px', backgroundColor: '#0F172A' }} />
+                    {typeof activeStudent.weightZScore === 'number' && (
+                      <div style={{ position: 'absolute', left: `${getZMeterPosition(activeStudent.weightZScore)}%`, top: '-3px', width: '2px', height: '12px', backgroundColor: '#0F172A' }} />
+                    )}
                   </div>
-                  <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', marginTop: '3px' }}>Normal range</div>
+                  <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', marginTop: '3px' }}>
+                    {typeof activeStudent.weightZScore === 'number' ? (activeStudent.weightZScore < -2 ? 'Underweight (<-2 SD)' : 'Normal range') : 'No assessment data'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1621,43 +2302,56 @@ export default function StudentsManagementView() {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '10px 40px', border: '1px solid #F1F5F9', borderRadius: '10px', padding: '14px 18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Assessment Date</span>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>12 September 2026</span>
+                <span style={{ fontWeight: 600, color: '#0F172A' }}>{activeStudent.latestAssessment || 'Pending'}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>BMI-for-Age Z</span>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>-0.4</span>
+                <span style={{ fontWeight: 600, color: (typeof activeStudent.bmiZScore === 'number' && activeStudent.bmiZScore < -2) ? '#DC2626' : '#0F172A' }}>
+                  {typeof activeStudent.bmiZScore === 'number' ? `${activeStudent.bmiZScore.toFixed(2)} SD` : '—'}
+                </span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Height</span>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>128.5 cm</span>
+                <span style={{ fontWeight: 600, color: '#0F172A' }}>{activeStudent.height ? `${activeStudent.height} cm` : '—'}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Height-for-Age Z</span>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>0.2</span>
+                <span style={{ fontWeight: 600, color: (typeof activeStudent.heightZScore === 'number' && activeStudent.heightZScore < -2) ? '#DC2626' : '#0F172A' }}>
+                  {typeof activeStudent.heightZScore === 'number' ? `${activeStudent.heightZScore.toFixed(2)} SD` : '—'}
+                </span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Weight</span>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>22.3 kg</span>
+                <span style={{ fontWeight: 600, color: '#0F172A' }}>{activeStudent.weight ? `${activeStudent.weight} kg` : '—'}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Weight-for-Age Z</span>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>-0.3</span>
+                <span style={{ fontWeight: 600, color: (typeof activeStudent.weightZScore === 'number' && activeStudent.weightZScore < -2) ? '#DC2626' : '#0F172A' }}>
+                  {typeof activeStudent.weightZScore === 'number' ? `${activeStudent.weightZScore.toFixed(2)} SD` : '—'}
+                </span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: '1px solid #F1F5F9', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>BMI</span>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>13.5</span>
+                <span style={{ fontWeight: 600, color: '#0F172A' }}>{activeStudent.bmi ? activeStudent.bmi : '—'}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid #F1F5F9', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Classification</span>
-                <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 10px', borderRadius: '10px' }}>
-                  Normal
+                <span style={{ 
+                  fontSize: '11px', 
+                  fontWeight: 700, 
+                  backgroundColor: activeStudent.isSeverelyWasted ? '#FEE2E2' : activeStudent.isWasted ? '#FFEDD5' : '#DCFCE7', 
+                  color: activeStudent.isSeverelyWasted ? '#DC2626' : activeStudent.isWasted ? '#EA580C' : '#15803D', 
+                  padding: '2px 10px', 
+                  borderRadius: '10px' 
+                }}>
+                  {activeStudent.currentStatus || 'Pending'}
                 </span>
               </div>
             </div>
@@ -1671,13 +2365,42 @@ export default function StudentsManagementView() {
       {viewLevel === 'health_history' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
           {/* Header */}
-          <div>
-            <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.15 }}>
-              Health History
-            </h1>
-            <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0' }}>
-              Track the student's health assessments over time
-            </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.15 }}>
+                Health History
+              </h1>
+              <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0' }}>
+                Track the student's health assessments over time
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setModalStudent(activeStudent);
+                setShowStudentGrowthModal(true);
+              }}
+              style={{
+                backgroundColor: '#EB5A1D',
+                color: '#FFFFFF',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '10px 18px',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(235, 90, 29, 0.25)',
+                transition: 'all 0.15s ease'
+              }}
+              title="Download official WHO Growth Chart PDF"
+            >
+              <FileText size={15} />
+              <span>Download Growth Chart (PDF)</span>
+            </button>
           </div>
 
           {/* Student Profile Summary Card */}
@@ -1700,7 +2423,7 @@ export default function StudentsManagementView() {
                 {activeStudent.name}
               </h2>
               <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px' }}>
-                Student ID: #{activeStudent.idCode || '1042'}
+                Student ID: {activeStudent.id || activeStudent.idCode || 'N/A'}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '6px', flexWrap: 'wrap' }}>
@@ -1807,61 +2530,83 @@ export default function StudentsManagementView() {
                 </div>
 
                 {/* Bars Container */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '32px',
-                    right: '10px',
-                    bottom: '24px',
-                    height: '160px',
-                    display: 'flex',
-                    alignItems: 'flex-end',
-                    justifyContent: 'space-around'
-                  }}
-                >
-                  {assessmentHistory.slice().reverse().map((item, idx) => {
-                    const value = trendMetric === 'Weight' ? item.weight : trendMetric === 'Height' ? item.height : item.bmi;
-                    const maxVal = trendMetric === 'Weight' ? 30 : trendMetric === 'Height' ? 150 : 25;
-                    const barHeightPct = Math.min(100, Math.max(10, (value / maxVal) * 100));
+                {assessmentHistory.length > 0 ? (
+                  <>
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '32px',
+                        right: '10px',
+                        bottom: '24px',
+                        height: '160px',
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        justifyContent: 'space-around'
+                      }}
+                    >
+                      {assessmentHistory.slice().reverse().map((item) => {
+                        const value = trendMetric === 'Weight' ? (item.weight || 0) : trendMetric === 'Height' ? (item.height || 0) : (item.bmi || 0);
+                        const maxVal = trendMetric === 'Weight' ? 30 : trendMetric === 'Height' ? 150 : 25;
+                        const barHeightPct = Math.min(100, Math.max(8, (value / maxVal) * 100));
 
-                    return (
-                      <div key={item.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '42px' }}>
-                        {/* Value on top of bar */}
-                        <span style={{ fontSize: '11px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
-                          {value}
+                        return (
+                          <div key={item.month} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '42px' }}>
+                            {/* Value on top of bar */}
+                            <span style={{ fontSize: '11px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                              {value}
+                            </span>
+                            {/* Bar */}
+                            <div
+                              style={{
+                                width: '28px',
+                                height: `${barHeightPct}%`,
+                                backgroundColor: '#3B82F6',
+                                borderRadius: '4px 4px 0 0',
+                                transition: 'height 0.4s ease'
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* X-axis Month labels */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: '32px',
+                        right: '10px',
+                        bottom: '2px',
+                        display: 'flex',
+                        justifyContent: 'space-around'
+                      }}
+                    >
+                      {assessmentHistory.slice().reverse().map((item) => (
+                        <span key={item.month} style={{ fontSize: '10.5px', color: '#64748B', width: '42px', textAlign: 'center' }}>
+                          {item.month.replace(' 2026', '').replace('November', 'Nov').replace('October', 'Oct').replace('September', 'Sep').replace('August', 'Aug').replace('July', 'Jul').replace('June', 'Jun')}
                         </span>
-                        {/* Bar */}
-                        <div
-                          style={{
-                            width: '28px',
-                            height: `${barHeightPct}%`,
-                            backgroundColor: '#3B82F6',
-                            borderRadius: '4px 4px 0 0',
-                            transition: 'height 0.4s ease'
-                          }}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* X-axis Month labels */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: '32px',
-                    right: '10px',
-                    bottom: '2px',
-                    display: 'flex',
-                    justifyContent: 'space-around'
-                  }}
-                >
-                  {assessmentHistory.slice().reverse().map((item) => (
-                    <span key={item.month} style={{ fontSize: '10.5px', color: '#64748B', width: '42px', textAlign: 'center' }}>
-                      {item.month.replace(' 2026', ' 2026').replace('November', 'Nov').replace('October', 'Oct').replace('September', 'Sep').replace('August', 'Aug').replace('July', 'Jul').replace('June', 'Jun')}
-                    </span>
-                  ))}
-                </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '32px',
+                      right: '10px',
+                      bottom: '40px',
+                      height: '120px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#94A3B8',
+                      fontSize: '12.5px',
+                      fontWeight: 500
+                    }}
+                  >
+                    No historical assessments recorded to plot trend.
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1913,30 +2658,43 @@ export default function StudentsManagementView() {
                   color: '#EA580C'
                 }}
               >
-                November 2026
+                {assessmentHistory.length > 0 ? assessmentHistory[0].month : (activeStudent.latestAssessment !== 'Pending' ? activeStudent.latestAssessment : 'Latest Assessment')}
               </div>
 
               {/* Details Key Values */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                   <span style={{ color: '#64748B' }}>Height</span>
-                  <span style={{ fontWeight: 600, color: '#0F172A' }}>131.2 cm</span>
+                  <span style={{ fontWeight: 600, color: '#0F172A' }}>
+                    {assessmentHistory.length > 0 && assessmentHistory[0].height ? `${assessmentHistory[0].height} cm` : (activeStudent.height ? `${activeStudent.height} cm` : '—')}
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                   <span style={{ color: '#64748B' }}>Weight</span>
-                  <span style={{ fontWeight: 600, color: '#0F172A' }}>24.1 kg</span>
+                  <span style={{ fontWeight: 600, color: '#0F172A' }}>
+                    {assessmentHistory.length > 0 && assessmentHistory[0].weight ? `${assessmentHistory[0].weight} kg` : (activeStudent.weight ? `${activeStudent.weight} kg` : '—')}
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                   <span style={{ color: '#64748B' }}>BMI</span>
-                  <span style={{ fontWeight: 600, color: '#0F172A' }}>14.0</span>
+                  <span style={{ fontWeight: 600, color: '#0F172A' }}>
+                    {assessmentHistory.length > 0 && assessmentHistory[0].bmi ? assessmentHistory[0].bmi : (activeStudent.bmi || '—')}
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', fontSize: '13px' }}>
                   <span style={{ color: '#64748B' }}>Classification</span>
-                  <span style={{ fontSize: '11.5px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '3px 10px', borderRadius: '10px' }}>
-                    Normal
+                  <span style={{ 
+                    fontSize: '11.5px', 
+                    fontWeight: 700, 
+                    backgroundColor: activeStudent.isSeverelyWasted ? '#FEE2E2' : activeStudent.isWasted ? '#FFEDD5' : '#DCFCE7', 
+                    color: activeStudent.isSeverelyWasted ? '#DC2626' : activeStudent.isWasted ? '#EA580C' : '#15803D', 
+                    padding: '3px 10px', 
+                    borderRadius: '10px' 
+                  }}>
+                    {assessmentHistory.length > 0 && assessmentHistory[0].classification ? assessmentHistory[0].classification : (activeStudent.currentStatus || 'Pending')}
                   </span>
                 </div>
               </div>
@@ -1991,34 +2749,66 @@ export default function StudentsManagementView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {assessmentHistory.map((item) => (
-                    <tr
-                      key={item.month}
-                      style={{
-                        borderBottom: '1px solid #F1F5F9',
-                        transition: 'background-color 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <td style={{ padding: '11px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.month}</td>
-                      <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.date}</td>
-                      <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.height}</td>
-                      <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.weight}</td>
-                      <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.bmi}</td>
-                      <td style={{ padding: '11px 14px', fontSize: '12px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 10px', borderRadius: '10px' }}>
-                          {item.classification}
-                        </span>
+                  {assessmentHistory.length > 0 ? (
+                    assessmentHistory.map((item, idx) => (
+                      <tr
+                        key={idx}
+                        style={{
+                          borderBottom: '1px solid #F1F5F9',
+                          transition: 'background-color 0.15s ease'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <td style={{ padding: '11px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.month}</td>
+                        <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.date}</td>
+                        <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.height ? `${item.height} cm` : '—'}</td>
+                        <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.weight ? `${item.weight} kg` : '—'}</td>
+                        <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.bmi ? item.bmi : '—'}</td>
+                        <td style={{ padding: '11px 14px', fontSize: '12px' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#15803D', padding: '2px 10px', borderRadius: '10px' }}>
+                            {item.classification}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: '#64748B' }}>
+                        No historical health assessment records found for this student. Assessments conducted in the Mobile App will appear here in real-time.
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </div>
       )}
+
+      {/* ================= MODALS FOR PDF GROWTH CHARTS ================= */}
+      <StudentGrowthChartModal
+        isOpen={showStudentGrowthModal}
+        onClose={() => {
+          setShowStudentGrowthModal(false);
+          setModalStudent(null);
+        }}
+        student={modalStudent}
+        schoolName={activeSchool?.name}
+        clusterName={activeCluster?.name}
+      />
+
+      <SchoolGrowthChartModal
+        isOpen={showSchoolGrowthModal}
+        onClose={() => {
+          setShowSchoolGrowthModal(false);
+          setModalSchool(null);
+        }}
+        school={modalSchool || activeSchool}
+        students={rawStudents}
+        clusterName={activeCluster?.name}
+      />
     </div>
   );
 }
+

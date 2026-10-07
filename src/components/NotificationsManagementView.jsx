@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Home,
   Bell,
@@ -30,6 +30,7 @@ import {
   Check,
   RotateCcw
 } from 'lucide-react';
+import { api } from '../services/api';
 
 // Initial dynamic dataset of notifications
 const INITIAL_NOTIFICATIONS = [
@@ -468,9 +469,13 @@ export default function NotificationsManagementView() {
 
   // Create Notification Form State
   const [audienceType, setAudienceType] = useState('all_users'); // 'all_users' | 'specific_cluster' | 'specific_school' | 'specific_user'
-  const [selectedCluster, setSelectedCluster] = useState('Cluster A');
-  const [selectedSchool, setSelectedSchool] = useState('Greenwood Public School');
-  const [selectedUser, setSelectedUser] = useState('Aarav Sharma (#1042)');
+  const [selectedCluster, setSelectedCluster] = useState('');
+  const [selectedSchool, setSelectedSchool] = useState('');
+  const [selectedUser, setSelectedUser] = useState('');
+
+  const [clustersList, setClustersList] = useState([]);
+  const [schoolsList, setSchoolsList] = useState([]);
+  const [studentsList, setStudentsList] = useState([]);
 
   const [notificationType, setNotificationType] = useState('general_info'); // 'general_info' | 'monthly_assessment' | 'reminder' | 'important_update'
 
@@ -485,6 +490,48 @@ export default function NotificationsManagementView() {
 
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  // Synchronize live data from backend with real-time polling
+  const loadNotificationsData = async () => {
+    try {
+      const [notifsRes, clustersRes, schoolsRes, studentsRes] = await Promise.allSettled([
+        api.getNotifications(),
+        api.getClusters(),
+        api.getSchools(),
+        api.getStudents()
+      ]);
+
+      const backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
+      const cList = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : [];
+      const sList = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
+      const stdList = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : [];
+
+      setClustersList(cList);
+      setSchoolsList(sList);
+      setStudentsList(stdList);
+
+      if (backendNotifs.length > 0) {
+        setNotifications(backendNotifs);
+      }
+      if (cList.length > 0 && !selectedCluster) {
+        setSelectedCluster(cList[0].name);
+      }
+      if (sList.length > 0 && !selectedSchool) {
+        setSelectedSchool(sList[0].name);
+      }
+      if (stdList.length > 0 && !selectedUser) {
+        setSelectedUser(`${stdList[0].name} (${stdList[0].class_name})`);
+      }
+    } catch (err) {
+      console.warn('Failed to load notifications data:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadNotificationsData();
+    const interval = setInterval(loadNotificationsData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Dynamic KPI counts
   const totalCount = notifications.length;
@@ -539,65 +586,56 @@ export default function NotificationsManagementView() {
     );
   }, [notifications, selectedNotificationId]);
 
-  // Handle Form Submission
-  const handleSendOrSchedule = () => {
+  // Handle Form Submission with Real-Time Backend API Call
+  const handleSendOrSchedule = async () => {
     if (!formTitle.trim()) {
       alert('Please enter a notification title.');
       return;
     }
 
     let targetLabel = 'All Users';
-    if (audienceType === 'specific_cluster') targetLabel = selectedCluster;
-    else if (audienceType === 'specific_school') targetLabel = selectedSchool;
-    else if (audienceType === 'specific_user') targetLabel = selectedUser;
+    if (audienceType === 'specific_cluster') targetLabel = selectedCluster || 'All Clusters';
+    else if (audienceType === 'specific_school') targetLabel = selectedSchool || 'All Schools';
+    else if (audienceType === 'specific_user') targetLabel = selectedUser || 'Specific Student';
 
     let typeLabel = 'General Information';
     if (notificationType === 'monthly_assessment') typeLabel = 'Monthly Assessment';
     else if (notificationType === 'reminder') typeLabel = 'Reminder';
     else if (notificationType === 'important_update') typeLabel = 'Important Update';
 
-    const newNotification = {
-      id: `notif-${Date.now()}`,
-      title: formTitle.trim(),
-      target: targetLabel,
-      targetType:
-        audienceType === 'all_users'
-          ? 'All Users'
-          : audienceType === 'specific_cluster'
-          ? 'Specific Cluster'
-          : audienceType === 'specific_school'
-          ? 'Specific School'
-          : 'Specific User',
-      type: typeLabel,
-      category: typeLabel,
-      scheduledDate: scheduleMode === 'now' ? 'Today' : scheduledDate,
-      scheduledTime: scheduleMode === 'now' ? 'Immediate' : scheduledTime,
-      status: scheduleMode === 'now' ? 'Sent' : 'Scheduled',
-      recipients:
-        audienceType === 'all_users'
-          ? 2486
-          : audienceType === 'specific_cluster'
-          ? 486
-          : audienceType === 'specific_school'
-          ? 126
-          : 1,
-      delivered: scheduleMode === 'now' ? 126 : 0,
-      failed: 0,
-      message: formMessage.trim(),
-      createdBy: 'Karthikeyan (Administrator)',
-      createdDate: '30 Sep 2026, 04:30 PM'
-    };
+    try {
+      const payload = {
+        title: formTitle.trim(),
+        message: formMessage.trim(),
+        target_type:
+          audienceType === 'all_users'
+            ? 'All Users'
+            : audienceType === 'specific_cluster'
+            ? 'Specific Cluster'
+            : audienceType === 'specific_school'
+            ? 'Specific School'
+            : 'Specific User',
+        target: targetLabel,
+        category: typeLabel,
+        type: typeLabel,
+        scheduled_date: scheduleMode === 'now' ? null : scheduledDate,
+        scheduled_time: scheduleMode === 'now' ? null : scheduledTime,
+      };
 
-    setNotifications([newNotification, ...notifications]);
-    setSelectedNotificationId(newNotification.id);
-    setToastMessage(
-      scheduleMode === 'now'
-        ? 'Notification sent successfully!'
-        : 'Notification scheduled successfully!'
-    );
-    setShowSuccessToast(true);
-    setTimeout(() => setShowSuccessToast(false), 4000);
-    setViewMode('list');
+      const created = await api.createNotification(payload);
+      setNotifications((prev) => [created, ...prev]);
+      setSelectedNotificationId(created.id);
+      setToastMessage(
+        scheduleMode === 'now'
+          ? 'Notification sent successfully in real-time!'
+          : 'Notification scheduled successfully in real-time!'
+      );
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 4000);
+      setViewMode('list');
+    } catch (err) {
+      alert(`Failed to send notification: ${err.message}`);
+    }
   };
 
   return (
@@ -1512,12 +1550,15 @@ export default function NotificationsManagementView() {
                           color: '#0F172A'
                         }}
                       >
-                        <option value="Cluster A">Cluster A (12 Schools, 486 Students)</option>
-                        <option value="Cluster B">Cluster B (8 Schools, 324 Students)</option>
-                        <option value="Cluster C">Cluster C (10 Schools, 412 Students)</option>
-                        <option value="Cluster D">Cluster D (8 Schools, 368 Students)</option>
-                        <option value="Cluster E">Cluster E (6 Schools, 298 Students)</option>
-                        <option value="Cluster F">Cluster F (9 Schools, 312 Students)</option>
+                        {clustersList.length > 0 ? (
+                          clustersList.map((c) => (
+                            <option key={c.id || c.name} value={c.name}>
+                              {c.name} ({c.schools_count || 0} Schools, {c.students_count || 0} Students)
+                            </option>
+                          ))
+                        ) : (
+                          <option value="Cluster A">Cluster A</option>
+                        )}
                       </select>
                     </div>
                   )}
@@ -1541,14 +1582,15 @@ export default function NotificationsManagementView() {
                           color: '#0F172A'
                         }}
                       >
-                        <option value="Greenwood Public School">Greenwood Public School (126 Students)</option>
-                        <option value="Oakridge Academy">Oakridge Academy (98 Students)</option>
-                        <option value="St. Jude High School">St. Jude High School (74 Students)</option>
-                        <option value="Riverside International">Riverside International (68 Students)</option>
-                        <option value="Sunrise Public School">Sunrise Public School (42 Students)</option>
-                        <option value="Maplewood High School">Maplewood High School (38 Students)</option>
-                        <option value="Hillview School">Hillview School (28 Students)</option>
-                        <option value="Lakeside Public School">Lakeside Public School (12 Students)</option>
+                        {schoolsList.length > 0 ? (
+                          schoolsList.map((s) => (
+                            <option key={s.id || s.name} value={s.name}>
+                              {s.name} ({s.students_count || 0} Students)
+                            </option>
+                          ))
+                        ) : (
+                          <option value="Greenwood Public School">Greenwood Public School</option>
+                        )}
                       </select>
                     </div>
                   )}
@@ -1572,10 +1614,15 @@ export default function NotificationsManagementView() {
                           color: '#0F172A'
                         }}
                       >
-                        <option value="Aarav Sharma (#1042)">Aarav Sharma (#1042) - Grade 3A (Greenwood)</option>
-                        <option value="Diya Patel (#1043)">Diya Patel (#1043) - Grade 4B (Greenwood)</option>
-                        <option value="Rohan Kumar (#1044)">Rohan Kumar (#1044) - Grade 2C (Greenwood)</option>
-                        <option value="Sneha Reddy (#1045)">Sneha Reddy (#1045) - Grade 3A (Greenwood)</option>
+                        {studentsList.length > 0 ? (
+                          studentsList.map((st) => (
+                            <option key={st.id} value={`${st.name} (${st.class_name})`}>
+                              {st.name} - {st.class_name} ({st.school_name})
+                            </option>
+                          ))
+                        ) : (
+                          <option value="Student User">No students registered yet</option>
+                        )}
                       </select>
                     </div>
                   )}

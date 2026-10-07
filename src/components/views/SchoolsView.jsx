@@ -1,10 +1,22 @@
-import React, { useState } from 'react';
-import { School, Plus, MapPin, Users, BookOpen, Search, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { School, Plus, MapPin, Users, BookOpen, Search, CheckCircle, FileText } from 'lucide-react';
 import AddSchoolModal from '../AddSchoolModal';
+import SchoolGrowthChartModal from '../SchoolGrowthChartModal';
+import { api } from '../../services/api';
 
 export default function SchoolsView({ schools, onRefresh, onSelectSchoolFilter }) {
   const [search, setSearch] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [growthModalSchool, setGrowthModalSchool] = useState(null);
+  const [allStudents, setAllStudents] = useState([]);
+
+  useEffect(() => {
+    api.getStudents()
+      .then(data => {
+        if (Array.isArray(data)) setAllStudents(data);
+      })
+      .catch(err => console.warn('Failed to load students in SchoolsView:', err));
+  }, []);
 
   const filteredSchools = schools.filter(s => 
     (s.name && s.name.toLowerCase().includes(search.toLowerCase())) ||
@@ -101,7 +113,12 @@ export default function SchoolsView({ schools, onRefresh, onSelectSchoolFilter }
                       </div>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 600 }}>{school.classes_range || '1-8'}</span>
+                      <span style={{ fontWeight: 600, color: '#0F172A' }}>{school.classes_range || '1–8'}</span>
+                      {school.sections && (
+                        <div style={{ fontSize: '11px', color: '#0F766E', fontWeight: 600, marginTop: '2px' }}>
+                          Sec: {school.sections}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
@@ -116,13 +133,25 @@ export default function SchoolsView({ schools, onRefresh, onSelectSchoolFilter }
                       </span>
                     </td>
                     <td>
-                      <button 
-                        className="btn-secondary"
-                        style={{ padding: '6px 12px', fontSize: '12px' }}
-                        onClick={() => onSelectSchoolFilter && onSelectSchoolFilter(school.id)}
-                      >
-                        View Students
-                      </button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button 
+                          className="btn-secondary"
+                          style={{ padding: '6px 10px', fontSize: '11.5px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          onClick={() => setGrowthModalSchool(school)}
+                          title="Download School Growth Report (PDF)"
+                        >
+                          <FileText size={13} color="#2563EB" />
+                          <span>Growth Report</span>
+                        </button>
+
+                        <button 
+                          className="btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                          onClick={() => onSelectSchoolFilter && onSelectSchoolFilter(school.id)}
+                        >
+                          View Students
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -145,6 +174,14 @@ export default function SchoolsView({ schools, onRefresh, onSelectSchoolFilter }
           setIsAddModalOpen(false);
           if (onRefresh) onRefresh();
         }}
+      />
+
+      <SchoolGrowthChartModal
+        isOpen={Boolean(growthModalSchool)}
+        onClose={() => setGrowthModalSchool(null)}
+        school={growthModalSchool}
+        students={allStudents}
+        clusterName={growthModalSchool?.cluster_name}
       />
     </div>
   );

@@ -32,6 +32,9 @@ export function AuthProvider({ children }) {
     try {
       const data = await api.login(username, password);
       if (data && data.user) {
+        if (data.user.is_active === false) {
+          throw new Error('Account is deactivated. Please contact your administrator.');
+        }
         setUser(data.user);
         setToken(data.token || 'demo-admin-token');
         return { success: true, user: data.user };

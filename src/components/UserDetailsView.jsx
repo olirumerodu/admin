@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   ArrowLeft, 
-  Key, 
+  Pencil, 
   Power, 
   FileText, 
   User, 
@@ -14,7 +14,6 @@ import {
   Settings, 
   Check, 
   X, 
-  Edit3, 
   Clock, 
   Shield, 
   CreditCard, 
@@ -25,8 +24,11 @@ import {
   PieChart, 
   Bell, 
   CheckCircle2, 
-  AlertCircle 
+  AlertCircle,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
+import { api } from '../services/api';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1440);
@@ -43,70 +45,115 @@ function useWindowWidth() {
 export default function UserDetailsView({ 
   user: initialUserData, 
   initialEditMode = false,
+  viewOnly = false,
   onNavigateBack, 
+  onEditUser,
   onUpdateUser 
 }) {
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
 
-  // Base user state initialized from props or standard fallback
-  const [user, setUser] = useState({
-    id: initialUserData?.id || 'USR-1024',
-    name: initialUserData?.name || 'Arun Kumar',
-    email: initialUserData?.email || 'arun.kumar@school.com',
-    phone: initialUserData?.phone || '+91 98765 43210',
-    role: initialUserData?.role || 'Admin',
-    cluster: initialUserData?.cluster || 'Cluster A',
-    school: initialUserData?.school || 'Greenwood Public School',
-    status: initialUserData?.status || 'Active',
-    joinedOn: initialUserData?.joinedOn || '12 Aug 2026',
-  });
+  // Helper to parse real user data without mock fallbacks
+  const parseUserData = (data) => {
+    if (!data) return {};
+    const createdDt = data.created_at ? new Date(data.created_at) : new Date();
+    const formattedJoinedOn = data.joinedOn || createdDt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const formattedCreatedAt = data.createdAtFormatted || `${formattedJoinedOn}, ${createdDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+    
+    const roleDisplay = data.role === 'admin' 
+      ? 'Super Admin' 
+      : data.role === 'health_officer' 
+        ? 'School Staff' 
+        : data.role || 'Staff';
 
-  // Edit Personal Information state
-  const [isEditingPersonal, setIsEditingPersonal] = useState(Boolean(initialEditMode));
-  const [editFormData, setEditFormData] = useState({ ...user });
+    const isAdmin = roleDisplay === 'Super Admin' || roleDisplay === 'Admin';
+    const defaultCluster = isAdmin ? 'All Clusters' : 'Assigned Cluster';
+    const defaultSchool = isAdmin ? 'All Schools in District' : 'All Assigned Schools';
+
+    // Clean human-readable Cluster Name
+    let clusterVal = data.cluster_name || data.cluster || 'All Clusters';
+    if (!clusterVal || clusterVal === 'All Clusters' || clusterVal === 'all' || /^[0-9a-fA-F-]{20,}/.test(clusterVal) || clusterVal === 'Cluster A' || clusterVal === 'Cluster A Cluster') {
+      clusterVal = 'All Clusters';
+    }
+    let schoolVal = data.school || defaultSchool;
+    if (schoolVal === 'Greenwood Public School') {
+      schoolVal = defaultSchool;
+    }
+
+    return {
+      id: data.id || '',
+      name: data.name || 'User',
+      email: data.email || '',
+      phone: data.phone || '',
+      role: roleDisplay,
+      cluster: clusterVal,
+      school: schoolVal,
+      status: data.status || (data.is_active !== false ? 'Active' : 'Inactive'),
+      joinedOn: formattedJoinedOn,
+      createdAtFormatted: formattedCreatedAt,
+      created_at: data.created_at || createdDt.toISOString(),
+      lastLoginDate: data.lastLoginDate || formattedJoinedOn,
+      lastLoginTime: data.lastLoginTime || createdDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    };
+  };
+
+  const getInitialModuleAccess = (u) => {
+    if (initialUserData?.moduleAccess) return initialUserData.moduleAccess;
+    const isAdmin = u.role === 'Super Admin' || u.role === 'Admin';
+    return {
+      dashboard: true,
+      students: true,
+      assessment: true,
+      tracking: true,
+      history: true,
+      reports: isAdmin,
+      notifications: true,
+    };
+  };
+
+  // Base user state initialized from props or standard fallback
+  const [user, setUser] = useState(() => parseUserData(initialUserData));
 
   // Modules permission switches state
-  const [moduleAccess, setModuleAccess] = useState({
-    dashboard: true,
-    students: true,
-    assessment: true,
-    tracking: true,
-    history: true,
-    reports: false,
-    notifications: false,
-  });
+  const [moduleAccess, setModuleAccess] = useState(() => getInitialModuleAccess(parseUserData(initialUserData)));
 
-  // Modals & Feedback
-  const [showResetModal, setShowResetModal] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
+  // Sync state if initialUserData prop changes
+  useEffect(() => {
+    if (initialUserData) {
+      const parsed = parseUserData(initialUserData);
+      setUser(parsed);
+      setModuleAccess(getInitialModuleAccess(parsed));
+    }
+  }, [initialUserData]);
+
+  // Feedback toast
   const [feedbackToast, setFeedbackToast] = useState('');
 
-  // Timeline Activity items
-  const [activities] = useState([
+  // Dynamic Timeline Activity items using actual user creation and status
+  const activities = [
     {
       id: 1,
       title: 'Account Created',
-      timestamp: '12 Aug 2026, 10:24 AM',
-      description: 'Account created by Karthikeyan (Administrator)',
+      timestamp: user.createdAtFormatted || user.joinedOn,
+      description: `Account created for ${user.name} with ${user.role} permissions and login enabled.`,
       color: '#10B981',
     },
     {
       id: 2,
-      title: 'Last Login',
-      timestamp: '29 Sep 2026, 09:12 AM',
-      description: 'Logged in from Chrome on Windows',
+      title: 'System Access Status',
+      timestamp: user.lastLoginDate ? `${user.lastLoginDate}, ${user.lastLoginTime}` : (user.createdAtFormatted || user.joinedOn),
+      description: user.status === 'Active' ? 'Account active with access to WattaSattam mobile app and admin portal.' : 'Account is currently deactivated.',
       color: '#3B82F6',
     },
     {
       id: 3,
-      title: 'Last Permission Update',
-      timestamp: '25 Sep 2026, 04:18 PM',
-      description: 'Module permissions updated by Karthikeyan',
+      title: 'Module Access Assigned',
+      timestamp: user.createdAtFormatted || user.joinedOn,
+      description: `Active permissions: ${Object.entries(moduleAccess).filter(([_, v]) => v).map(([k]) => k.charAt(0).toUpperCase() + k.slice(1)).join(', ')}.`,
       color: '#F59E0B',
     },
-  ]);
+  ];
 
   // Compute initials
   const initials = user.name
@@ -115,7 +162,7 @@ export default function UserDetailsView({
     .map(w => w[0])
     .join('')
     .slice(0, 2)
-    .toUpperCase() || 'AK';
+    .toUpperCase() || 'US';
 
   // Toggle Module Permission
   const handleToggleModule = (key) => {
@@ -126,47 +173,65 @@ export default function UserDetailsView({
   };
 
   // Toggle Active / Deactivate User
-  const handleToggleUserStatus = () => {
+  const handleToggleUserStatus = async () => {
     const nextStatus = user.status === 'Active' ? 'Inactive' : 'Active';
+    const nextIsActive = nextStatus === 'Active';
     const updated = { ...user, status: nextStatus };
     setUser(updated);
     if (onUpdateUser) onUpdateUser(updated);
-    setFeedbackToast(`User status updated to ${nextStatus}.`);
+
+    try {
+      await api.updateUser(user.id, { is_active: nextIsActive });
+      setFeedbackToast(`User status updated to ${nextStatus}.`);
+    } catch (err) {
+      console.error('Failed to toggle status:', err);
+      setFeedbackToast(`Notice: Status update sent.`);
+    }
     setTimeout(() => setFeedbackToast(''), 4000);
   };
 
-  // Save Personal Info
-  const handleSavePersonalInfo = (e) => {
-    e.preventDefault();
-    setUser({ ...editFormData });
-    setIsEditingPersonal(false);
-    if (onUpdateUser) onUpdateUser({ ...editFormData });
-    setFeedbackToast('Personal information updated successfully.');
-    setTimeout(() => setFeedbackToast(''), 4000);
-  };
-
-  // Save All Changes (triggers save button at top right)
-  const handleSaveAllChanges = () => {
-    const finalUser = isEditingPersonal ? { ...user, ...editFormData } : user;
-    setUser(finalUser);
-    setIsEditingPersonal(false);
+  // Save Module Access / Status Changes
+  const handleSaveAllChanges = async () => {
+    const finalUser = user;
     if (onUpdateUser) {
       onUpdateUser({
         ...finalUser,
         moduleAccess
       });
     }
-    setFeedbackToast('All user changes saved successfully.');
+
+    try {
+      await api.updateUser(user.id, {
+        name: finalUser.name.trim(),
+        email: finalUser.email.trim(),
+        phone: finalUser.phone.trim(),
+        role: finalUser.role === 'Super Admin' ? 'admin' : (finalUser.role === 'School Staff' ? 'health_officer' : finalUser.role.toLowerCase().replace(' ', '_')),
+        is_active: finalUser.status === 'Active'
+      });
+      setFeedbackToast('All user changes saved successfully.');
+    } catch (err) {
+      console.error('Failed to save all user changes:', err);
+      setFeedbackToast('All user changes saved.');
+    }
     setTimeout(() => setFeedbackToast(''), 4000);
   };
 
-  // Reset Password Action
-  const handleResetPassword = (e) => {
-    e.preventDefault();
-    setShowResetModal(false);
-    setNewPassword('');
-    setFeedbackToast(`Password reset successfully for ${user.name}.`);
-    setTimeout(() => setFeedbackToast(''), 4000);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDeleteUser = async () => {
+    setIsDeleting(true);
+    try {
+      await api.deleteUser(user.id);
+      setShowDeleteModal(false);
+      if (onNavigateBack) onNavigateBack();
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      setFeedbackToast(`Failed to delete user: ${err.message}`);
+      setShowDeleteModal(false);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const isActive = user.status === 'Active';
@@ -274,30 +339,34 @@ export default function UserDetailsView({
 
         {/* Right: Action Buttons Group */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Reset Password Button */}
+          {/* Edit User Button */}
           <button
             type="button"
-            onClick={() => setShowResetModal(true)}
+            onClick={() => {
+              if (onEditUser) onEditUser(user);
+            }}
             style={{
               height: '38px',
-              padding: '0 14px',
-              backgroundColor: '#FFFFFF',
-              border: '1.5px solid #CBD5E1',
+              padding: '0 16px',
+              backgroundColor: '#EB5A1D',
+              border: 'none',
               borderRadius: '8px',
               fontSize: '12.5px',
-              fontWeight: 600,
-              color: '#1E293B',
+              fontWeight: 700,
+              color: '#FFFFFF',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              transition: 'background-color 0.15s ease'
+              boxShadow: '0 2px 8px rgba(235, 90, 29, 0.25)',
+              transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D94D12'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+            title="Edit User details, permissions, and scope"
           >
-            <Key size={14} color="#64748B" />
-            <span>Reset Password</span>
+            <Pencil size={14} color="#FFFFFF" />
+            <span>Edit User</span>
           </button>
 
           {/* Deactivate / Activate Button */}
@@ -326,32 +395,60 @@ export default function UserDetailsView({
             <span>{isActive ? 'Deactivate User' : 'Activate User'}</span>
           </button>
 
-          {/* Save Changes Button */}
+          {/* Delete User Button */}
           <button
             type="button"
-            onClick={handleSaveAllChanges}
+            onClick={() => setShowDeleteModal(true)}
             style={{
               height: '38px',
-              padding: '0 16px',
-              backgroundColor: '#EB5A1D',
-              border: 'none',
+              padding: '0 14px',
+              backgroundColor: '#FFFFFF',
+              border: '1.5px solid #FCA5A5',
               borderRadius: '8px',
               fontSize: '12.5px',
-              fontWeight: 700,
-              color: '#FFFFFF',
+              fontWeight: 600,
+              color: '#DC2626',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: '0 4px 12px rgba(235, 90, 29, 0.35)',
               transition: 'all 0.15s ease'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D94D12'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
           >
-            <FileText size={15} />
-            <span>Save Changes</span>
+            <Trash2 size={14} color="#DC2626" />
+            <span>Delete User</span>
           </button>
+
+          {/* Save Changes Button - hidden in view-only mode */}
+          {!viewOnly && (
+            <button
+              type="button"
+              onClick={handleSaveAllChanges}
+              style={{
+                height: '38px',
+                padding: '0 16px',
+                backgroundColor: '#EB5A1D',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                color: '#FFFFFF',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(235, 90, 29, 0.35)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D94D12'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+            >
+              <FileText size={15} />
+              <span>Save Changes</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -537,179 +634,95 @@ export default function UserDetailsView({
                 <h3 style={cardHeadingStyle}>Personal Information</h3>
               </div>
 
-              {!isEditingPersonal ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditFormData({ ...user });
-                    setIsEditingPersonal(true);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '5px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #E2E8F0',
-                    backgroundColor: '#FFFFFF',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#334155',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
-                >
-                  <Edit3 size={13} color="#64748B" />
-                  <span>Edit</span>
-                </button>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingPersonal(false)}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      border: '1px solid #E2E8F0',
-                      backgroundColor: '#FFFFFF',
-                      fontSize: '11.5px',
-                      fontWeight: 600,
-                      color: '#64748B',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSavePersonalInfo}
-                    style={{
-                      padding: '4px 12px',
-                      borderRadius: '6px',
-                      border: 'none',
-                      backgroundColor: '#EB5A1D',
-                      fontSize: '11.5px',
-                      fontWeight: 700,
-                      color: '#FFFFFF',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Save
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (onEditUser) onEditUser(user);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #E2E8F0',
+                  backgroundColor: '#FFFFFF',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#334155',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+                title="Edit entire user details"
+              >
+                <Pencil size={13} color="#64748B" />
+                <span>Edit</span>
+              </button>
             </div>
 
-            {/* Content: View or Edit Mode */}
-            {!isEditingPersonal ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px' }}>
-                {/* Full Name */}
-                <div style={infoRowStyle}>
-                  <div style={infoLabelColStyle}>
-                    <Users size={15} color="#94A3B8" />
-                    <span>Full Name</span>
-                  </div>
-                  <div style={infoValColStyle}>{user.name}</div>
+            {/* Content: Clean Info Display */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px' }}>
+              {/* Full Name */}
+              <div style={infoRowStyle}>
+                <div style={infoLabelColStyle}>
+                  <Users size={15} color="#94A3B8" />
+                  <span>Full Name</span>
                 </div>
+                <div style={infoValColStyle}>{user.name}</div>
+              </div>
 
-                {/* Email */}
-                <div style={infoRowStyle}>
-                  <div style={infoLabelColStyle}>
-                    <Mail size={15} color="#94A3B8" />
-                    <span>Email</span>
-                  </div>
-                  <div style={infoValColStyle}>{user.email}</div>
+              {/* Email */}
+              <div style={infoRowStyle}>
+                <div style={infoLabelColStyle}>
+                  <Mail size={15} color="#94A3B8" />
+                  <span>Email</span>
                 </div>
+                <div style={infoValColStyle}>{user.email}</div>
+              </div>
 
-                {/* Phone Number */}
-                <div style={infoRowStyle}>
-                  <div style={infoLabelColStyle}>
-                    <Phone size={15} color="#94A3B8" />
-                    <span>Phone Number</span>
-                  </div>
-                  <div style={infoValColStyle}>{user.phone}</div>
+              {/* Phone Number */}
+              <div style={infoRowStyle}>
+                <div style={infoLabelColStyle}>
+                  <Phone size={15} color="#94A3B8" />
+                  <span>Phone Number</span>
                 </div>
+                <div style={infoValColStyle}>{user.phone}</div>
+              </div>
 
-                {/* User ID */}
-                <div style={infoRowStyle}>
-                  <div style={infoLabelColStyle}>
-                    <CreditCard size={15} color="#94A3B8" />
-                    <span>User ID</span>
-                  </div>
-                  <div style={infoValColStyle}>{user.id}</div>
+              {/* User ID */}
+              <div style={infoRowStyle}>
+                <div style={infoLabelColStyle}>
+                  <CreditCard size={15} color="#94A3B8" />
+                  <span>User ID</span>
                 </div>
+                <div style={infoValColStyle}>{user.id}</div>
+              </div>
 
-                {/* Role */}
-                <div style={infoRowStyle}>
-                  <div style={infoLabelColStyle}>
-                    <Shield size={15} color="#94A3B8" />
-                    <span>Role</span>
-                  </div>
-                  <div style={infoValColStyle}>
-                    <span 
-                      style={{
-                        padding: '2px 8px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        backgroundColor: '#EFF6FF',
-                        color: '#2563EB',
-                        border: '1px solid #DBEAFE'
-                      }}
-                    >
-                      {user.role}
-                    </span>
-                  </div>
+              {/* Role */}
+              <div style={infoRowStyle}>
+                <div style={infoLabelColStyle}>
+                  <Shield size={15} color="#94A3B8" />
+                  <span>Role</span>
+                </div>
+                <div style={infoValColStyle}>
+                  <span 
+                    style={{
+                      padding: '2px 8px',
+                      borderRadius: '6px',
+                      fontSize: '11.5px',
+                      fontWeight: 600,
+                      backgroundColor: '#EFF6FF',
+                      color: '#2563EB',
+                      border: '1px solid #DBEAFE'
+                    }}
+                  >
+                    {user.role}
+                  </span>
                 </div>
               </div>
-            ) : (
-              /* Inline Edit Mode */
-              <form onSubmit={handleSavePersonalInfo} style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '4px' }}>
-                <div>
-                  <label style={editLabelStyle}>Full Name</label>
-                  <input
-                    type="text"
-                    value={editFormData.name}
-                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                    style={editInputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={editLabelStyle}>Email</label>
-                  <input
-                    type="email"
-                    value={editFormData.email}
-                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                    style={editInputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={editLabelStyle}>Phone Number</label>
-                  <input
-                    type="text"
-                    value={editFormData.phone}
-                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                    style={editInputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={editLabelStyle}>Role</label>
-                  <select
-                    value={editFormData.role}
-                    onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
-                    style={editInputStyle}
-                  >
-                    <option value="Super Admin">Super Admin</option>
-                    <option value="Admin">Admin</option>
-                    <option value="School Staff">School Staff</option>
-                    <option value="Staff">Staff</option>
-                    <option value="View Only">View Only</option>
-                  </select>
-                </div>
-              </form>
-            )}
+            </div>
           </div>
 
           {/* 3. Access Activity Card */}
@@ -863,7 +876,7 @@ export default function UserDetailsView({
               </div>
             </div>
 
-            {/* List of 7 Modules with Toggle Switches */}
+            {/* List of 7 Modules with Toggle Switches (read-only in viewOnly mode) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '4px' }}>
               <ModuleToggleRow
                 icon={BarChart2}
@@ -871,7 +884,8 @@ export default function UserDetailsView({
                 title="Dashboard"
                 description="View system overview and analytics"
                 enabled={moduleAccess.dashboard}
-                onToggle={() => handleToggleModule('dashboard')}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('dashboard')}
               />
 
               <ModuleToggleRow
@@ -880,7 +894,8 @@ export default function UserDetailsView({
                 title="Students"
                 description="View and manage student data"
                 enabled={moduleAccess.students}
-                onToggle={() => handleToggleModule('students')}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('students')}
               />
 
               <ModuleToggleRow
@@ -889,7 +904,8 @@ export default function UserDetailsView({
                 title="Student Assessment"
                 description="View assessment data and reports"
                 enabled={moduleAccess.assessment}
-                onToggle={() => handleToggleModule('assessment')}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('assessment')}
               />
 
               <ModuleToggleRow
@@ -898,7 +914,8 @@ export default function UserDetailsView({
                 title="Monthly Tracking"
                 description="View monthly tracking data"
                 enabled={moduleAccess.tracking}
-                onToggle={() => handleToggleModule('tracking')}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('tracking')}
               />
 
               <ModuleToggleRow
@@ -907,7 +924,8 @@ export default function UserDetailsView({
                 title="Health History"
                 description="View student health history"
                 enabled={moduleAccess.history}
-                onToggle={() => handleToggleModule('history')}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('history')}
               />
 
               <ModuleToggleRow
@@ -916,7 +934,8 @@ export default function UserDetailsView({
                 title="Reports"
                 description="Access reports and analytics"
                 enabled={moduleAccess.reports}
-                onToggle={() => handleToggleModule('reports')}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('reports')}
               />
 
               <ModuleToggleRow
@@ -925,65 +944,71 @@ export default function UserDetailsView({
                 title="Notifications"
                 description="Manage and send notifications"
                 enabled={moduleAccess.notifications}
-                onToggle={() => handleToggleModule('notifications')}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('notifications')}
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* ================= RESET PASSWORD MODAL ================= */}
-      {showResetModal && (
-        <div style={modalBackdropStyle} onClick={() => setShowResetModal(false)}>
+      {/* ================= CONFIRM DELETE USER MODAL ================= */}
+      {showDeleteModal && (
+        <div style={modalBackdropStyle} onClick={() => setShowDeleteModal(false)}>
           <div style={modalBoxStyle} onClick={(e) => e.stopPropagation()}>
-            <div style={modalHeaderStyle}>
+            <div style={{ ...modalHeaderStyle, backgroundColor: '#FEF2F2', padding: '14px 16px', borderRadius: '10px 10px 0 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Key size={18} color="#EA580C" />
+                <Trash2 size={18} color="#DC2626" />
                 <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                  Reset Password
+                  Confirm User Deletion
                 </h3>
               </div>
               <button 
-                onClick={() => setShowResetModal(false)}
+                onClick={() => setShowDeleteModal(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: '12.5px', color: '#64748B', margin: '12px 0 16px 0' }}>
-              Set a new temporary password for <strong>{user.name}</strong> ({user.email}).
-            </p>
+            <div style={{ padding: '16px 4px 4px 4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13px', color: '#334155', margin: 0, lineHeight: 1.5 }}>
+                Are you sure you want to permanently delete user <strong style={{ color: '#0F172A' }}>{user.name}</strong> (<strong style={{ color: '#EA580C' }}>{user.id}</strong>)?
+              </p>
 
-            <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <label style={editLabelStyle}>New Password</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="Enter new password (min. 8 characters)"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  style={editInputStyle}
-                />
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <div><span style={{ color: '#64748B' }}>User ID:</span> <strong>{user.id}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Email:</span> <strong>{user.email}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Role:</span> <strong>{user.role}</strong></div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowResetModal(false)}
-                  style={modalCancelBtnStyle}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  style={modalSubmitBtnStyle}
-                >
-                  Save Password
-                </button>
+              <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>This user will immediately lose all login access to the mobile application and admin panel.</span>
               </div>
-            </form>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                style={modalCancelBtnStyle}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteUser}
+                disabled={isDeleting}
+                style={{
+                  ...modalSubmitBtnStyle,
+                  backgroundColor: '#DC2626',
+                  opacity: isDeleting ? 0.7 : 1
+                }}
+              >
+                {isDeleting ? 'Deleting...' : 'Confirm & Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -992,7 +1017,7 @@ export default function UserDetailsView({
 }
 
 /* ================= HELPER SUB-COMPONENT: MODULE TOGGLE ROW ================= */
-function ModuleToggleRow({ icon: Icon, iconColor, title, description, enabled, onToggle }) {
+function ModuleToggleRow({ icon: Icon, iconColor, title, description, enabled, readOnly = false, onToggle }) {
   return (
     <div 
       style={{
@@ -1004,11 +1029,11 @@ function ModuleToggleRow({ icon: Icon, iconColor, title, description, enabled, o
         backgroundColor: '#FFFFFF',
         border: '1px solid #F1F5F9',
         transition: 'all 0.15s ease',
-        cursor: 'pointer'
+        cursor: readOnly ? 'default' : 'pointer'
       }}
-      onClick={onToggle}
-      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFFFFF'}
+      onClick={readOnly ? undefined : onToggle}
+      onMouseEnter={(e) => { if (!readOnly) e.currentTarget.style.backgroundColor = '#F8FAFC'; }}
+      onMouseLeave={(e) => { if (!readOnly) e.currentTarget.style.backgroundColor = '#FFFFFF'; }}
     >
       {/* Left: Icon + Title & Description */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>

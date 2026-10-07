@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Menu, Search, Bell, LogOut, RefreshCw, Filter, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import LogoutConfirmModal from './LogoutConfirmModal';
 
 export default function DashboardTopbar({ 
   onToggleMobileMenu, 
@@ -17,6 +18,7 @@ export default function DashboardTopbar({
 }) {
   const { user, logout } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   return (
     <header className="dashboard-topbar">
@@ -134,13 +136,23 @@ export default function DashboardTopbar({
         {/* Logout */}
         <button 
           className="logout-btn-top" 
-          onClick={logout}
+          onClick={() => setShowLogoutConfirm(true)}
           title="Sign out of Admin Portal"
         >
           <LogOut size={16} />
           <span>Sign Out</span>
         </button>
       </div>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          logout();
+        }}
+        user={user}
+      />
     </header>
   );
 }

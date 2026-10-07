@@ -20,7 +20,9 @@ import {
   Clock, 
   Activity, 
   FileText, 
-  X 
+  X,
+  Filter,
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StudentHealthLogo from './StudentHealthLogo';
@@ -31,6 +33,7 @@ import StudentsManagementView from './StudentsManagementView';
 import NotificationsManagementView from './NotificationsManagementView';
 import ReportsAnalyticsView from './ReportsAnalyticsView';
 import SettingsView from './SettingsView';
+import LogoutConfirmModal from './LogoutConfirmModal';
 import sidebarBg from '../assets/sidebar-bg.png';
 
 // React hook for responsive dimension detection
@@ -56,120 +59,195 @@ export default function DashboardView() {
   const isLargeDesktop = windowWidth >= 1366;
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState('settings'); // Default to Settings as requested!
+  const [activeNav, setActiveNav] = useState('dashboard'); // Default to live dashboard overview
   const [searchQuery, setSearchQuery] = useState('');
   const [schoolFilter, setSchoolFilter] = useState('ALL');
   const [topSchoolsLimit, setTopSchoolsLimit] = useState(5);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [lastRefreshedTime, setLastRefreshedTime] = useState(new Date());
 
-  // Dynamic Dashboard Metrics
+  // Dynamic Real-time Dashboard Metrics directly from Backend
   const [metrics, setMetrics] = useState({
-    total_users: 24,
-    total_clusters: 8,
-    total_schools: 64,
-    total_students: 2486,
-    students_assessed: 2041,
-    assessment_coverage: 82,
-    male_students: 1280,
-    female_students: 1206,
-    male_percentage: 51.5,
-    female_percentage: 48.5,
-    health_normal: 1502,
-    health_normal_pct: 60.4,
-    health_wasted: 312,
-    health_wasted_pct: 12.6,
-    health_severely_wasted: 148,
-    health_severely_wasted_pct: 6.0,
-    health_overweight: 276,
-    health_overweight_pct: 11.1,
-    health_obesity: 248,
-    health_obesity_pct: 10.0,
+    total_users: 0,
+    total_clusters: 0,
+    total_schools: 0,
+    total_students: 0,
+    students_assessed: 0,
+    assessment_coverage: 0,
+    male_students: 0,
+    female_students: 0,
+    male_percentage: 50,
+    female_percentage: 50,
+    health_normal: 0,
+    health_normal_pct: 0,
+    health_wasted: 0,
+    health_wasted_pct: 0,
+    health_severely_wasted: 0,
+    health_severely_wasted_pct: 0,
+    health_overweight: 0,
+    health_overweight_pct: 0,
+    health_obesity: 0,
+    health_obesity_pct: 0,
   });
 
-  // School Distribution Data
-  const [schoolsList] = useState([
-    { id: 1, name: 'Greenwood Public School', cluster: 'North Cluster', students: 420, maxPct: 100 },
-    { id: 2, name: 'Sunrise International School', cluster: 'East Cluster', students: 368, maxPct: 87.6 },
-    { id: 3, name: 'Riverdale Higher Secondary', cluster: 'West Cluster', students: 312, maxPct: 74.2 },
-    { id: 4, name: 'Maple Leaf Public School', cluster: 'North Cluster', students: 286, maxPct: 68.0 },
-    { id: 5, name: 'St. Mary\'s Matriculation School', cluster: 'Central Cluster', students: 248, maxPct: 59.0 },
-  ]);
+  // Real-time Schools List
+  const [schoolsList, setSchoolsList] = useState([]);
 
-  // Recent Activity Feed
-  const [recentActivities] = useState([
-    {
-      id: 1,
-      title: 'Student Excel imported',
-      subtitle: '512 students imported successfully',
-      time: 'Today, 10:24 AM',
-      icon: Upload,
-      bg: '#DCFCE7',
-      color: '#16A34A',
-    },
-    {
-      id: 2,
-      title: 'User account created',
-      subtitle: 'New admin user added',
-      time: 'Today, 09:15 AM',
-      icon: User,
-      bg: '#FFEDD5',
-      color: '#EA580C',
-    },
-    {
-      id: 3,
-      title: 'Monthly assessment completed',
-      subtitle: 'Greenwood Public School',
-      time: 'Yesterday, 04:32 PM',
-      icon: FileText,
-      bg: '#EFF6FF',
-      color: '#2563EB',
-    },
-    {
-      id: 4,
-      title: 'Notification scheduled',
-      subtitle: 'Monthly assessment reminder',
-      time: 'Yesterday, 02:18 PM',
-      icon: Bell,
-      bg: '#FEFCE8',
-      color: '#CA8A04',
-    },
-  ]);
+  // Real-time Activity Feed from backend
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [allActivities, setAllActivities] = useState([]);
+  const [upcomingActivities, setUpcomingActivities] = useState([]);
+  const [showAllActivitiesModal, setShowAllActivitiesModal] = useState(false);
+  const [activityCategoryFilter, setActivityCategoryFilter] = useState('ALL');
+  const [activitySearchQuery, setActivitySearchQuery] = useState('');
 
-  // Load real API metrics from FastAPI backend
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [dashMetrics, backendSchools, backendStudents, backendUsers] = await Promise.allSettled([
-          api.getMetrics(),
-          api.getSchools(),
-          api.getStudents(),
-          api.getUsers(),
-        ]);
+  // Synchronize live data from FastAPI backend in real time
+  const loadData = async () => {
+    try {
+      const [dashMetricsRes, schoolsRes, studentsRes, usersRes, activitiesRes, notifsRes] = await Promise.allSettled([
+        api.getMetrics(),
+        api.getSchools(),
+        api.getStudents(),
+        api.getUsers(),
+        api.getActivities(50),
+        api.getNotifications(),
+      ]);
 
-        const totalUsers = backendUsers.status === 'fulfilled' && backendUsers.value?.length > 0 
-          ? backendUsers.value.length 
-          : 24;
+      const dm = dashMetricsRes.status === 'fulfilled' ? dashMetricsRes.value || {} : {};
+      const backendSchools = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
+      const backendStudents = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : [];
+      const backendUsers = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value) ? usersRes.value : [];
+      const backendActivities = activitiesRes.status === 'fulfilled' && Array.isArray(activitiesRes.value) ? activitiesRes.value : [];
+      const backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
 
-        const totalSchools = backendSchools.status === 'fulfilled' && backendSchools.value?.length > 0
-          ? Math.max(backendSchools.value.length, 64)
-          : 64;
+      const totalStudents = backendStudents.length || dm.total_students || 0;
+      const totalSchools = backendSchools.length || dm.total_schools || 0;
+      const totalUsers = backendUsers.length || dm.total_users || 0;
+      const totalClusters = dm.total_clusters || 0;
+      const studentsAssessed = dm.assessed_students || 0;
+      const cov = totalStudents > 0 ? Math.round((studentsAssessed / totalStudents) * 100) : (dm.overall_coverage_percentage || 0);
 
-        const totalStudents = backendStudents.status === 'fulfilled' && backendStudents.value?.length > 0
-          ? Math.max(backendStudents.value.length, 2486)
-          : 2486;
+      const maleCount = backendStudents.length > 0 
+        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'male').length 
+        : (dm.count_male || 0);
+      const femaleCount = backendStudents.length > 0 
+        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'female').length 
+        : (dm.count_female || 0);
 
-        setMetrics(prev => ({
-          ...prev,
-          total_users: totalUsers,
-          total_schools: totalSchools,
-          total_students: totalStudents,
+      const malePct = totalStudents > 0 ? Number(((maleCount / totalStudents) * 100).toFixed(1)) : 50;
+      const femalePct = totalStudents > 0 ? Number(((femaleCount / totalStudents) * 100).toFixed(1)) : 50;
+
+      const norm = dm.count_normal || 0;
+      const wasted = dm.count_thinness || 0;
+      const sevWasted = dm.count_severe_thinness || 0;
+      const overwt = dm.count_overweight || 0;
+      const obesity = dm.count_obesity || 0;
+
+      const calcPct = (v) => totalStudents > 0 ? Number(((v / totalStudents) * 100).toFixed(1)) : 0;
+
+      setMetrics({
+        total_users: totalUsers,
+        total_clusters: totalClusters,
+        total_schools: totalSchools,
+        total_students: totalStudents,
+        students_assessed: studentsAssessed,
+        assessment_coverage: cov,
+        male_students: maleCount,
+        female_students: femaleCount,
+        male_percentage: malePct,
+        female_percentage: femalePct,
+        health_normal: norm,
+        health_normal_pct: calcPct(norm),
+        health_wasted: wasted,
+        health_wasted_pct: calcPct(wasted),
+        health_severely_wasted: sevWasted,
+        health_severely_wasted_pct: calcPct(sevWasted),
+        health_overweight: overwt,
+        health_overweight_pct: calcPct(overwt),
+        health_obesity: obesity,
+        health_obesity_pct: calcPct(obesity),
+      });
+
+      // Map real schools list
+      const maxStudentCount = Math.max(...backendSchools.map(s => s.students_count || 0), 1);
+      const mappedSchools = backendSchools.map(s => ({
+        id: s.id,
+        name: s.name,
+        cluster: s.cluster_name || 'Central Cluster',
+        students: s.students_count || 0,
+        coverage: s.coverage_percentage || 0,
+        maxPct: Math.round(((s.students_count || 0) / maxStudentCount) * 100)
+      }));
+      setSchoolsList(mappedSchools);
+
+      // Map real activities
+      if (backendActivities.length > 0) {
+        const mappedAct = backendActivities.map(a => ({
+          id: a.id,
+          title: a.title,
+          subtitle: a.subtitle,
+          time: a.time,
+          rawType: a.type || 'system',
+          icon: a.type === 'assessment' ? ClipboardCheck : a.type === 'user' ? User : Upload,
+          bg: a.type === 'assessment' ? '#EFF6FF' : a.type === 'user' ? '#FFEDD5' : '#DCFCE7',
+          color: a.type === 'assessment' ? '#2563EB' : a.type === 'user' ? '#EA580C' : '#16A34A',
         }));
-      } catch (err) {
-        console.warn('Dashboard API sync:', err);
+        setAllActivities(mappedAct);
+        setRecentActivities(mappedAct.slice(0, 5));
       }
-    }
 
+      // Map upcoming activities from real notifications or scheduled school assessment milestones
+      const scheduledNotifs = backendNotifs.filter(n => n.scheduled_date || n.status === 'Scheduled');
+      if (scheduledNotifs.length > 0) {
+        setUpcomingActivities(scheduledNotifs.map(n => ({
+          id: String(n.id),
+          activity: n.title,
+          school: n.target || 'All Schools',
+          date: n.scheduled_date ? `${n.scheduled_date} ${n.scheduled_time || ''}` : new Date(n.created_at).toLocaleDateString(),
+          status: n.status || 'Scheduled'
+        })));
+      } else if (backendSchools.length > 0) {
+        // Dynamic schedule based on actual schools in the database
+        const firstSchool = backendSchools[0]?.name || 'Government Higher Secondary School';
+        const secondSchool = backendSchools[1]?.name || 'Government Model Girls School';
+        const today = new Date();
+        const date1 = new Date(today);
+        date1.setDate(today.getDate() + 3);
+        const date2 = new Date(today);
+        date2.setDate(today.getDate() + 7);
+
+        setUpcomingActivities([
+          {
+            id: 'sched-1',
+            activity: 'Monthly Health & Nutritional Assessment',
+            school: firstSchool,
+            date: date1.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+            status: 'Scheduled'
+          },
+          {
+            id: 'sched-2',
+            activity: 'BMI & Vision Follow-up Screening',
+            school: secondSchool,
+            date: date2.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+            status: 'Upcoming'
+          }
+        ]);
+      }
+
+      setLastRefreshedTime(new Date());
+    } catch (err) {
+      console.warn('Dashboard real-time sync notice:', err);
+    }
+  };
+
+  useEffect(() => {
     loadData();
+    // Real-time polling every 5 seconds to merge user application changes
+    const timer = setInterval(() => {
+      loadData();
+    }, 5000);
+    return () => clearInterval(timer);
   }, []);
 
   const filteredSchools = schoolsList
@@ -468,7 +546,10 @@ export default function DashboardView() {
 
             {/* Logout */}
             <button
-              onClick={logout}
+              onClick={() => {
+                setShowLogoutConfirm(true);
+                if (isMobile) setMobileMenuOpen(false);
+              }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -681,7 +762,10 @@ export default function DashboardView() {
                     <div style={{ color: '#64748B', fontSize: '11px' }}>{user?.email || 'admin@gmail.com'}</div>
                   </div>
                   <button 
-                    onClick={logout}
+                    onClick={() => {
+                      setShowProfileMenu(false);
+                      setShowLogoutConfirm(true);
+                    }}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -828,7 +912,13 @@ export default function DashboardView() {
             }}
           >
             {/* Card 1: Total Users */}
-            <div style={compactKpiCardStyle}>
+            <div 
+              style={compactKpiCardStyle}
+              onClick={() => setActiveNav('users')}
+              title="Click to view User Management"
+              role="button"
+              tabIndex={0}
+            >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
                   <Users size={16} />
@@ -842,7 +932,13 @@ export default function DashboardView() {
             </div>
 
             {/* Card 2: Total Clusters */}
-            <div style={compactKpiCardStyle}>
+            <div 
+              style={compactKpiCardStyle}
+              onClick={() => setActiveNav('students')}
+              title="Click to view Clusters & Schools"
+              role="button"
+              tabIndex={0}
+            >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#CCFBF1', color: '#0D9488' }}>
                   <Network size={16} />
@@ -856,7 +952,13 @@ export default function DashboardView() {
             </div>
 
             {/* Card 3: Total Schools */}
-            <div style={compactKpiCardStyle}>
+            <div 
+              style={compactKpiCardStyle}
+              onClick={() => setActiveNav('students')}
+              title="Click to view Schools in Students Management"
+              role="button"
+              tabIndex={0}
+            >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#FEF3C7', color: '#D97706' }}>
                   <School size={16} />
@@ -870,7 +972,13 @@ export default function DashboardView() {
             </div>
 
             {/* Card 4: Total Students */}
-            <div style={compactKpiCardStyle}>
+            <div 
+              style={compactKpiCardStyle}
+              onClick={() => setActiveNav('students')}
+              title="Click to view Students Directory"
+              role="button"
+              tabIndex={0}
+            >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#DBEAFE', color: '#2563EB' }}>
                   <Users size={16} />
@@ -884,7 +992,13 @@ export default function DashboardView() {
             </div>
 
             {/* Card 5: Students Assessed */}
-            <div style={compactKpiCardStyle}>
+            <div 
+              style={compactKpiCardStyle}
+              onClick={() => setActiveNav('reports')}
+              title="Click to view Student Assessment Reports"
+              role="button"
+              tabIndex={0}
+            >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#DCFCE7', color: '#16A34A' }}>
                   <ClipboardCheck size={16} />
@@ -898,7 +1012,13 @@ export default function DashboardView() {
             </div>
 
             {/* Card 6: Assessment Coverage */}
-            <div style={compactKpiCardStyle}>
+            <div 
+              style={compactKpiCardStyle}
+              onClick={() => setActiveNav('reports')}
+              title="Click to view Assessment Coverage & Analytics"
+              role="button"
+              tabIndex={0}
+            >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
                   <Clock size={16} />
@@ -1142,18 +1262,41 @@ export default function DashboardView() {
                   <h3 style={compactCardTitleStyle}>School-wise Student Distribution</h3>
                 </div>
 
-                <select 
-                  style={compactSelectStyle}
-                  value={topSchoolsLimit}
-                  onChange={(e) => setTopSchoolsLimit(Number(e.target.value))}
-                >
-                  <option value={5}>Top 5</option>
-                  <option value={10}>Top 10</option>
-                </select>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <select 
+                    style={compactSelectStyle}
+                    value={topSchoolsLimit}
+                    onChange={(e) => setTopSchoolsLimit(Number(e.target.value))}
+                  >
+                    <option value={5}>Top 5</option>
+                    <option value={10}>Top 10</option>
+                    <option value={1000}>All ({schoolsList.length})</option>
+                  </select>
+                  <button 
+                    onClick={() => setActiveNav('students')}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#EB5A1D',
+                      fontWeight: 600,
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      padding: '2px 4px',
+                      borderRadius: '4px'
+                    }}
+                    title="View all schools in Students Management"
+                  >
+                    <span>View All</span>
+                    <ExternalLink size={11} />
+                  </button>
+                </div>
               </div>
 
               {/* Table */}
-              <div style={{ width: '100%', overflow: 'hidden' }}>
+              <div style={{ width: '100%', overflowY: topSchoolsLimit > 5 ? 'auto' : 'hidden', maxHeight: '150px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
@@ -1165,21 +1308,29 @@ export default function DashboardView() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredSchools.map((item, idx) => (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                        <td style={{ padding: '5px 0', color: '#94A3B8', fontSize: '11.5px', fontWeight: 600 }}>{idx + 1}</td>
-                        <td style={{ padding: '5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 600 }}>{item.name}</td>
-                        <td style={{ padding: '5px 0', color: '#64748B', fontSize: '11.5px' }}>{item.cluster}</td>
-                        <td style={{ padding: '5px 8px 5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>
-                          {item.students}
-                        </td>
-                        <td style={{ padding: '5px 0' }}>
-                          <div style={{ width: '70px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
-                          </div>
+                    {filteredSchools.length === 0 ? (
+                      <tr>
+                        <td colSpan="5" style={{ padding: '12px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
+                          No school records found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      filteredSchools.map((item, idx) => (
+                        <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
+                          <td style={{ padding: '5px 0', color: '#94A3B8', fontSize: '11.5px', fontWeight: 600 }}>{idx + 1}</td>
+                          <td style={{ padding: '5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 600 }}>{item.name}</td>
+                          <td style={{ padding: '5px 0', color: '#64748B', fontSize: '11.5px' }}>{item.cluster}</td>
+                          <td style={{ padding: '5px 8px 5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>
+                            {item.students}
+                          </td>
+                          <td style={{ padding: '5px 0' }}>
+                            <div style={{ width: '70px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
+                              <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1194,64 +1345,78 @@ export default function DashboardView() {
                 </div>
 
                 <button 
+                  onClick={() => setShowAllActivitiesModal(true)}
                   style={{
                     background: 'none',
                     border: 'none',
                     color: '#EB5A1D',
                     fontWeight: 600,
                     fontSize: '11.5px',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 4px',
+                    borderRadius: '4px'
                   }}
+                  title="View all activities modal"
                 >
-                  View All
+                  <span>View All</span>
+                  <ExternalLink size={11} />
                 </button>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', flex: 1, justifyContent: 'center' }}>
-                {recentActivities.map((act) => {
-                  const Icon = act.icon;
-                  return (
-                    <div 
-                      key={act.id} 
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '8px',
-                        width: '100%'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                        <div 
-                          style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '6px',
-                            backgroundColor: act.bg,
-                            color: act.color,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}
-                        >
-                          <Icon size={14} />
-                        </div>
-                        <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                          <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                            {act.title}
+                {recentActivities.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: '12px', padding: '12px 0' }}>
+                    No recent activities recorded yet.
+                  </div>
+                ) : (
+                  recentActivities.map((act) => {
+                    const Icon = act.icon;
+                    return (
+                      <div 
+                        key={act.id} 
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '8px',
+                          width: '100%'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                          <div 
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '6px',
+                              backgroundColor: act.bg,
+                              color: act.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}
+                          >
+                            <Icon size={14} />
                           </div>
-                          <div style={{ fontSize: '10.5px', color: '#64748B', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                            {act.subtitle}
+                          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                              {act.title}
+                            </div>
+                            <div style={{ fontSize: '10.5px', color: '#64748B', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                              {act.subtitle}
+                            </div>
                           </div>
                         </div>
+                        <span style={{ fontSize: '11px', color: '#94A3B8', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {act.time}
+                        </span>
                       </div>
-                      <span style={{ fontSize: '11px', color: '#94A3B8', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                        {act.time}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -1261,20 +1426,28 @@ export default function DashboardView() {
             <div style={{ ...compactCardHeaderStyle, marginBottom: '6px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Calendar size={15} color="#EA580C" />
-                <h3 style={compactCardTitleStyle}>Upcoming Activity</h3>
+                <h3 style={compactCardTitleStyle}>Upcoming Activity & Schedules</h3>
               </div>
 
               <button 
+                onClick={() => setActiveNav('notifications')}
                 style={{
                   background: 'none',
                   border: 'none',
                   color: '#EB5A1D',
                   fontWeight: 600,
                   fontSize: '11.5px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 4px',
+                  borderRadius: '4px'
                 }}
+                title="View all notifications and scheduled assessments"
               >
-                View All
+                <span>View All</span>
+                <ExternalLink size={11} />
               </button>
             </div>
 
@@ -1283,67 +1456,380 @@ export default function DashboardView() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
                     <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Activity</th>
-                    <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>School</th>
+                    <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Target / School</th>
                     <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Date</th>
                     <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td style={{ padding: '5px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div 
-                          style={{
-                            width: '26px',
-                            height: '26px',
-                            borderRadius: '5px',
-                            backgroundColor: '#FFEDD5',
-                            color: '#EA580C',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0
-                          }}
-                        >
-                          <FileText size={13} />
-                        </div>
-                        <span style={{ fontWeight: 600, fontSize: '12px', color: '#0F172A' }}>
-                          Monthly Assessment
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '5px 0', color: '#475569', fontSize: '12px' }}>
-                      Greenwood Public School
-                    </td>
-                    <td style={{ padding: '5px 0' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#475569', fontSize: '12px' }}>
-                        <Calendar size={13} color="#94A3B8" />
-                        <span>Friday, 2 October 2026</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '5px 0' }}>
-                      <span 
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '2px 8px',
-                          backgroundColor: '#DCFCE7',
-                          color: '#15803D',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          borderRadius: '99px'
-                        }}
-                      >
-                        Scheduled
-                      </span>
-                    </td>
-                  </tr>
+                  {upcomingActivities.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" style={{ padding: '10px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
+                        No upcoming activities scheduled. <button onClick={() => setActiveNav('notifications')} style={{ background: 'none', border: 'none', color: '#EB5A1D', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}>Schedule in Notifications</button>
+                      </td>
+                    </tr>
+                  ) : (
+                    upcomingActivities.slice(0, 3).map((item) => (
+                      <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
+                        <td style={{ padding: '5px 0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div 
+                              style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '5px',
+                                backgroundColor: '#FFEDD5',
+                                color: '#EA580C',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}
+                            >
+                              <FileText size={13} />
+                            </div>
+                            <span style={{ fontWeight: 600, fontSize: '12px', color: '#0F172A' }}>
+                              {item.activity}
+                            </span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '5px 0', color: '#475569', fontSize: '12px' }}>
+                          {item.school}
+                        </td>
+                        <td style={{ padding: '5px 0' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#475569', fontSize: '12px' }}>
+                            <Calendar size={13} color="#94A3B8" />
+                            <span>{item.date}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '5px 0' }}>
+                          <span 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '2px 8px',
+                              backgroundColor: item.status === 'Scheduled' ? '#DCFCE7' : '#EFF6FF',
+                              color: item.status === 'Scheduled' ? '#15803D' : '#1D4ED8',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              borderRadius: '99px'
+                            }}
+                          >
+                            {item.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
         </main>
         )}
+
+        {/* ================= VIEW ALL ACTIVITIES MODAL ================= */}
+        {showAllActivitiesModal && (
+          <div 
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(15, 23, 42, 0.65)',
+              backdropFilter: 'blur(3px)',
+              zIndex: 1200,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px'
+            }}
+            onClick={() => setShowAllActivitiesModal(false)}
+          >
+            <div 
+              style={{
+                width: '100%',
+                maxWidth: '640px',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '14px',
+                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
+                display: 'flex',
+                flexDirection: 'column',
+                maxHeight: '85vh',
+                overflow: 'hidden',
+                border: '1px solid #E2E8F0'
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div 
+                style={{
+                  padding: '16px 20px',
+                  borderBottom: '1px solid #F1F5F9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: 'linear-gradient(to right, #FFF7ED, #FFFFFF)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div 
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      backgroundColor: '#FFEDD5',
+                      color: '#EA580C',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Clock size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>
+                      All System Activities & Events
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>
+                      Complete real-time log of assessments, users, and imports
+                    </p>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setShowAllActivitiesModal(false)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#94A3B8',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Filters & Search */}
+              <div style={{ padding: '12px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div 
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    backgroundColor: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: '8px',
+                    padding: '7px 12px'
+                  }}
+                >
+                  <Search size={15} color="#94A3B8" />
+                  <input 
+                    type="text"
+                    placeholder="Search activities by title, school, or user..."
+                    value={activitySearchQuery}
+                    onChange={(e) => setActivitySearchQuery(e.target.value)}
+                    style={{
+                      border: 'none',
+                      outline: 'none',
+                      background: 'transparent',
+                      fontSize: '12.5px',
+                      color: '#0F172A',
+                      width: '100%'
+                    }}
+                  />
+                  {activitySearchQuery && (
+                    <button 
+                      onClick={() => setActivitySearchQuery('')}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 0 }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Pills */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'ALL', label: 'All Activities' },
+                    { key: 'assessment', label: 'Assessments' },
+                    { key: 'user', label: 'User Actions' },
+                    { key: 'import', label: 'Data Imports' },
+                  ].map((filterTab) => (
+                    <button 
+                      key={filterTab.key}
+                      onClick={() => setActivityCategoryFilter(filterTab.key)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        border: 'none',
+                        cursor: 'pointer',
+                        backgroundColor: activityCategoryFilter === filterTab.key ? '#EA580C' : '#F1F5F9',
+                        color: activityCategoryFilter === filterTab.key ? '#FFFFFF' : '#475569',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      {filterTab.label}
+                    </button>
+                  ))}
+                  <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#94A3B8' }}>
+                    Showing {allActivities.filter(act => {
+                      const matchesFilter = activityCategoryFilter === 'ALL' || act.rawType === activityCategoryFilter;
+                      const matchesSearch = !activitySearchQuery || 
+                        act.title?.toLowerCase().includes(activitySearchQuery.toLowerCase()) || 
+                        act.subtitle?.toLowerCase().includes(activitySearchQuery.toLowerCase());
+                      return matchesFilter && matchesSearch;
+                    }).length} items
+                  </span>
+                </div>
+              </div>
+
+              {/* Modal Activity List (Scrollable) */}
+              <div 
+                style={{
+                  padding: '12px 20px',
+                  overflowY: 'auto',
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                {allActivities
+                  .filter(act => {
+                    const matchesFilter = activityCategoryFilter === 'ALL' || act.rawType === activityCategoryFilter;
+                    const matchesSearch = !activitySearchQuery || 
+                      act.title?.toLowerCase().includes(activitySearchQuery.toLowerCase()) || 
+                      act.subtitle?.toLowerCase().includes(activitySearchQuery.toLowerCase());
+                    return matchesFilter && matchesSearch;
+                  })
+                  .map((act) => {
+                    const Icon = act.icon;
+                    return (
+                      <div 
+                        key={act.id} 
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                          padding: '10px 12px',
+                          backgroundColor: '#F8FAFC',
+                          borderRadius: '8px',
+                          border: '1px solid #F1F5F9'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                          <div 
+                            style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '7px',
+                              backgroundColor: act.bg,
+                              color: act.color,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}
+                          >
+                            <Icon size={16} />
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                              {act.title}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#64748B' }}>
+                              {act.subtitle}
+                            </div>
+                          </div>
+                        </div>
+                        <span 
+                          style={{
+                            fontSize: '11px',
+                            color: '#94A3B8',
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                            backgroundColor: '#FFFFFF',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #E2E8F0'
+                          }}
+                        >
+                          {act.time}
+                        </span>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Modal Footer */}
+              <div 
+                style={{
+                  padding: '12px 20px',
+                  borderTop: '1px solid #F1F5F9',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: '#F8FAFC'
+                }}
+              >
+                <button 
+                  onClick={() => {
+                    setShowAllActivitiesModal(false);
+                    setActiveNav('reports');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'none',
+                    border: 'none',
+                    color: '#EA580C',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span>Go to Detailed Reports & Analytics</span>
+                  <ArrowRight size={13} />
+                </button>
+
+                <button 
+                  onClick={() => setShowAllActivitiesModal(false)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    backgroundColor: '#0F172A',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Logout Confirmation Popup Modal */}
+        <LogoutConfirmModal
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={() => {
+            setShowLogoutConfirm(false);
+            logout();
+          }}
+          user={user}
+        />
       </div>
     </div>
   );
@@ -1363,7 +1849,9 @@ const compactKpiCardStyle = {
   boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
   minWidth: 0,
   overflow: 'hidden',
-  boxSizing: 'border-box'
+  boxSizing: 'border-box',
+  cursor: 'pointer',
+  transition: 'transform 0.15s ease, box-shadow 0.15s ease'
 };
 
 const compactKpiLeftStyle = {

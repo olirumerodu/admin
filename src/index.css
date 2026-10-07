@@ -83,163 +83,164 @@ html, body {
 }
 
 /* =========================================================
-   LOGIN SCREEN LAYOUT
+   SPLIT-SCREEN ADMIN LOGIN (IMAGE BACKGROUND + WHITE LOGIN)
    ========================================================= */
 
-.login-page-container {
+.split-login-container {
   min-height: 100vh;
   width: 100%;
-  position: relative;
-  background-color: #FAF8F5;
-  background-image: url('/images/bg-login.png');
-  background-size: cover;
-  background-position: center bottom;
-  background-repeat: no-repeat;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 60px;
+  background-color: #FFFFFF;
+  position: relative;
   overflow-x: hidden;
 }
 
-.login-ambient-overlay {
+/* LEFT SIDE: Original Medical / Health Office Background Image */
+.split-login-left {
+  flex: 1.15;
+  min-height: 100vh;
+  position: relative;
+  background-image: url('/images/bg-login.png');
+  background-size: cover;
+  background-position: center left;
+  background-repeat: no-repeat;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 72px;
+  box-sizing: border-box;
+}
+
+.split-login-left-overlay {
   position: absolute;
   inset: 0;
+  background: linear-gradient(135deg, rgba(14, 27, 56, 0.58) 0%, rgba(15, 23, 42, 0.45) 50%, rgba(14, 27, 56, 0.55) 100%);
   pointer-events: none;
-  background: radial-gradient(circle at 25% 35%, rgba(255, 245, 235, 0.4) 0%, rgba(255, 255, 255, 0) 65%),
-              linear-gradient(to right, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 45%);
+  z-index: 1;
 }
 
-.login-content-wrapper {
-  width: 100%;
-  max-width: 1320px;
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1.15fr 0.95fr;
-  align-items: center;
-  gap: 50px;
+.split-login-left-content {
   position: relative;
-  z-index: 10;
-}
-
-.login-hero-section {
+  z-index: 2;
+  max-width: 520px;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  padding-left: 10px;
-  padding-bottom: 90px;
+  align-items: center;
+  text-align: center;
+  margin: 0 auto;
 }
 
-.brand-header-row {
+.hero-logo-center-wrapper {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 34px;
-}
-
-.brand-logo-icon {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-}
-
-.brand-title-group {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-}
-
-.brand-title-primary {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 20px;
-  color: var(--navy-brand);
-  letter-spacing: -0.01em;
-}
-
-.brand-title-sub {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--primary);
-  letter-spacing: 0.01em;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
 .brand-accent-pill {
-  width: 36px;
-  height: 3.5px;
-  background-color: var(--primary);
+  width: 50px;
+  height: 4px;
+  background-color: #FB923C;
   border-radius: 99px;
-  margin-bottom: 24px;
+  margin: 22px auto 18px auto;
 }
 
 .hero-main-title {
-  font-family: var(--font-display);
-  font-size: 52px;
+  font-family: var(--font-display, 'Plus Jakarta Sans', sans-serif);
+  font-size: 46px;
   font-weight: 800;
-  line-height: 1.12;
-  margin-bottom: 18px;
-  letter-spacing: -0.03em;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0 0 16px 0;
+  text-align: center;
 }
 
 .hero-title-dark {
   display: block;
-  color: var(--navy-brand);
+  color: #FFFFFF;
 }
 
 .hero-title-orange {
   display: block;
-  color: var(--primary);
+  color: #FB923C;
 }
 
 .hero-description {
-  font-size: 17px;
-  color: var(--slate-sub);
-  line-height: 1.58;
-  max-width: 420px;
-  font-weight: 450;
+  font-size: 16.5px;
+  line-height: 1.6;
+  color: #E2E8F0;
+  margin: 0 auto;
+  max-width: 440px;
+  font-weight: 400;
+  text-align: center;
 }
 
-.login-card-wrapper {
+/* RIGHT SIDE: White Background with Floating Clean Card */
+.split-login-right {
+  flex: 0.95;
+  min-height: 100vh;
+  background-color: #FFFFFF;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  box-sizing: border-box;
 }
 
 .login-card {
-  background: var(--bg-card);
   width: 100%;
-  max-width: 470px;
-  border-radius: var(--radius-xxl);
-  padding: 46px 42px;
-  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.09), 0 0 1px 1px rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.7);
-  position: relative;
-  transition: box-shadow 0.3s ease;
-}
-
-.login-card:hover {
-  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15);
+  max-width: 440px;
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 42px 38px;
+  border: 1px solid #ECEEF2;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
 }
 
 .login-card-header {
-  margin-bottom: 30px;
+  margin-bottom: 24px;
 }
 
 .card-heading {
-  font-family: var(--font-display);
-  font-size: 32px;
+  font-family: var(--font-display, 'Plus Jakarta Sans', sans-serif);
+  font-size: 26px;
   font-weight: 800;
-  color: var(--navy-brand);
-  letter-spacing: -0.025em;
-  margin-bottom: 6px;
+  color: #0E1B38;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.02em;
 }
 
 .card-subheading {
-  font-size: 15px;
-  color: var(--slate-sub);
-  font-weight: 400;
+  font-size: 14px;
+  color: #64748B;
+  margin: 0;
+}
+
+@media (max-width: 1024px) {
+  .split-login-container {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .split-login-left {
+    min-height: auto;
+    padding: 48px 28px;
+  }
+  .hero-main-title {
+    font-size: 36px;
+  }
+  .split-login-right {
+    min-height: auto;
+    padding: 30px 20px;
+  }
+  .login-card {
+    padding: 30px 22px;
+    box-shadow: none;
+    border: none;
+  }
 }
 
 .login-form {
@@ -1235,3 +1236,21 @@ html, body {
     gap: 8px;
   }
 }
+
+/* Logout Modal Animations */
+@keyframes logoutFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes logoutSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+

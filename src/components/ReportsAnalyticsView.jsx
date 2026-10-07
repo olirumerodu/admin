@@ -25,6 +25,7 @@ import {
   SlidersHorizontal,
   Edit3
 } from 'lucide-react';
+import { api } from '../services/api';
 
 // Master Dataset for schools, years, gender, nutrition and assessments
 const MASTER_SCHOOLS_DATA = [
@@ -379,30 +380,111 @@ export default function ReportsAnalyticsView() {
   const [reportPage, setReportPage] = useState(1);
   const [reportPageSize, setReportPageSize] = useState(10);
 
+  // Live Backend Data
+  const [liveSchools, setLiveSchools] = useState([]);
+  const [liveStudents, setLiveStudents] = useState([]);
+
+  useEffect(() => {
+    async function loadReportsData() {
+      try {
+        const [sRes, stRes] = await Promise.all([
+          api.getSchools(),
+          api.getStudents()
+        ]);
+        if (Array.isArray(sRes)) setLiveSchools(sRes);
+        if (Array.isArray(stRes)) setLiveStudents(stRes);
+      } catch (err) {
+        console.warn('Reports live data fetch:', err);
+      }
+    }
+    loadReportsData();
+    const timer = setInterval(loadReportsData, 5000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Compute master schools data dynamically from real backend
+  const activeSchoolsData = useMemo(() => {
+    if (liveSchools.length === 0) return MASTER_SCHOOLS_DATA;
+
+    const COLORS = ['#0D9488', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EC4899', '#6366F1'];
+
+    return liveSchools.map((s, idx) => {
+      const schoolStudents = liveStudents.filter(st => st.school_id === s.id || st.school_name === s.name);
+      const total = schoolStudents.length || s.students_count || 0;
+      const male = schoolStudents.filter(st => st.gender?.toLowerCase() === 'male').length;
+      const female = schoolStudents.filter(st => st.gender?.toLowerCase() === 'female').length;
+      const assessed = schoolStudents.filter(st => (st.assessments && st.assessments.length > 0) || st.latest_assessment_date).length;
+      const pending = Math.max(0, total - assessed);
+
+      // Nutrition breakdown
+      const norm = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('normal')).length;
+      const wasted = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('wasted') || st.nutrition_status?.toLowerCase().includes('thinness')).length;
+      const sevWasted = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('severe')).length;
+      const overwt = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('overweight')).length;
+      const obesity = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('obese') || st.nutrition_status?.toLowerCase().includes('obesity')).length;
+
+      // Group by grades
+      const classes = {};
+      schoolStudents.forEach(st => {
+        const cls = st.class_name ? (st.class_name.startsWith('Grade') ? st.class_name : `Grade ${String(st.class_name).replace(/class\s*/i, '').trim()}`) : 'Grade 1';
+        if (!classes[cls]) {
+          classes[cls] = { total: 0, male: 0, female: 0, assessed: 0 };
+        }
+        classes[cls].total += 1;
+        if (st.gender?.toLowerCase() === 'male') classes[cls].male += 1;
+        if (st.gender?.toLowerCase() === 'female') classes[cls].female += 1;
+        if ((st.assessments && st.assessments.length > 0) || st.latest_assessment_date) classes[cls].assessed += 1;
+      });
+
+      return {
+        id: s.id,
+        name: s.name,
+        cluster: s.cluster_name || 'Central District',
+        totalStudents: total,
+        sampleCount: total,
+        male: male,
+        female: female,
+        assessed: assessed,
+        pending: pending,
+        color: COLORS[idx % COLORS.length],
+        classes: Object.keys(classes).length > 0 ? classes : {
+          'Grade 1': { total, male, female, assessed }
+        },
+        nutrition: {
+          normal: norm,
+          wasted: wasted,
+          severelyWasted: sevWasted,
+          overweight: overwt,
+          obesity: obesity
+        }
+      };
+    });
+  }, [liveSchools, liveStudents]);
+
   // Filtered dataset
   const filteredSchools = useMemo(() => {
-    return MASTER_SCHOOLS_DATA.filter((s) => {
+    return activeSchoolsData.filter((s) => {
       const matchCluster = selectedCluster === 'ALL' || s.cluster === selectedCluster;
       const matchSchool = selectedSchool === 'ALL' || s.name === selectedSchool;
       return matchCluster && matchSchool;
     });
-  }, [selectedCluster, selectedSchool]);
+  }, [activeSchoolsData, selectedCluster, selectedSchool]);
 
-  // Aggregated dynamic metrics
+  // Aggregated dynamic metrics directly from real data
   const totalStudents = useMemo(() => {
-    return filteredSchools.reduce((acc, s) => acc + s.sampleCount, 0) || 2486;
+    return filteredSchools.reduce((acc, s) => acc + s.sampleCount, 0);
   }, [filteredSchools]);
 
   const totalMale = useMemo(() => {
-    return filteredSchools.reduce((acc, s) => acc + s.male, 0) || 1280;
+    return filteredSchools.reduce((acc, s) => acc + s.male, 0);
   }, [filteredSchools]);
 
   const totalFemale = useMemo(() => {
-    return filteredSchools.reduce((acc, s) => acc + s.female, 0) || 1206;
+    return filteredSchools.reduce((acc, s) => acc + s.female, 0);
   }, [filteredSchools]);
 
-  const malePercent = ((totalMale / (totalStudents || 1)) * 100).toFixed(1);
-  const femalePercent = ((totalFemale / (totalStudents || 1)) * 100).toFixed(1);
+  const malePercent = totalStudents > 0 ? ((totalMale / totalStudents) * 100).toFixed(1) : '50.0';
+  const femalePercent = totalStudents > 0 ? ((totalFemale / totalStudents) * 100).toFixed(1) : '50.0';
 
   // Download Handlers
   const handleDownloadExcel = () => {

@@ -104,7 +104,7 @@ export default function ForgotPasswordModal({ isOpen, onClose }) {
                 <input
                   type="email"
                   className="form-input"
-                  placeholder="admin@oehealth.org"
+                  placeholder="admin@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

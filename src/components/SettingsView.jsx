@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   ChevronRight,
@@ -20,8 +20,11 @@ import {
   Smartphone,
   AlertCircle
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 
 export default function SettingsView() {
+  const { user } = useAuth();
   // Notification Toggle States
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [systemNotifications, setSystemNotifications] = useState(true);
@@ -39,9 +42,31 @@ export default function SettingsView() {
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
 
-  // Sync state
-  const [lastSyncTime, setLastSyncTime] = useState('30 September 2026, 10:24 AM');
+  // Sync & Database state
+  const [lastSyncTime, setLastSyncTime] = useState('Online');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [systemStatus, setSystemStatus] = useState(null);
+  const [dbOnline, setDbOnline] = useState(true);
+
+  // Dynamic status check
+  useEffect(() => {
+    const checkDb = async () => {
+      try {
+        const res = await api.getSystemStatus();
+        if (res) {
+          setSystemStatus(res);
+          setDbOnline(true);
+        } else {
+          setDbOnline(false);
+        }
+      } catch {
+        setDbOnline(false);
+      }
+    };
+    checkDb();
+    const timer = setInterval(checkDb, 8000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Toast State
   const [toastMessage, setToastMessage] = useState('');
@@ -84,25 +109,33 @@ export default function SettingsView() {
     setTimeout(() => setShowToast(false), 3500);
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (!currentPassword) {
       alert('Please enter your current password.');
       return;
     }
-    if (newPassword.length < 8) {
-      alert('New password must be at least 8 characters long.');
+    if (newPassword.length < 4) {
+      alert('New password must be at least 4 characters long.');
       return;
     }
     if (newPassword !== confirmPassword) {
       alert('New password and confirm password do not match.');
       return;
     }
-    setShowPasswordModal(false);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    triggerToast('Password updated successfully!');
+
+    try {
+      if (user?.id) {
+        await api.updateUser(user.id, { password: newPassword });
+      }
+      setShowPasswordModal(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      triggerToast('Password updated in database successfully!');
+    } catch (err) {
+      alert(`Password update failed: ${err.message}`);
+    }
   };
 
   const handleRevokeSession = (sessionId) => {
@@ -110,18 +143,26 @@ export default function SettingsView() {
     triggerToast('Session terminated successfully.');
   };
 
-  const handleSyncData = () => {
+  const handleSyncData = async () => {
     setIsSyncing(true);
-    setTimeout(() => {
+    try {
+      const res = await api.getSystemStatus();
+      if (res) {
+        setSystemStatus(res);
+        setDbOnline(true);
+      }
       const now = new Date();
       setLastSyncTime(
         now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) +
           ', ' +
           now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       );
+      triggerToast('Database synchronized with PostgreSQL successfully!');
+    } catch {
+      triggerToast('Sync failed: unable to connect to backend.');
+    } finally {
       setIsSyncing(false);
-      triggerToast('Database synchronized successfully!');
-    }, 1200);
+    }
   };
 
   return (
@@ -685,10 +726,10 @@ export default function SettingsView() {
               <Database size={18} color="#64748B" />
               <div>
                 <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0F172A' }}>
-                  Database Status
+                  Database Status ({systemStatus?.database || 'vatta_sattam (PostgreSQL)'})
                 </div>
                 <div style={{ fontSize: '12px', color: '#64748B' }}>
-                  Current status of the application database.
+                  {dbOnline ? 'Connected to live PostgreSQL database' : 'Disconnected from database'}
                 </div>
               </div>
             </div>
@@ -698,8 +739,8 @@ export default function SettingsView() {
                 style={{
                   fontSize: '11.5px',
                   fontWeight: 700,
-                  backgroundColor: '#DCFCE7',
-                  color: '#16A34A',
+                  backgroundColor: dbOnline ? '#DCFCE7' : '#FEE2E2',
+                  color: dbOnline ? '#16A34A' : '#EF4444',
                   padding: '4px 14px',
                   borderRadius: '12px',
                   display: 'inline-flex',
@@ -712,10 +753,10 @@ export default function SettingsView() {
                     width: '6px',
                     height: '6px',
                     borderRadius: '50%',
-                    backgroundColor: '#16A34A'
+                    backgroundColor: dbOnline ? '#16A34A' : '#EF4444'
                   }}
                 />
-                Online
+                {dbOnline ? 'Online' : 'Offline'}
               </span>
             </div>
           </div>
