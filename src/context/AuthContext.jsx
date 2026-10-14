@@ -27,6 +27,24 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
+  // Verify active status on initial load to ensure deleted or deactivated admins/users cannot remain logged in
+  useEffect(() => {
+    if (user && user.id && !user.id.startsWith('admin_demo')) {
+      fetch(`/api/v1/auth/me?user_id=${encodeURIComponent(user.id)}`)
+        .then(async (res) => {
+          if (!res.ok) {
+            logout();
+          } else {
+            const data = await res.json();
+            if (data && data.is_active === false) {
+              logout();
+            }
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   const login = async (username, password, rememberMe = true) => {
     setLoading(true);
     try {

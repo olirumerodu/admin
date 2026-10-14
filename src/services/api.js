@@ -36,8 +36,11 @@ export const api = {
   /**
    * Fetch Dashboard Overview Metrics (pure real-time data from backend)
    */
-  async getMetrics() {
-    const res = await fetch(`${API_BASE}/dashboard/metrics`, {
+  async getMetrics(schoolId = null) {
+    const url = schoolId && schoolId !== 'ALL' 
+      ? `${API_BASE}/dashboard/metrics?school_id=${encodeURIComponent(schoolId)}` 
+      : `${API_BASE}/dashboard/metrics`;
+    const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to fetch dashboard metrics');
@@ -83,6 +86,21 @@ export const api = {
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.detail || 'Failed to create cluster');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Delete Cluster
+   */
+  async deleteCluster(clusterId) {
+    const res = await fetch(`${API_BASE}/clusters/${encodeURIComponent(clusterId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to delete cluster');
     }
     return await res.json();
   },
@@ -216,6 +234,69 @@ export const api = {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to delete student');
+    return await res.json();
+  },
+
+  /**
+   * 1-Click Academic Year Promotion for School
+   */
+  async promoteAcademicYear(schoolId, promoData) {
+    const res = await fetch(`${API_BASE}/schools/${encodeURIComponent(schoolId)}/promote-academic-year`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(promoData),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Academic year promotion failed.');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Issue Transfer Certificate (TC) to student
+   */
+  async issueTc(studentId, tcData = {}) {
+    const res = await fetch(`${API_BASE}/students/${encodeURIComponent(studentId)}/issue-tc`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(tcData),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to issue TC.');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Transfer student to another school
+   */
+  async transferSchool(studentId, transferData) {
+    const res = await fetch(`${API_BASE}/students/${encodeURIComponent(studentId)}/transfer-school`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(transferData),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to transfer student.');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Reactivate student
+   */
+  async reactivateStudent(studentId) {
+    const res = await fetch(`${API_BASE}/students/${encodeURIComponent(studentId)}/reactivate`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to reactivate student.');
+    }
     return await res.json();
   },
 
@@ -358,7 +439,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email_or_phone: email }),
     });
-    return await res.json();
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.detail || 'Failed to dispatch verification code.');
+    }
+    return data;
   },
 
   /**
@@ -481,6 +566,18 @@ export const api = {
       const err = await res.json();
       throw new Error(err.detail || 'Failed to send notification');
     }
+    return await res.json();
+  },
+
+  /**
+   * Delete Notification
+   */
+  async deleteNotification(notifId) {
+    const res = await fetch(`${API_BASE}/notifications/${encodeURIComponent(notifId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to delete notification');
     return await res.json();
   },
 

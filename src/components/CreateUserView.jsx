@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   User, 
   Mail, 
@@ -96,7 +96,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
         }
         if (sData.status === 'fulfilled' && Array.isArray(sData.value) && sData.value.length > 0) {
           setSchoolsList(sData.value);
-          setSchool(sData.value[0].name || sData.value[0].id);
+          setSchool('All Assigned Schools');
         }
         // Pre-fill User ID with next sequential USR-format ID
         if (nextIdData.status === 'fulfilled' && nextIdData.value?.next_user_id) {
@@ -111,6 +111,17 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
     }
     loadScope();
   }, []);
+
+  // Filter schools in real-time based on the selected cluster from database
+  const filteredSchools = React.useMemo(() => {
+    if (!cluster || cluster === 'All Clusters') return schoolsList;
+    const selectedClusterObj = clustersList.find(c => c.name === cluster || c.id === cluster);
+    return schoolsList.filter(s => 
+      (selectedClusterObj && s.cluster_id === selectedClusterObj.id) ||
+      s.cluster_name === cluster ||
+      s.cluster === cluster
+    );
+  }, [cluster, clustersList, schoolsList]);
 
   // Permissions State - initially none selected
   const [permissions, setPermissions] = useState({
@@ -577,7 +588,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <button
               type="button"
               onClick={handleAttemptBack}
@@ -590,10 +601,35 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 fontSize: '13px',
                 fontWeight: 600,
                 color: '#374151',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
             >
               Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              style={{
+                height: '38px',
+                padding: '0 18px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: '#EB5A1D',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(235, 90, 29, 0.3)',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <UserPlus size={15} />
+              <span>{isSubmitting ? 'Creating...' : 'Create User'}</span>
             </button>
           </div>
         </div>
@@ -618,10 +654,8 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
         </div>
       )}
 
-      {/* ================= MAIN 2-COLUMN FORM GRID ================= */}
-      <form onSubmit={handleSubmit} noValidate style={{ display: 'grid', gridTemplateColumns: isStacked ? '1fr' : 'minmax(0, 1.85fr) minmax(0, 1fr)', gap: '16px', width: '100%', alignItems: 'start' }}>
-        {/* LEFT COLUMN: Sections 01, 02, 03 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
+      {/* ================= MAIN FORM ================= */}
+      <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
           {/* Card 01: Account Information */}
           <div style={formCardStyle}>
             <div style={cardHeaderRow}>
@@ -942,10 +976,8 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             </div>
           </div>
 
-          {/* Bottom Split Row: Section 02 (Access Scope) & Section 03 (Module Permissions) */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) minmax(0, 1.05fr)', gap: '14px', width: '100%' }}>
-            {/* Section 02. Access Scope */}
-            <div style={formCardStyle}>
+          {/* Section 02. Access Scope */}
+          <div style={formCardStyle}>
               <div style={cardHeaderRow}>
                 <div style={{ ...sectionIconBox, backgroundColor: '#FFEDD5', color: '#EA580C' }}>
                   <GraduationCap size={18} />
@@ -999,18 +1031,27 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                     <div style={getInputContainerStyle('school')}>
                       <School size={15} color={touched.school && fieldErrors.school ? '#EF4444' : '#94A3B8'} />
                       <select 
-                        value={school} 
+                        value={scopeType === 'cluster' ? 'All Assigned Schools' : school} 
                         onChange={(e) => handleFieldChange('school', e.target.value)} 
                         onBlur={() => handleBlur('school')}
-                        style={cleanSelectStyle}
+                        disabled={scopeType === 'cluster'}
+                        style={{
+                          ...cleanSelectStyle,
+                          cursor: scopeType === 'cluster' ? 'default' : 'pointer',
+                          color: scopeType === 'cluster' ? '#64748B' : '#0F172A'
+                        }}
                       >
-                        <option value="">-- Select School --</option>
-                        {schoolsList.length > 0 ? (
-                          schoolsList.map(s => (
-                            <option key={s.id || s.name} value={s.name}>{s.name}</option>
-                          ))
+                        {scopeType === 'cluster' ? (
+                          <option value="All Assigned Schools">
+                            {cluster && cluster !== 'All Clusters' ? `All Schools in ${cluster}` : 'All Assigned Schools'}
+                          </option>
                         ) : (
-                          <option value="All Schools">All Assigned Schools</option>
+                          <>
+                            <option value="">-- Select Specific School --</option>
+                            {filteredSchools.map(s => (
+                              <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                            ))}
+                          </>
                         )}
                       </select>
                       {touched.school && !fieldErrors.school && school && (
@@ -1143,7 +1184,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
               </div>
 
               {/* Module Checkbox Items */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
                 <PermissionCheckboxRow
                   icon={LayoutGrid}
                   label="Dashboard"
@@ -1195,188 +1236,63 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 </div>
               )}
             </div>
-          </div>
-        </div>
 
-        {/* RIGHT COLUMN: User Access Summary Card */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-          <div style={{ ...formCardStyle, padding: '20px' }}>
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', backgroundColor: '#FFEDD5', color: '#EA580C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <FileText size={17} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: 0 }}>User Access Summary</h3>
-                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>Review the details before creating the user.</p>
-              </div>
-            </div>
-
-            {/* User Profile Pill Preview */}
-            <div 
-              style={{
-                backgroundColor: '#FFF7ED',
-                border: '1px solid #FFEDD5',
-                borderRadius: '12px',
-                padding: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                marginBottom: '16px'
-              }}
-            >
-              <div 
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '50%',
-                  backgroundColor: '#FFEDD5',
-                  color: '#EA580C',
-                  fontSize: '16px',
-                  fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                {initials}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', lineHeight: 1.2 }}>
-                  {fullName || 'User Name'}
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748B', marginTop: '2px', wordBreak: 'break-all' }}>
-                  {email || 'email@school.com'}
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748B' }}>
-                  {phone || '+91 98765 43210'}
-                </div>
-              </div>
-            </div>
-
-            {/* Access Details List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* User ID */}
-              <div style={summaryRowStyle}>
-                <div style={summaryLeftStyle}>
-                  <User size={15} color="#64748B" />
-                  <span style={summaryLabelStyle}>User ID</span>
-                </div>
-                <span style={summaryValueStyle}>{userId}</span>
-              </div>
-
-              {/* Cluster */}
-              <div style={summaryRowStyle}>
-                <div style={summaryLeftStyle}>
-                  <Network size={15} color="#64748B" />
-                  <span style={summaryLabelStyle}>Cluster</span>
-                </div>
-                <span style={summaryValueStyle}>{cluster}</span>
-              </div>
-
-              {/* School */}
-              <div style={summaryRowStyle}>
-                <div style={summaryLeftStyle}>
-                  <School size={15} color="#64748B" />
-                  <span style={summaryLabelStyle}>School</span>
-                </div>
-                <span style={{ ...summaryValueStyle, maxWidth: '170px', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {school}
-                </span>
-              </div>
-
-              {/* Modules Dropdown List */}
-              <div>
-                <div 
-                  style={{ ...summaryRowStyle, cursor: 'pointer' }}
-                  onClick={() => setIsModulesExpanded(!isModulesExpanded)}
-                >
-                  <div style={summaryLeftStyle}>
-                    <LayoutGrid size={15} color="#64748B" />
-                    <span style={summaryLabelStyle}>Modules</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={summaryValueStyle}>{selectedModulesList.length} selected</span>
-                    {isModulesExpanded ? <ChevronUp size={14} color="#64748B" /> : <ChevronDown size={14} color="#64748B" />}
-                  </div>
-                </div>
-
-                {/* Collapsible Orange Bullet List */}
-                {isModulesExpanded && (
-                  <div 
-                    style={{
-                      backgroundColor: '#FFF7ED',
-                      borderRadius: '8px',
-                      padding: '10px 14px',
-                      marginTop: '8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px'
-                    }}
-                  >
-                    {selectedModulesList.length > 0 ? (
-                      selectedModulesList.map((mod) => (
-                        <div key={mod} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#334155' }}>
-                          <span style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#EA580C', display: 'inline-block' }} />
-                          <span>{mod}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <span style={{ fontSize: '12px', color: '#94A3B8' }}>No modules selected</span>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Bottom Action Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '24px' }}>
-              <button
-                type="button"
-                onClick={handleAttemptBack}
-                style={{
-                  flex: 1,
-                  height: '42px',
-                  backgroundColor: '#FFFFFF',
-                  border: '1.5px solid #E2E8F0',
-                  borderRadius: '9px',
-                  color: '#475569',
-                  fontSize: '13.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'background-color 0.15s ease'
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                style={{
-                  flex: 1.4,
-                  height: '42px',
-                  backgroundColor: '#EB5A1D',
-                  border: 'none',
-                  borderRadius: '9px',
-                  color: '#FFFFFF',
-                  fontSize: '13.5px',
-                  fontWeight: 700,
-                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  boxShadow: '0 4px 12px rgba(235, 90, 29, 0.35)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <UserPlus size={16} />
-                <span>{isSubmitting ? 'Creating...' : 'Create User'}</span>
-              </button>
-            </div>
-          </div>
+        {/* Bottom Form Actions Bar */}
+        <div 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: '12px',
+            padding: '16px 20px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #ECEEF2',
+            borderRadius: '12px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+            marginTop: '4px'
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleAttemptBack}
+            style={{
+              height: '40px',
+              padding: '0 20px',
+              borderRadius: '8px',
+              border: '1.5px solid #CBD5E1',
+              backgroundColor: '#FFFFFF',
+              color: '#475569',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            style={{
+              height: '40px',
+              padding: '0 24px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: '#EB5A1D',
+              color: '#FFFFFF',
+              fontSize: '13.5px',
+              fontWeight: 700,
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 12px rgba(235, 90, 29, 0.3)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <UserPlus size={16} />
+            <span>{isSubmitting ? 'Creating User...' : 'Create User'}</span>
+          </button>
         </div>
       </form>
 
@@ -1823,8 +1739,8 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 textAlign: 'left'
               }}
             >
-              <ShieldCheck size={16} style={{ flexShrink: 0 }} />
-              <span>Login is immediately functional in the Flutter mobile application and admin portal!</span>
+              <Mail size={16} style={{ flexShrink: 0 }} />
+              <span>Login credentials (Username & Initial Password) have been sent to <strong>{createdUserData.email}</strong>!</span>
             </div>
 
             <button
@@ -1863,18 +1779,22 @@ function PermissionCheckboxRow({ icon: Icon, label, checked, onChange }) {
         display: 'flex',
         alignItems: 'center',
         gap: '10px',
-        padding: '5px 4px',
-        cursor: 'pointer'
+        padding: '10px 14px',
+        cursor: 'pointer',
+        borderRadius: '8px',
+        backgroundColor: checked ? '#FFF7ED' : '#F8FAFC',
+        border: checked ? '1.5px solid #FDBA74' : '1px solid #E2E8F0',
+        transition: 'all 0.15s ease'
       }}
       onClick={onChange}
     >
       <div 
         style={{
-          width: '17px',
-          height: '17px',
-          borderRadius: '4px',
+          width: '18px',
+          height: '18px',
+          borderRadius: '5px',
           backgroundColor: checked ? '#EA580C' : '#FFFFFF',
-          border: checked ? '1px solid #EA580C' : '1.5px solid #CBD5E1',
+          border: checked ? '1.5px solid #EA580C' : '1.5px solid #CBD5E1',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1882,10 +1802,10 @@ function PermissionCheckboxRow({ icon: Icon, label, checked, onChange }) {
           flexShrink: 0
         }}
       >
-        {checked && <Check size={11} strokeWidth={3} />}
+        {checked && <Check size={12} strokeWidth={3} />}
       </div>
-      <Icon size={15} color="#64748B" style={{ flexShrink: 0 }} />
-      <span style={{ fontSize: '12.5px', color: '#334155', fontWeight: 500 }}>{label}</span>
+      <Icon size={16} color={checked ? '#EA580C' : '#64748B'} style={{ flexShrink: 0 }} />
+      <span style={{ fontSize: '13px', color: checked ? '#0F172A' : '#475569', fontWeight: checked ? 700 : 500 }}>{label}</span>
     </div>
   );
 }
@@ -2006,31 +1926,6 @@ const iconBtnStyle = {
   alignItems: 'center'
 };
 
-const summaryRowStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '10px',
-  padding: '4px 0'
-};
-
-const summaryLeftStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px'
-};
-
-const summaryLabelStyle = {
-  fontSize: '12.5px',
-  color: '#64748B',
-  fontWeight: 500
-};
-
-const summaryValueStyle = {
-  fontSize: '13px',
-  fontWeight: 700,
-  color: '#0F172A'
-};
 
 const inlineErrorStyle = {
   display: 'flex',

@@ -95,19 +95,35 @@ export default function UserDetailsView({
       created_at: data.created_at || createdDt.toISOString(),
       lastLoginDate: data.lastLoginDate || formattedJoinedOn,
       lastLoginTime: data.lastLoginTime || createdDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      permissions: Array.isArray(data.permissions) ? data.permissions : (data.raw?.permissions || []),
+      scopeType: data.scopeType || data.scope_type || data.raw?.scope_type || (schoolVal !== defaultSchool ? 'school' : 'cluster'),
+      raw: data.raw || data,
     };
   };
 
   const getInitialModuleAccess = (u) => {
     if (initialUserData?.moduleAccess) return initialUserData.moduleAccess;
+    const rawPerms = initialUserData?.permissions || initialUserData?.raw?.permissions || u?.permissions;
+    if (Array.isArray(rawPerms) && rawPerms.length > 0) {
+      const norm = rawPerms.map(p => String(p).toLowerCase().trim());
+      return {
+        dashboard: norm.some(p => p.includes("dashboard")),
+        students: norm.some(p => p.includes("student") && !p.includes("assessment")),
+        assessment: norm.some(p => p.includes("assessment")),
+        tracking: norm.some(p => p.includes("tracking")),
+        history: norm.some(p => p.includes("history")),
+        reports: norm.some(p => p.includes("report")),
+        notifications: norm.some(p => p.includes("notification")),
+      };
+    }
     const isAdmin = u.role === 'Super Admin' || u.role === 'Admin';
     return {
       dashboard: true,
       students: true,
       assessment: true,
-      tracking: true,
-      history: true,
-      reports: isAdmin,
+      tracking: isAdmin,
+      history: isAdmin,
+      reports: true,
       notifications: true,
     };
   };
@@ -164,16 +180,55 @@ export default function UserDetailsView({
     .slice(0, 2)
     .toUpperCase() || 'US';
 
-  // Toggle Module Permission
-  const handleToggleModule = (key) => {
-    setModuleAccess(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+  // Helper to convert moduleAccess object into backend permissions array
+  const getActivePermissionsList = (modules) => {
+    return [
+      modules.dashboard && 'Dashboard',
+      modules.students && 'Students',
+      modules.assessment && 'Student Assessment',
+      modules.tracking && 'Monthly Tracking',
+      modules.history && 'Health History',
+      modules.reports && 'Reports',
+      modules.notifications && 'Notifications',
+    ].filter(Boolean);
   };
 
-  // Toggle Active / Deactivate User
-  const handleToggleUserStatus = async () => {
+  // Toggle Module Permission with instant sync and persistence
+  const handleToggleModule = async (key) => {
+    const nextAccess = {
+      ...moduleAccess,
+      [key]: !moduleAccess[key]
+    };
+    setModuleAccess(nextAccess);
+
+    const activePerms = getActivePermissionsList(nextAccess);
+    const updated = {
+      ...user,
+      permissions: activePerms,
+      moduleAccess: nextAccess
+    };
+    setUser(updated);
+    if (onUpdateUser) onUpdateUser(updated);
+
+    try {
+      await api.updateUser(user.id, {
+        permissions: activePerms
+      });
+      const moduleName = key.charAt(0).toUpperCase() + key.slice(1);
+      setFeedbackToast(`${moduleName} module ${nextAccess[key] ? 'enabled' : 'disabled'} for ${user.name}.`);
+    } catch (err) {
+      console.error('Failed to sync module access:', err);
+      setFeedbackToast('Notice: Could not persist module change.');
+    }
+    setTimeout(() => setFeedbackToast(''), 3500);
+  };
+
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
+
+  // Toggle Active / Deactivate User with Confirmation
+  const handleConfirmToggleStatus = async () => {
+    setIsTogglingStatus(true);
     const nextStatus = user.status === 'Active' ? 'Inactive' : 'Active';
     const nextIsActive = nextStatus === 'Active';
     const updated = { ...user, status: nextStatus };
@@ -186,17 +241,23 @@ export default function UserDetailsView({
     } catch (err) {
       console.error('Failed to toggle status:', err);
       setFeedbackToast(`Notice: Status update sent.`);
+    } finally {
+      setIsTogglingStatus(false);
+      setShowStatusModal(false);
+      setTimeout(() => setFeedbackToast(''), 4000);
     }
-    setTimeout(() => setFeedbackToast(''), 4000);
   };
 
   // Save Module Access / Status Changes
   const handleSaveAllChanges = async () => {
     const finalUser = user;
+    const activePerms = getActivePermissionsList(moduleAccess);
+
     if (onUpdateUser) {
       onUpdateUser({
         ...finalUser,
-        moduleAccess
+        moduleAccess,
+        permissions: activePerms
       });
     }
 
@@ -206,9 +267,10 @@ export default function UserDetailsView({
         email: finalUser.email.trim(),
         phone: finalUser.phone.trim(),
         role: finalUser.role === 'Super Admin' ? 'admin' : (finalUser.role === 'School Staff' ? 'health_officer' : finalUser.role.toLowerCase().replace(' ', '_')),
-        is_active: finalUser.status === 'Active'
+        is_active: finalUser.status === 'Active',
+        permissions: activePerms
       });
-      setFeedbackToast('All user changes saved successfully.');
+      setFeedbackToast('All user changes and module permissions saved successfully.');
     } catch (err) {
       console.error('Failed to save all user changes:', err);
       setFeedbackToast('All user changes saved.');
@@ -343,7 +405,7 @@ export default function UserDetailsView({
           <button
             type="button"
             onClick={() => {
-              if (onEditUser) onEditUser(user);
+              if (onEditUser) onEditUser({ ...initialUserData, ...user, permissions: user.permissions || initialUserData?.permissions || initialUserData?.raw?.permissions || [], raw: initialUserData?.raw || user.raw || user });
             }}
             style={{
               height: '38px',
@@ -372,7 +434,7 @@ export default function UserDetailsView({
           {/* Deactivate / Activate Button */}
           <button
             type="button"
-            onClick={handleToggleUserStatus}
+            onClick={() => setShowStatusModal(true)}
             style={{
               height: '38px',
               padding: '0 14px',
@@ -1007,6 +1069,92 @@ export default function UserDetailsView({
                 }}
               >
                 {isDeleting ? 'Deleting...' : 'Confirm & Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: STATUS (DEACTIVATE / ACTIVATE) CONFIRMATION ================= */}
+      {showStatusModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', width: '92%', maxWidth: '440px', padding: '20px 22px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '14px', borderBottom: '1px solid #F1F5F9' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ 
+                  width: '36px', 
+                  height: '36px', 
+                  borderRadius: '10px', 
+                  backgroundColor: isActive ? '#FEE2E2' : '#DCFCE7', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: isActive ? '#DC2626' : '#16A34A' 
+                }}>
+                  {isActive ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                    {isActive ? 'Deactivate User Account?' : 'Activate User Account?'}
+                  </h3>
+                  <span style={{ fontSize: '11.5px', color: '#64748B' }}>Confirm account status change</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowStatusModal(false)} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '16px 2px 4px 2px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13px', color: '#334155', margin: 0, lineHeight: 1.5 }}>
+                {isActive ? (
+                  <>Are you sure you want to <strong>deactivate</strong> user <strong style={{ color: '#0F172A' }}>{user.name}</strong> (<strong style={{ color: '#EA580C' }}>{user.id}</strong>)?</>
+                ) : (
+                  <>Are you sure you want to <strong>activate</strong> user <strong style={{ color: '#0F172A' }}>{user.name}</strong> (<strong style={{ color: '#EA580C' }}>{user.id}</strong>)?</>
+                )}
+              </p>
+
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <div><span style={{ color: '#64748B' }}>User ID:</span> <strong>{user.id}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Current Status:</span> <strong style={{ color: isActive ? '#16A34A' : '#DC2626' }}>{user.status}</strong></div>
+                <div><span style={{ color: '#64748B' }}>New Status:</span> <strong style={{ color: isActive ? '#DC2626' : '#16A34A' }}>{isActive ? 'Inactive (Disabled)' : 'Active (Enabled)'}</strong></div>
+              </div>
+
+              {isActive ? (
+                <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>This user will immediately lose all login access to the mobile application and admin panel.</span>
+                </div>
+              ) : (
+                <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#16A34A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                  <span>This will restore the user's login access to the mobile application and admin panel.</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setShowStatusModal(false)}
+                style={modalCancelBtnStyle}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmToggleStatus}
+                disabled={isTogglingStatus}
+                style={{
+                  ...modalSubmitBtnStyle,
+                  backgroundColor: isActive ? '#DC2626' : '#16A34A',
+                  opacity: isTogglingStatus ? 0.7 : 1
+                }}
+              >
+                {isTogglingStatus ? 'Updating...' : (isActive ? 'Confirm & Deactivate' : 'Confirm & Activate')}
               </button>
             </div>
           </div>

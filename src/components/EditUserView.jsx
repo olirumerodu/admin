@@ -3,7 +3,8 @@ import {
   User, Mail, Phone, GraduationCap, School, Settings, FileText,
   Check, LayoutGrid, Users, ClipboardCheck,
   BarChart2, Heart, Bell, Network, AlertCircle, AlertTriangle,
-  CheckCircle2, ArrowLeft, Save, ShieldCheck, CreditCard, Calendar
+  CheckCircle2, ArrowLeft, Save, ShieldCheck, CreditCard, Calendar,
+  Lock, Eye, EyeOff
 } from "lucide-react";
 import { api } from "../services/api";
 
@@ -96,17 +97,26 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
   // Compute immutable snapshot of initial values for change detection
   const originalValues = useMemo(() => {
     const rawRole = parseRole(initialUser?.role);
-    const rawPerms = initialUser?.permissions;
+    let rawPerms = initialUser?.permissions || initialUser?.raw?.permissions;
+    if (typeof rawPerms === 'string') {
+      try {
+        rawPerms = JSON.parse(rawPerms);
+      } catch {
+        rawPerms = rawPerms.replace(/[{}"']/g, '').split(',').map(s => s.trim()).filter(Boolean);
+      }
+    }
+
     let initialPerms;
     if (Array.isArray(rawPerms) && rawPerms.length > 0) {
+      const norm = rawPerms.map(p => String(p).toLowerCase().trim());
       initialPerms = {
-        dashboard: rawPerms.includes("Dashboard"),
-        students: rawPerms.includes("Students"),
-        assessment: rawPerms.includes("Student Assessment"),
-        tracking: rawPerms.includes("Monthly Tracking"),
-        history: rawPerms.includes("Health History"),
-        reports: rawPerms.includes("Reports") || rawPerms.includes("Reports & Export"),
-        notifications: rawPerms.includes("Notifications"),
+        dashboard: norm.some(p => p.includes("dashboard")),
+        students: norm.some(p => p.includes("student") && !p.includes("assessment")),
+        assessment: norm.some(p => p.includes("assessment")),
+        tracking: norm.some(p => p.includes("tracking")),
+        history: norm.some(p => p.includes("history")),
+        reports: norm.some(p => p.includes("report")),
+        notifications: norm.some(p => p.includes("notification")),
       };
     } else {
       const isAdmin = rawRole === "Super Admin";
@@ -121,10 +131,11 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       };
     }
 
-    const initialScope = initialUser?.accessType === "Limited Access" ||
+    const initialScope = initialUser?.scopeType || initialUser?.scope_type || initialUser?.raw?.scope_type ||
+      (initialUser?.accessType === "Limited Access" ||
       (initialUser?.school && initialUser.school !== "All Assigned Schools" && initialUser.school !== "All Schools")
         ? "school"
-        : "cluster";
+        : "cluster");
 
     const rawStatus = initialUser?.status || (initialUser?.raw?.is_active !== false ? "Active" : "Inactive");
 
@@ -156,6 +167,21 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
   const [school, setSchool] = useState(originalValues.school);
   const [scopeType, setScopeType] = useState(originalValues.scopeType);
   const [permissions, setPermissions] = useState(originalValues.permissions);
+
+  // Password editing states (optional: leave blank to preserve existing password)
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Real-time password rules evaluation
+  const passwordRules = [
+    { id: 'minLen', label: '8 to 32 characters long', valid: password.length >= 8 && password.length <= 32 },
+    { id: 'hasUpper', label: 'At least one uppercase letter (A-Z)', valid: /[A-Z]/.test(password) },
+    { id: 'hasLower', label: 'At least one lowercase letter (a-z)', valid: /[a-z]/.test(password) },
+    { id: 'hasNum', label: 'At least one numeric digit (0-9)', valid: /[0-9]/.test(password) },
+    { id: 'hasSpecial', label: 'At least one special character (!@#$%^&*...)', valid: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password) },
+  ];
 
   // Auto-filled login username derived from email
   const loginUsername = useMemo(() => (email || "").trim().toLowerCase(), [email]);
@@ -191,6 +217,10 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     setSchool(originalValues.school);
     setScopeType(originalValues.scopeType);
     setPermissions(originalValues.permissions);
+    setPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+    setShowConfirmPassword(false);
     setTouched({});
     setFieldErrors({});
     setErrorMsg("");
@@ -220,6 +250,17 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     }
     loadScope();
   }, []);
+
+  // Filter schools in real-time based on the selected cluster from database
+  const filteredSchools = useMemo(() => {
+    if (!cluster || cluster === "All Clusters") return schoolsList;
+    const selectedClusterObj = clustersList.find(c => c.name === cluster || c.id === cluster);
+    return schoolsList.filter(s => 
+      (selectedClusterObj && s.cluster_id === selectedClusterObj.id) ||
+      s.cluster_name === cluster ||
+      s.cluster === cluster
+    );
+  }, [cluster, clustersList, schoolsList]);
 
   // Validation function matching CreateUserView
   const validateField = (name, value) => {
@@ -255,6 +296,22 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       if (!val || val === "All Assigned Schools") return "Please select a specific school.";
       return "";
     }
+    if (name === "password") {
+      if (!val) return ""; // Optional in edit mode
+      if (val.length < 8) return "Password must be at least 8 characters long.";
+      if (val.length > 32) return "Password cannot exceed 32 characters.";
+      if (!/[A-Z]/.test(val)) return "Password must contain at least one uppercase letter (A-Z).";
+      if (!/[a-z]/.test(val)) return "Password must contain at least one lowercase letter (a-z).";
+      if (!/[0-9]/.test(val)) return "Password must contain at least one numeric digit (0-9).";
+      if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(val)) return "Password must contain at least one special character (!@#$%^&*...).";
+      return "";
+    }
+    if (name === "confirmPassword") {
+      if (!password) return "";
+      if (!val) return "Please confirm the new password.";
+      if (val !== password) return "Passwords do not match. Please verify both passwords are identical.";
+      return "";
+    }
     return "";
   };
 
@@ -269,8 +326,23 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     else if (name === "phone") setPhone(value.replace(/\D/g, "").slice(0, 10));
     else if (name === "role") setRole(value);
     else if (name === "status") setStatus(value);
-    else if (name === "cluster") setCluster(value);
+    else if (name === "cluster") {
+      setCluster(value);
+      if (scopeType === "school") setSchool("");
+    }
     else if (name === "school") setSchool(value);
+    else if (name === "password") {
+      setPassword(value);
+      if (confirmPassword) {
+        const cpErr = value !== confirmPassword ? "Passwords do not match. Please verify both passwords are identical." : "";
+        setFieldErrors(p => ({ ...p, confirmPassword: cpErr }));
+      }
+    }
+    else if (name === "confirmPassword") {
+      setConfirmPassword(value);
+      const cpErr = value !== password ? "Passwords do not match. Please verify both passwords are identical." : "";
+      setFieldErrors(p => ({ ...p, confirmPassword: cpErr }));
+    }
 
     if (touched[name] || fieldErrors[name]) {
       setFieldErrors(p => ({ ...p, [name]: validateField(name, value) }));
@@ -280,6 +352,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
   // CHANGE DETECTION: Compares current state with original snapshot.
   // Save Changes button is strictly enabled ONLY when changes are detected!
   const hasChanges = useMemo(() => {
+    if (password.trim() !== "" || confirmPassword.trim() !== "") return true;
     if (fullName.trim() !== originalValues.fullName.trim()) return true;
     if (email.trim().toLowerCase() !== originalValues.email.trim().toLowerCase()) return true;
     if (phone.replace(/\D/g, "") !== originalValues.phone) return true;
@@ -292,7 +365,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       if (Boolean(permissions[k]) !== Boolean(originalValues.permissions[k])) return true;
     }
     return false;
-  }, [fullName, email, phone, role, status, cluster, school, scopeType, permissions, originalValues]);
+  }, [password, confirmPassword, fullName, email, phone, role, status, cluster, school, scopeType, permissions, originalValues]);
 
   // Permission toggles
   const handleTogglePermission = (key) => setPermissions(p => ({ ...p, [key]: !p[key] }));
@@ -342,14 +415,18 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     const ep = validateField("phone", phone);
     const ec = validateField("cluster", cluster);
     const es = validateField("school", school);
+    const epw = validateField("password", password);
+    const ecp = validateField("confirmPassword", confirmPassword);
 
     if (ef) errs.fullName = ef;
     if (ee) errs.email = ee;
     if (ep) errs.phone = ep;
     if (ec) errs.cluster = ec;
     if (es) errs.school = es;
+    if (epw) errs.password = epw;
+    if (ecp) errs.confirmPassword = ecp;
 
-    setTouched({ fullName: true, email: true, phone: true, cluster: true, school: true });
+    setTouched({ fullName: true, email: true, phone: true, cluster: true, school: true, password: true, confirmPassword: true });
     setFieldErrors(errs);
 
     if (Object.keys(errs).length > 0) {
@@ -379,7 +456,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       const assignedCluster = (cluster === "All Clusters" || !cluster) ? null : (foundClusterId || null);
       const cleanEmail = email.trim().toLowerCase();
 
-      await api.updateUser(initialUser.id, {
+      const updatePayload = {
         name: fullName.trim(),
         username: cleanEmail,
         email: cleanEmail,
@@ -390,10 +467,17 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
         scope_type: scopeType,
         permissions: selectedModulesList,
         is_active: status === "Active",
-      });
+      };
+
+      if (password && password.trim()) {
+        updatePayload.password = password.trim();
+      }
+
+      const savedUser = await api.updateUser(initialUser.id, updatePayload);
 
       const updatedRecord = {
         ...initialUser,
+        ...(savedUser || {}),
         name: fullName.trim(),
         username: cleanEmail,
         email: cleanEmail,
@@ -402,8 +486,23 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
         status,
         cluster,
         school,
+        scopeType,
         accessType: status !== "Active" ? "Inactive Users" : (scopeType === "cluster" ? "Full Access" : "Limited Access"),
-        permissions: selectedModulesList,
+        permissions: (savedUser && Array.isArray(savedUser.permissions)) ? savedUser.permissions : selectedModulesList,
+        raw: {
+          ...(initialUser?.raw || {}),
+          ...(savedUser || {}),
+          name: fullName.trim(),
+          username: cleanEmail,
+          email: cleanEmail,
+          phone: phone.trim(),
+          role: backendRole,
+          assigned_cluster_id: assignedCluster,
+          school_name: scopeType === "school" ? school : null,
+          scope_type: scopeType,
+          permissions: (savedUser && Array.isArray(savedUser.permissions)) ? savedUser.permissions : selectedModulesList,
+          is_active: status === "Active",
+        }
       };
 
       setShowConfirm(false);
@@ -542,11 +641,8 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
         </div>
       )}
 
-      {/* Main Form 2-Column Grid */}
-      <form onSubmit={handleSubmit} noValidate style={{ display: "grid", gridTemplateColumns: isStacked ? "1fr" : "minmax(0, 1.85fr) minmax(0, 1fr)", gap: "16px", width: "100%", alignItems: "start" }}>
-
-        {/* LEFT COLUMN: Sections 01, 02, 03 */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px", minWidth: 0 }}>
+      {/* Main Form Full Width Column */}
+      <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
 
           {/* Card 01: Account Information */}
           <div style={fCard}>
@@ -678,6 +774,111 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                 </div>
               </div>
 
+              {/* Row 2.6: Security Credentials / Password Editing */}
+              <div style={grid2}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                    <label style={{ ...lbl, marginBottom: 0 }}>Password</label>
+                    <span style={{ fontSize: "10.5px", color: "#64748B", fontStyle: "italic" }}>
+                      Leave blank to keep current
+                    </span>
+                  </div>
+                  <div style={getInputStyle("password", password)}>
+                    <Lock size={16} color={touched.password && fieldErrors.password ? "#EF4444" : touched.password && password && !fieldErrors.password ? "#10B981" : "#94A3B8"}/>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter new password (optional)"
+                      value={password}
+                      maxLength={32}
+                      onChange={e => handleFieldChange("password", e.target.value)}
+                      onBlur={() => handleBlur("password", password)}
+                      style={inp}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{ border: "none", backgroundColor: "transparent", cursor: "pointer", padding: "2px", color: "#64748B", display: "flex", alignItems: "center" }}
+                      title={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <Eye size={15}/> : <EyeOff size={15}/>}
+                    </button>
+                  </div>
+                  {touched.password && fieldErrors.password && (
+                    <div style={errRow}><AlertCircle size={12}/><span>{fieldErrors.password}</span></div>
+                  )}
+
+                  {/* Real-time Password Rules Checklist when typing */}
+                  {password.length > 0 && (
+                    <div 
+                      style={{
+                        marginTop: "8px",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        backgroundColor: "#F8FAFC",
+                        border: "1px solid #E2E8F0",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px"
+                      }}
+                    >
+                      <div style={{ fontSize: "11px", fontWeight: 700, color: "#475569" }}>
+                        Password Requirements:
+                      </div>
+                      {passwordRules.map(rule => (
+                        <div 
+                          key={rule.id} 
+                          style={{ 
+                            display: "flex", 
+                            alignItems: "center", 
+                            gap: "6px", 
+                            fontSize: "11px", 
+                            color: rule.valid ? "#059669" : "#64748B" 
+                          }}
+                        >
+                          {rule.valid ? (
+                            <Check size={12} color="#059669" strokeWidth={3}/>
+                          ) : (
+                            <span style={{ width: "4px", height: "4px", borderRadius: "50%", backgroundColor: "#CBD5E1" }}/>
+                          )}
+                          <span style={{ fontWeight: rule.valid ? 600 : 400 }}>{rule.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={lbl}>Confirm Password</label>
+                  <div style={getInputStyle("confirmPassword", confirmPassword)}>
+                    <Lock size={16} color={touched.confirmPassword && fieldErrors.confirmPassword ? "#EF4444" : touched.confirmPassword && confirmPassword && !fieldErrors.confirmPassword ? "#10B981" : "#94A3B8"}/>
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      maxLength={32}
+                      onChange={e => handleFieldChange("confirmPassword", e.target.value)}
+                      onBlur={() => handleBlur("confirmPassword", confirmPassword)}
+                      style={inp}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={{ border: "none", backgroundColor: "transparent", cursor: "pointer", padding: "2px", color: "#64748B", display: "flex", alignItems: "center" }}
+                      title={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {showConfirmPassword ? <Eye size={15}/> : <EyeOff size={15}/>}
+                    </button>
+                  </div>
+                  {touched.confirmPassword && fieldErrors.confirmPassword ? (
+                    <div style={errRow}><AlertCircle size={12}/><span>{fieldErrors.confirmPassword}</span></div>
+                  ) : (
+                    <span style={{ fontSize: "11px", color: "#94A3B8", marginTop: "3px", display: "block" }}>
+                      Re-type new password to verify
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {/* Row 3: Account Status & Registration Info */}
               <div style={grid2}>
                 <div>
@@ -713,9 +914,6 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
             </div>
           </div>
 
-          {/* Bottom split: Access Scope + Permissions */}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) minmax(0, 1.05fr)", gap: "14px" }}>
-
             {/* Section 02: Access Scope */}
             <div style={fCard}>
               <div style={fHdr}>
@@ -745,16 +943,30 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                   </div>
 
                   <div>
-                    <label style={lbl}>School</label>
-                    <div style={{ height: "38px", border: "1.5px solid #E2E8F0", borderRadius: "8px", display: "flex", alignItems: "center", padding: "0 10px", gap: "8px", backgroundColor: "#FFFFFF" }}>
+                    <label style={lbl}>School {scopeType === "school" && <span style={{ color: "#EF4444" }}>*</span>}</label>
+                    <div style={{ height: "38px", border: "1.5px solid #E2E8F0", borderRadius: "8px", display: "flex", alignItems: "center", padding: "0 10px", gap: "8px", backgroundColor: scopeType === "cluster" ? "#F8FAFC" : "#FFFFFF" }}>
                       <School size={15} color="#94A3B8"/>
-                      <select value={school} onChange={e => handleFieldChange("school", e.target.value)} style={sel}>
-                        <option value="All Assigned Schools">All Assigned Schools</option>
-                        {schoolsList.length > 0 && schoolsList.map(s => (
-                          <option key={s.id || s.name} value={s.name}>{s.name}</option>
-                        ))}
+                      <select 
+                        value={scopeType === "cluster" ? "All Assigned Schools" : school} 
+                        onChange={e => handleFieldChange("school", e.target.value)} 
+                        disabled={scopeType === "cluster"}
+                        style={{ ...sel, cursor: scopeType === "cluster" ? "default" : "pointer", color: scopeType === "cluster" ? "#64748B" : "#0F172A" }}
+                      >
+                        {scopeType === "cluster" ? (
+                          <option value="All Assigned Schools">
+                            {cluster && cluster !== "All Clusters" ? `All Schools in ${cluster}` : "All Assigned Schools"}
+                          </option>
+                        ) : (
+                          <>
+                            <option value="">-- Select Specific School --</option>
+                            {filteredSchools.map(s => (
+                              <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                            ))}
+                          </>
+                        )}
                       </select>
                     </div>
+                    {touched.school && fieldErrors.school && <div style={errRow}><AlertCircle size={12}/><span>{fieldErrors.school}</span></div>}
                   </div>
                 </div>
 
@@ -764,7 +976,14 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                     { val: "cluster", label: "All schools in cluster", sub: "User can access all schools within the selected cluster." },
                     { val: "school", label: "Specific school only", sub: "User is restricted to the chosen school only." }
                   ].map(opt => (
-                    <label key={opt.val} style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", padding: "6px 8px", borderRadius: "8px", backgroundColor: scopeType === opt.val ? "#FFF7ED" : "#FFFFFF", border: "1px solid", borderColor: scopeType === opt.val ? "#FFEDD5" : "#F1F5F9", transition: "all 0.15s ease" }} onClick={() => setScopeType(opt.val)}>
+                    <label 
+                      key={opt.val} 
+                      style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", padding: "6px 8px", borderRadius: "8px", backgroundColor: scopeType === opt.val ? "#FFF7ED" : "#FFFFFF", border: "1px solid", borderColor: scopeType === opt.val ? "#FFEDD5" : "#F1F5F9", transition: "all 0.15s ease" }} 
+                      onClick={() => {
+                        setScopeType(opt.val);
+                        if (opt.val === 'cluster') setSchool('All Assigned Schools');
+                      }}
+                    >
                       <div style={{ width: "16px", height: "16px", borderRadius: "50%", marginTop: "2px", flexShrink: 0, border: scopeType === opt.val ? "5px solid #EA580C" : "2px solid #CBD5E1", backgroundColor: "#FFFFFF", transition: "border 0.15s ease" }}/>
                       <div>
                         <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#0F172A" }}>{opt.label}</div>
@@ -786,166 +1005,106 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   <div
                     onClick={handleToggleSelectAll}
-                    style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", padding: "6px 8px", borderRadius: "8px", backgroundColor: "#F8FAFC", marginBottom: "4px" }}
+                    style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", padding: "8px 12px", borderRadius: "8px", backgroundColor: "#FFF7ED", border: "1px solid #FFEDD5" }}
                   >
-                    <div style={{ width: "38px", height: "22px", borderRadius: "99px", backgroundColor: allSelected ? "#EB5A1D" : "#CBD5E1", padding: "2px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: allSelected ? "flex-end" : "flex-start", transition: "all 0.2s", flexShrink: 0 }}>
-                      <div style={{ width: "18px", height: "18px", borderRadius: "50%", backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}/>
+                    <div style={{ width: "36px", height: "20px", borderRadius: "99px", backgroundColor: allSelected ? "#EB5A1D" : "#CBD5E1", padding: "2px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: allSelected ? "flex-end" : "flex-start", transition: "all 0.2s", flexShrink: 0 }}>
+                      <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}/>
                     </div>
-                    <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#0F172A" }}>{allSelected ? "Deselect All Modules" : "Select All Modules"}</span>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#0F172A" }}>{allSelected ? "Deselect All Modules" : "Select All Modules"}</span>
                   </div>
 
-                  {moduleList.map(mod => (
-                    <div
-                      key={mod.key}
-                      onClick={() => handleTogglePermission(mod.key)}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", borderRadius: "8px", cursor: "pointer", backgroundColor: permissions[mod.key] ? "#FAFAFA" : "#FFFFFF", border: "1px solid", borderColor: permissions[mod.key] ? "#E8EDF4" : "#F1F5F9", transition: "all 0.15s ease" }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ color: mod.color }}>{mod.icon}</span>
-                        <span style={{ fontSize: "12.5px", fontWeight: permissions[mod.key] ? 600 : 400, color: permissions[mod.key] ? "#0F172A" : "#64748B" }}>
-                          {mod.label}
-                        </span>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "10px" }}>
+                    {moduleList.map(mod => (
+                      <div
+                        key={mod.key}
+                        onClick={() => handleTogglePermission(mod.key)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 14px",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          backgroundColor: permissions[mod.key] ? "#FFF7ED" : "#F8FAFC",
+                          border: permissions[mod.key] ? "1.5px solid #FDBA74" : "1px solid #E2E8F0",
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ color: permissions[mod.key] ? "#EA580C" : mod.color }}>{mod.icon}</span>
+                          <span style={{ fontSize: "13px", fontWeight: permissions[mod.key] ? 700 : 500, color: permissions[mod.key] ? "#0F172A" : "#64748B" }}>
+                            {mod.label}
+                          </span>
+                        </div>
+                        <div style={{ width: "36px", height: "20px", borderRadius: "99px", backgroundColor: permissions[mod.key] ? "#EB5A1D" : "#E2E8F0", padding: "2px", display: "flex", alignItems: "center", justifyContent: permissions[mod.key] ? "flex-end" : "flex-start", transition: "all 0.2s", flexShrink: 0 }}>
+                          <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}/>
+                        </div>
                       </div>
-                      <div style={{ width: "36px", height: "20px", borderRadius: "99px", backgroundColor: permissions[mod.key] ? "#EB5A1D" : "#E2E8F0", padding: "2px", display: "flex", alignItems: "center", justifyContent: permissions[mod.key] ? "flex-end" : "flex-start", transition: "all 0.2s", flexShrink: 0 }}>
-                        <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: "#FFFFFF", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }}/>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
             </div>
-          </div>
-        </div>
 
-        {/* RIGHT COLUMN: Live Preview Card matching CreateUserView */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "14px", minWidth: 0 }}>
-          <div style={fCard}>
-            <div style={fHdr}>
-              <div style={iconBox("#F0FDF4", "#059669")}><Network size={18}/></div>
-              <div>
-                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A", margin: 0 }}>User Summary</h3>
-                <p style={{ fontSize: "11.5px", color: "#94A3B8", margin: "1px 0 0 0" }}>Live preview of edited attributes</p>
-              </div>
-            </div>
-
-            {/* Profile Avatar Card */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", paddingBottom: "14px", marginBottom: "14px", borderBottom: "1px solid #F1F5F9" }}>
-              <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "linear-gradient(135deg, #EB5A1D, #F97316)", display: "flex", alignItems: "center", justifyContent: "center", color: "#FFFFFF", fontSize: "22px", fontWeight: 800 }}>
-                {initials}
-              </div>
-              <div style={{ fontSize: "16px", fontWeight: 800, color: "#0F172A", textAlign: "center" }}>
-                {fullName || "—"}
-              </div>
-              <div style={{ fontSize: "12px", color: "#64748B" }}>
-                {email || "—"}
-              </div>
-              <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px" }}>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 10px", borderRadius: "99px", fontSize: "11px", fontWeight: 600, backgroundColor: "#EFF6FF", color: "#2563EB", border: "1px solid #DBEAFE" }}>
-                  {role}
-                </span>
-                <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 10px", borderRadius: "99px", fontSize: "11px", fontWeight: 600, backgroundColor: status === "Active" ? "#ECFDF5" : "#FEF2F2", color: status === "Active" ? "#059669" : "#DC2626", border: status === "Active" ? "1px solid #A7F3D0" : "1px solid #FECACA" }}>
-                  <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: status === "Active" ? "#10B981" : "#EF4444" }}/>
-                  {status}
-                </span>
-              </div>
-            </div>
-
-            {/* Summary Metadata Rows */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {[
-                { label: "User ID", val: userId, icon: <CreditCard size={14}/>, muted: true },
-                { label: "Account Status", val: status, icon: <ShieldCheck size={14}/>, changed: status !== originalValues.status },
-                { label: "Login Username", val: loginUsername || "—", icon: <Mail size={14}/>, changed: email.trim().toLowerCase() !== originalValues.email.trim().toLowerCase() },
-                { label: "Full Name", val: fullName || "—", icon: <User size={14}/>, changed: fullName.trim() !== originalValues.fullName.trim() },
-                { label: "Phone", val: phone || "—", icon: <Phone size={14}/>, changed: phone !== originalValues.phone },
-                { label: "Role", val: role, icon: <ShieldCheck size={14}/>, changed: role !== originalValues.role },
-                { label: "Cluster", val: cluster || "—", icon: <Network size={14}/>, changed: cluster !== originalValues.cluster },
-                { label: "School", val: school || "—", icon: <School size={14}/>, changed: school !== originalValues.school },
-                { label: "Scope Type", val: scopeType === "cluster" ? "All schools in cluster" : "Specific school only", icon: <GraduationCap size={14}/>, changed: scopeType !== originalValues.scopeType },
-              ].map(item => (
-                <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#64748B", fontSize: "12px" }}>
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", maxWidth: "60%", textAlign: "right" }}>
-                    {item.changed && (
-                      <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#F59E0B", display: "inline-block", flexShrink: 0 }} title="Modified"/>
-                    )}
-                    <span style={{ fontSize: "12.5px", fontWeight: 600, color: item.muted ? "#7C3AED" : item.changed ? "#0F172A" : "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.val}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Modules Pill Summary */}
-            <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid #F1F5F9" }}>
-              <div style={{ fontSize: "11.5px", fontWeight: 600, color: "#64748B", marginBottom: "8px" }}>
-                Active Module Permissions ({selectedModulesList.length})
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
-                {selectedModulesList.length > 0 ? (
-                  selectedModulesList.map(m => (
-                    <span key={m} style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "99px", backgroundColor: "#ECFDF5", color: "#059669", border: "1px solid #A7F3D0", fontWeight: 600 }}>
-                      {m}
-                    </span>
-                  ))
-                ) : (
-                  <span style={{ fontSize: "12px", color: "#EF4444" }}>No modules selected</span>
-                )}
-              </div>
-            </div>
-
-            {/* Change Status Badge */}
-            {hasChanges && (
-              <div style={{ marginTop: "12px", padding: "8px 12px", borderRadius: "8px", backgroundColor: "#FFFBEB", border: "1px solid #FDE68A", fontSize: "11.5px", color: "#92400E", display: "flex", alignItems: "center", gap: "6px" }}>
-                <AlertTriangle size={13} style={{ flexShrink: 0 }}/>
-                <span>Unsaved changes detected. Click Save Changes below.</span>
-              </div>
-            )}
-
-            {/* Bottom Preview Save Button */}
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "20px" }}>
-              <button
-                type="button"
-                onClick={handleAttemptBack}
-                style={{ flex: 1, height: "42px", backgroundColor: "#FFFFFF", border: "1.5px solid #E2E8F0", borderRadius: "9px", color: "#475569", fontSize: "13.5px", fontWeight: 600, cursor: "pointer", transition: "background-color 0.15s ease" }}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={!hasChanges || isSubmitting}
-                style={{
-                  flex: 1.4,
-                  height: "42px",
-                  borderRadius: "9px",
-                  border: "none",
-                  backgroundColor: hasChanges ? "#EB5A1D" : "#E2E8F0",
-                  color: hasChanges ? "#FFFFFF" : "#94A3B8",
-                  fontSize: "13.5px",
-                  fontWeight: 700,
-                  cursor: hasChanges && !isSubmitting ? "pointer" : "not-allowed",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  boxShadow: hasChanges ? "0 4px 12px rgba(235,90,29,0.35)" : "none",
-                  transition: "all 0.2s ease"
-                }}
-                title={hasChanges ? "Save changes to user" : "No changes to save. Modify any field to enable."}
-              >
-                <Save size={16}/>
-                <span>{isSubmitting ? "Saving..." : hasChanges ? "Save Changes" : "No Changes to Save"}</span>
-              </button>
-            </div>
-          </div>
+        {/* Bottom Form Actions Bar */}
+        <div 
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: '12px',
+            padding: '16px 20px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #ECEEF2',
+            borderRadius: '12px',
+            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.02)',
+            marginTop: '4px'
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleAttemptBack}
+            style={{
+              height: '40px',
+              padding: '0 20px',
+              borderRadius: '8px',
+              border: '1.5px solid #CBD5E1',
+              backgroundColor: '#FFFFFF',
+              color: '#475569',
+              fontSize: '13.5px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'background-color 0.15s ease'
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!hasChanges || isSubmitting}
+            style={{
+              height: '40px',
+              padding: '0 24px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: hasChanges ? '#EB5A1D' : '#E2E8F0',
+              color: hasChanges ? '#FFFFFF' : '#94A3B8',
+              fontSize: '13.5px',
+              fontWeight: 700,
+              cursor: hasChanges && !isSubmitting ? 'pointer' : 'not-allowed',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: hasChanges ? '0 4px 12px rgba(235, 90, 29, 0.3)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Save size={16} />
+            <span>{isSubmitting ? 'Saving...' : hasChanges ? 'Save Changes' : 'No Changes to Save'}</span>
+          </button>
         </div>
       </form>
 
@@ -1010,6 +1169,11 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
               <div>• <strong>Role:</strong> {role}</div>
               <div>• <strong>Cluster:</strong> {cluster || "—"}</div>
               <div>• <strong>Modules:</strong> {selectedModulesList.length} enabled</div>
+              {password && password.trim() ? (
+                <div>• <strong>Password:</strong> •••••••• (Will be updated)</div>
+              ) : (
+                <div>• <strong>Password:</strong> Unchanged</div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>

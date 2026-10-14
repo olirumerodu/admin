@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   LayoutGrid, 
   Users, 
@@ -61,7 +61,10 @@ export default function DashboardView() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeNav, setActiveNav] = useState('dashboard'); // Default to live dashboard overview
   const [searchQuery, setSearchQuery] = useState('');
-  const [schoolFilter, setSchoolFilter] = useState('ALL');
+  const [dashboardSchoolFilter, setDashboardSchoolFilter] = useState('ALL');
+  const [studentSchoolFilter, setStudentSchoolFilter] = useState('ALL');
+  const [healthSchoolFilter, setHealthSchoolFilter] = useState('ALL');
+  const [rawStudents, setRawStudents] = useState([]);
   const [topSchoolsLimit, setTopSchoolsLimit] = useState(5);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -77,8 +80,8 @@ export default function DashboardView() {
     assessment_coverage: 0,
     male_students: 0,
     female_students: 0,
-    male_percentage: 50,
-    female_percentage: 50,
+    male_percentage: 0,
+    female_percentage: 0,
     health_normal: 0,
     health_normal_pct: 0,
     health_wasted: 0,
@@ -91,26 +94,21 @@ export default function DashboardView() {
     health_obesity_pct: 0,
   });
 
-  // Real-time Schools List
+  // Real-time Schools List from Database
   const [schoolsList, setSchoolsList] = useState([]);
 
-  // Real-time Activity Feed from backend
-  const [recentActivities, setRecentActivities] = useState([]);
-  const [allActivities, setAllActivities] = useState([]);
+  // Real-time Upcoming Schedules from database
   const [upcomingActivities, setUpcomingActivities] = useState([]);
-  const [showAllActivitiesModal, setShowAllActivitiesModal] = useState(false);
-  const [activityCategoryFilter, setActivityCategoryFilter] = useState('ALL');
-  const [activitySearchQuery, setActivitySearchQuery] = useState('');
 
   // Synchronize live data from FastAPI backend in real time
-  const loadData = async () => {
+  const loadData = async (filterTarget = dashboardSchoolFilter) => {
     try {
-      const [dashMetricsRes, schoolsRes, studentsRes, usersRes, activitiesRes, notifsRes] = await Promise.allSettled([
-        api.getMetrics(),
+      const isFiltered = filterTarget && filterTarget !== 'ALL';
+      const [dashMetricsRes, schoolsRes, studentsRes, usersRes, notifsRes] = await Promise.allSettled([
+        api.getMetrics(isFiltered ? filterTarget : null),
         api.getSchools(),
         api.getStudents(),
         api.getUsers(),
-        api.getActivities(50),
         api.getNotifications(),
       ]);
 
@@ -118,31 +116,30 @@ export default function DashboardView() {
       const backendSchools = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
       const backendStudents = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : [];
       const backendUsers = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value) ? usersRes.value : [];
-      const backendActivities = activitiesRes.status === 'fulfilled' && Array.isArray(activitiesRes.value) ? activitiesRes.value : [];
       const backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
 
-      const totalStudents = backendStudents.length || dm.total_students || 0;
-      const totalSchools = backendSchools.length || dm.total_schools || 0;
-      const totalUsers = backendUsers.length || dm.total_users || 0;
-      const totalClusters = dm.total_clusters || 0;
-      const studentsAssessed = dm.assessed_students || 0;
-      const cov = totalStudents > 0 ? Math.round((studentsAssessed / totalStudents) * 100) : (dm.overall_coverage_percentage || 0);
+      const totalStudents = dm.total_students ?? backendStudents.length ?? 0;
+      const totalSchools = dm.total_schools ?? backendSchools.length ?? 0;
+      const totalUsers = dm.total_users ?? backendUsers.length ?? 0;
+      const totalClusters = dm.total_clusters ?? 0;
+      const studentsAssessed = dm.assessed_students ?? 0;
+      const cov = dm.overall_coverage_percentage ?? (totalStudents > 0 ? Math.round((studentsAssessed / totalStudents) * 100) : 0);
 
-      const maleCount = backendStudents.length > 0 
+      const maleCount = dm.count_male ?? (backendStudents.length > 0 
         ? backendStudents.filter(s => s.gender?.toLowerCase() === 'male').length 
-        : (dm.count_male || 0);
-      const femaleCount = backendStudents.length > 0 
+        : 0);
+      const femaleCount = dm.count_female ?? (backendStudents.length > 0 
         ? backendStudents.filter(s => s.gender?.toLowerCase() === 'female').length 
-        : (dm.count_female || 0);
+        : 0);
 
-      const malePct = totalStudents > 0 ? Number(((maleCount / totalStudents) * 100).toFixed(1)) : 50;
-      const femalePct = totalStudents > 0 ? Number(((femaleCount / totalStudents) * 100).toFixed(1)) : 50;
+      const malePct = totalStudents > 0 ? Number(((maleCount / totalStudents) * 100).toFixed(1)) : 0;
+      const femalePct = totalStudents > 0 ? Number(((femaleCount / totalStudents) * 100).toFixed(1)) : 0;
 
-      const norm = dm.count_normal || 0;
-      const wasted = dm.count_thinness || 0;
-      const sevWasted = dm.count_severe_thinness || 0;
-      const overwt = dm.count_overweight || 0;
-      const obesity = dm.count_obesity || 0;
+      const norm = dm.count_normal ?? 0;
+      const wasted = dm.count_thinness ?? 0;
+      const sevWasted = dm.count_severe_thinness ?? 0;
+      const overwt = dm.count_overweight ?? 0;
+      const obesity = dm.count_obesity ?? 0;
 
       const calcPct = (v) => totalStudents > 0 ? Number(((v / totalStudents) * 100).toFixed(1)) : 0;
 
@@ -169,35 +166,22 @@ export default function DashboardView() {
         health_obesity_pct: calcPct(obesity),
       });
 
-      // Map real schools list
+      // Map real schools list from database
       const maxStudentCount = Math.max(...backendSchools.map(s => s.students_count || 0), 1);
       const mappedSchools = backendSchools.map(s => ({
-        id: s.id,
+        id: String(s.id),
         name: s.name,
-        cluster: s.cluster_name || 'Central Cluster',
+        cluster: s.cluster_name || 'District',
         students: s.students_count || 0,
         coverage: s.coverage_percentage || 0,
         maxPct: Math.round(((s.students_count || 0) / maxStudentCount) * 100)
       }));
       setSchoolsList(mappedSchools);
+      setRawStudents(backendStudents);
 
-      // Map real activities
-      if (backendActivities.length > 0) {
-        const mappedAct = backendActivities.map(a => ({
-          id: a.id,
-          title: a.title,
-          subtitle: a.subtitle,
-          time: a.time,
-          rawType: a.type || 'system',
-          icon: a.type === 'assessment' ? ClipboardCheck : a.type === 'user' ? User : Upload,
-          bg: a.type === 'assessment' ? '#EFF6FF' : a.type === 'user' ? '#FFEDD5' : '#DCFCE7',
-          color: a.type === 'assessment' ? '#2563EB' : a.type === 'user' ? '#EA580C' : '#16A34A',
-        }));
-        setAllActivities(mappedAct);
-        setRecentActivities(mappedAct.slice(0, 5));
-      }
+      // Lightweight dashboard feed synced
 
-      // Map upcoming activities from real notifications or scheduled school assessment milestones
+      // Map upcoming activities only from real database notifications / schedules (no hardcoded fallback)
       const scheduledNotifs = backendNotifs.filter(n => n.scheduled_date || n.status === 'Scheduled');
       if (scheduledNotifs.length > 0) {
         setUpcomingActivities(scheduledNotifs.map(n => ({
@@ -207,32 +191,8 @@ export default function DashboardView() {
           date: n.scheduled_date ? `${n.scheduled_date} ${n.scheduled_time || ''}` : new Date(n.created_at).toLocaleDateString(),
           status: n.status || 'Scheduled'
         })));
-      } else if (backendSchools.length > 0) {
-        // Dynamic schedule based on actual schools in the database
-        const firstSchool = backendSchools[0]?.name || 'Government Higher Secondary School';
-        const secondSchool = backendSchools[1]?.name || 'Government Model Girls School';
-        const today = new Date();
-        const date1 = new Date(today);
-        date1.setDate(today.getDate() + 3);
-        const date2 = new Date(today);
-        date2.setDate(today.getDate() + 7);
-
-        setUpcomingActivities([
-          {
-            id: 'sched-1',
-            activity: 'Monthly Health & Nutritional Assessment',
-            school: firstSchool,
-            date: date1.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-            status: 'Scheduled'
-          },
-          {
-            id: 'sched-2',
-            activity: 'BMI & Vision Follow-up Screening',
-            school: secondSchool,
-            date: date2.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-            status: 'Upcoming'
-          }
-        ]);
+      } else {
+        setUpcomingActivities([]);
       }
 
       setLastRefreshedTime(new Date());
@@ -242,13 +202,20 @@ export default function DashboardView() {
   };
 
   useEffect(() => {
-    loadData();
-    // Real-time polling every 5 seconds to merge user application changes
+    loadData(dashboardSchoolFilter);
+    // Real-time polling every 5 seconds to merge database changes
     const timer = setInterval(() => {
-      loadData();
+      loadData(dashboardSchoolFilter);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [dashboardSchoolFilter]);
+
+  const handleDashboardSchoolFilterChange = (newSchoolId) => {
+    setDashboardSchoolFilter(newSchoolId);
+    setStudentSchoolFilter(newSchoolId);
+    setHealthSchoolFilter(newSchoolId);
+    loadData(newSchoolId);
+  };
 
   const filteredSchools = schoolsList
     .filter(s => 
@@ -257,11 +224,132 @@ export default function DashboardView() {
     )
     .slice(0, topSchoolsLimit);
 
+  // Student Overview Dynamic Computation based on Selected Real School
+  const studentOverviewData = useMemo(() => {
+    let list = rawStudents.filter(s => !s.enrollment_status || s.enrollment_status === 'Active');
+    const isFiltered = studentSchoolFilter && studentSchoolFilter !== 'ALL';
+    if (isFiltered) {
+      list = list.filter(s => 
+        String(s.school_id || '').trim().toLowerCase() === String(studentSchoolFilter).trim().toLowerCase() ||
+        String(s.school_name || '').trim().toLowerCase() === String(studentSchoolFilter).trim().toLowerCase()
+      );
+    }
+    const total = list.length;
+    const male = list.filter(s => s.gender?.toLowerCase() === 'male').length;
+    const female = list.filter(s => s.gender?.toLowerCase() === 'female').length;
+
+    if (total > 0) {
+      const malePct = Number(((male / total) * 100).toFixed(1));
+      const femalePct = Number(((female / total) * 100).toFixed(1));
+      return { total, male, female, malePct, femalePct };
+    }
+
+    if (!isFiltered) {
+      return {
+        total: metrics.total_students,
+        male: metrics.male_students,
+        female: metrics.female_students,
+        malePct: metrics.male_percentage || 0,
+        femalePct: metrics.female_percentage || 0,
+      };
+    }
+
+    return { total: 0, male: 0, female: 0, malePct: 0, femalePct: 0 };
+  }, [rawStudents, studentSchoolFilter, metrics]);
+
+  // Health Overview Dynamic Computation based on Selected Real School
+  const healthOverviewData = useMemo(() => {
+    let list = rawStudents.filter(s => !s.enrollment_status || s.enrollment_status === 'Active');
+    const isFiltered = healthSchoolFilter && healthSchoolFilter !== 'ALL';
+    if (isFiltered) {
+      list = list.filter(s => 
+        String(s.school_id || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase() ||
+        String(s.school_name || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase()
+      );
+    }
+
+    const total = list.length;
+    if (total > 0) {
+      const getStatus = (s) => (s.nutrition_status || s.assessments?.[0]?.nutrition_status || '').toLowerCase();
+
+      const normal = list.filter(s => {
+        const st = getStatus(s);
+        return st.includes('normal') || (!st && !s.is_follow_up_required);
+      }).length;
+
+      const wasted = list.filter(s => {
+        const st = getStatus(s);
+        return (st.includes('wasted') || st.includes('thinness')) && !st.includes('severe');
+      }).length;
+
+      const sevWasted = list.filter(s => {
+        const st = getStatus(s);
+        return st.includes('severe');
+      }).length;
+
+      const overweight = list.filter(s => {
+        const st = getStatus(s);
+        return st.includes('overweight');
+      }).length;
+
+      const obesity = list.filter(s => {
+        const st = getStatus(s);
+        return st.includes('obese') || st.includes('obesity');
+      }).length;
+
+      const calcPct = (v) => Number(((v / total) * 100).toFixed(1));
+
+      return {
+        total,
+        normal,
+        normalPct: calcPct(normal),
+        wasted,
+        wastedPct: calcPct(wasted),
+        sevWasted,
+        sevWastedPct: calcPct(sevWasted),
+        overweight,
+        overweightPct: calcPct(overweight),
+        obesity,
+        obesityPct: calcPct(obesity),
+      };
+    }
+
+    if (!isFiltered) {
+      return {
+        total: metrics.students_assessed || metrics.total_students,
+        normal: metrics.health_normal,
+        normalPct: metrics.health_normal_pct,
+        wasted: metrics.health_wasted,
+        wastedPct: metrics.health_wasted_pct,
+        sevWasted: metrics.health_severely_wasted,
+        sevWastedPct: metrics.health_severely_wasted_pct,
+        overweight: metrics.health_overweight,
+        overweightPct: metrics.health_overweight_pct,
+        obesity: metrics.health_obesity,
+        obesityPct: metrics.health_obesity_pct,
+      };
+    }
+
+    return {
+      total: 0,
+      normal: 0,
+      normalPct: 0,
+      wasted: 0,
+      wastedPct: 0,
+      sevWasted: 0,
+      sevWastedPct: 0,
+      overweight: 0,
+      overweightPct: 0,
+      obesity: 0,
+      obesityPct: 0,
+    };
+  }, [rawStudents, healthSchoolFilter, metrics]);
+
   // Compact donut chart calculations (radius: 46px)
   const radius = 46;
   const circumference = 2 * Math.PI * radius;
-  const maleStrokeDash = (metrics.male_percentage / 100) * circumference;
-  const femaleStrokeDash = (metrics.female_percentage / 100) * circumference;
+  const maleStrokeDash = (studentOverviewData.malePct / 100) * circumference;
+  const femaleStrokeDash = (studentOverviewData.femalePct / 100) * circumference;
 
   // Compact responsive columns
   const kpiGridColumns = isLargeDesktop 
@@ -663,7 +751,7 @@ export default function DashboardView() {
             {!isMobile && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748B', fontSize: '12px', fontWeight: 500 }}>
                 <Calendar size={14} color="#64748B" />
-                <span>Tuesday, 29 September 2026</span>
+                <span>{new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
               </div>
             )}
 
@@ -876,28 +964,53 @@ export default function DashboardView() {
             <SettingsView />
           </main>
         ) : (
-          /* Compact, Unscrollable Dashboard Main Screen */
+          /* Clean, Maintainable Dashboard Main Screen */
           <main 
             style={{
-              padding: '10px 18px 12px 18px',
+              padding: isMobile ? '12px 14px' : '18px 24px',
               display: 'flex',
               flexDirection: 'column',
-              gap: '8px', // Tightened spacing, removes unwanted dead space!
+              gap: '14px',
               flex: 1,
               height: 'calc(100vh - 52px)',
               maxHeight: 'calc(100vh - 52px)',
-              overflow: 'hidden', // Completely unscrollable!
+              overflowY: 'auto',
+              overflowX: 'hidden',
               boxSizing: 'border-box'
             }}
           >
-          {/* Header Row: Title & Subtitle inline */}
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexShrink: 0 }}>
-            <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.1 }}>
-              Dashboard
-            </h1>
-            <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 450 }}>
-              System overview and student health insights
-            </span>
+          {/* Header Row: Title & Subtitle inline, and Live Database School Filter */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2 }}>
+                Dashboard
+              </h1>
+              <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: 450 }}>
+                System overview & real-time database analytics
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <School size={14} color="#EA580C" />
+                <span>Filter School:</span>
+              </span>
+              <select 
+                style={{
+                  ...compactSelectStyle,
+                  borderColor: dashboardSchoolFilter !== 'ALL' ? '#EA580C' : '#E2E8F0',
+                  backgroundColor: dashboardSchoolFilter !== 'ALL' ? '#FFF7ED' : '#FFFFFF',
+                  fontWeight: 600
+                }}
+                value={dashboardSchoolFilter}
+                onChange={(e) => handleDashboardSchoolFilterChange(e.target.value)}
+              >
+                <option value="ALL">All Schools ({schoolsList.length})</option>
+                {schoolsList.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* ================= ROW 1: 6 KPI CARDS ================= */}
@@ -1054,12 +1167,13 @@ export default function DashboardView() {
 
                 <select 
                   style={compactSelectStyle}
-                  value={schoolFilter}
-                  onChange={(e) => setSchoolFilter(e.target.value)}
+                  value={studentSchoolFilter}
+                  onChange={(e) => setStudentSchoolFilter(e.target.value)}
                 >
-                  <option value="ALL">All Schools</option>
-                  <option value="greenwood">Greenwood Public</option>
-                  <option value="sunrise">Sunrise Int</option>
+                  <option value="ALL">All Schools ({schoolsList.length})</option>
+                  {schoolsList.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -1088,7 +1202,7 @@ export default function DashboardView() {
                 >
                   <svg style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }} viewBox="0 0 120 120">
                     <circle cx="60" cy="60" r={radius} fill="none" stroke="#F1F5F9" strokeWidth="13" />
-                    {/* Teal Arc (Male Students: 51.5%) */}
+                    {/* Teal Arc (Male Students) */}
                     <circle
                       cx="60"
                       cy="60"
@@ -1100,7 +1214,7 @@ export default function DashboardView() {
                       strokeDashoffset="0"
                       strokeLinecap="round"
                     />
-                    {/* Orange Arc (Female Students: 48.5%) */}
+                    {/* Orange Arc (Female Students) */}
                     <circle
                       cx="60"
                       cy="60"
@@ -1126,7 +1240,7 @@ export default function DashboardView() {
                     }}
                   >
                     <span style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
-                      {metrics.total_students.toLocaleString()}
+                      {studentOverviewData.total.toLocaleString()}
                     </span>
                     <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 500 }}>
                       Total Students
@@ -1143,10 +1257,10 @@ export default function DashboardView() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', paddingLeft: '13px' }}>
                       <span style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                        {metrics.male_students.toLocaleString()}
+                        {studentOverviewData.male.toLocaleString()}
                       </span>
                       <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
-                        {metrics.male_percentage}%
+                        {studentOverviewData.malePct}%
                       </span>
                     </div>
                   </div>
@@ -1158,10 +1272,10 @@ export default function DashboardView() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', paddingLeft: '13px' }}>
                       <span style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                        {metrics.female_students.toLocaleString()}
+                        {studentOverviewData.female.toLocaleString()}
                       </span>
                       <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
-                        {metrics.female_percentage}%
+                        {studentOverviewData.femalePct}%
                       </span>
                     </div>
                   </div>
@@ -1179,11 +1293,13 @@ export default function DashboardView() {
 
                 <select 
                   style={compactSelectStyle}
-                  value={schoolFilter}
-                  onChange={(e) => setSchoolFilter(e.target.value)}
+                  value={healthSchoolFilter}
+                  onChange={(e) => setHealthSchoolFilter(e.target.value)}
                 >
-                  <option value="ALL">All Schools</option>
-                  <option value="greenwood">Greenwood Public</option>
+                  <option value="ALL">All Schools ({schoolsList.length})</option>
+                  {schoolsList.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -1193,50 +1309,50 @@ export default function DashboardView() {
                 <div style={compactHealthBarRow}>
                   <span style={compactHealthLabel}>Normal</span>
                   <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${metrics.health_normal_pct}%`, backgroundColor: '#10B981' }} />
+                    <div style={{ ...compactHealthFill, width: `${healthOverviewData.normalPct}%`, backgroundColor: '#10B981' }} />
                   </div>
-                  <span style={compactHealthCount}>{metrics.health_normal.toLocaleString()}</span>
-                  <span style={compactHealthPct}>{metrics.health_normal_pct}%</span>
+                  <span style={compactHealthCount}>{healthOverviewData.normal.toLocaleString()}</span>
+                  <span style={compactHealthPct}>{healthOverviewData.normalPct}%</span>
                 </div>
 
                 {/* Wasted */}
                 <div style={compactHealthBarRow}>
                   <span style={compactHealthLabel}>Wasted</span>
                   <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${metrics.health_wasted_pct * 3}%`, backgroundColor: '#F59E0B' }} />
+                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.wastedPct * 2)}%`, backgroundColor: '#F59E0B' }} />
                   </div>
-                  <span style={compactHealthCount}>{metrics.health_wasted}</span>
-                  <span style={compactHealthPct}>{metrics.health_wasted_pct}%</span>
+                  <span style={compactHealthCount}>{healthOverviewData.wasted}</span>
+                  <span style={compactHealthPct}>{healthOverviewData.wastedPct}%</span>
                 </div>
 
                 {/* Severely Wasted */}
                 <div style={compactHealthBarRow}>
                   <span style={compactHealthLabel}>Severely Wasted</span>
                   <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${metrics.health_severely_wasted_pct * 3}%`, backgroundColor: '#EF4444' }} />
+                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.sevWastedPct * 2)}%`, backgroundColor: '#EF4444' }} />
                   </div>
-                  <span style={compactHealthCount}>{metrics.health_severely_wasted}</span>
-                  <span style={compactHealthPct}>{metrics.health_severely_wasted_pct}%</span>
+                  <span style={compactHealthCount}>{healthOverviewData.sevWasted}</span>
+                  <span style={compactHealthPct}>{healthOverviewData.sevWastedPct}%</span>
                 </div>
 
                 {/* Overweight */}
                 <div style={compactHealthBarRow}>
                   <span style={compactHealthLabel}>Overweight</span>
                   <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${metrics.health_overweight_pct * 3}%`, backgroundColor: '#14B8A6' }} />
+                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.overweightPct * 2)}%`, backgroundColor: '#14B8A6' }} />
                   </div>
-                  <span style={compactHealthCount}>{metrics.health_overweight}</span>
-                  <span style={compactHealthPct}>{metrics.health_overweight_pct}%</span>
+                  <span style={compactHealthCount}>{healthOverviewData.overweight}</span>
+                  <span style={compactHealthPct}>{healthOverviewData.overweightPct}%</span>
                 </div>
 
                 {/* Obesity */}
                 <div style={compactHealthBarRow}>
                   <span style={compactHealthLabel}>Obesity</span>
                   <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${metrics.health_obesity_pct * 3}%`, backgroundColor: '#EA580C' }} />
+                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.obesityPct * 2)}%`, backgroundColor: '#EA580C' }} />
                   </div>
-                  <span style={compactHealthCount}>{metrics.health_obesity}</span>
-                  <span style={compactHealthPct}>{metrics.health_obesity_pct}%</span>
+                  <span style={compactHealthCount}>{healthOverviewData.obesity}</span>
+                  <span style={compactHealthPct}>{healthOverviewData.obesityPct}%</span>
                 </div>
               </div>
             </div>
@@ -1336,489 +1452,132 @@ export default function DashboardView() {
               </div>
             </div>
 
-            {/* Recent Activity */}
+            {/* Upcoming Activity & Schedules */}
             <div style={compactCardStyle}>
               <div style={compactCardHeaderStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Clock size={15} color="#EA580C" />
-                  <h3 style={compactCardTitleStyle}>Recent Activity</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: '#FFEDD5', color: '#EA580C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Calendar size={15} />
+                  </div>
+                  <div>
+                    <h3 style={compactCardTitleStyle}>Upcoming Activity & Schedules</h3>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#64748B' }}>Screening drives & events</p>
+                  </div>
                 </div>
 
                 <button 
-                  onClick={() => setShowAllActivitiesModal(true)}
+                  onClick={() => setActiveNav('notifications')}
                   style={{
                     background: 'none',
                     border: 'none',
                     color: '#EB5A1D',
                     fontWeight: 600,
-                    fontSize: '11.5px',
+                    fontSize: '12px',
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '4px',
-                    padding: '2px 4px',
+                    padding: '3px 6px',
                     borderRadius: '4px'
                   }}
-                  title="View all activities modal"
+                  title="View all notifications and scheduled assessments"
                 >
-                  <span>View All</span>
-                  <ExternalLink size={11} />
+                  <span>Manage</span>
+                  <ExternalLink size={12} />
                 </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', flex: 1, justifyContent: 'center' }}>
-                {recentActivities.length === 0 ? (
-                  <div style={{ textAlign: 'center', color: '#94A3B8', fontSize: '12px', padding: '12px 0' }}>
-                    No recent activities recorded yet.
-                  </div>
-                ) : (
-                  recentActivities.map((act) => {
-                    const Icon = act.icon;
-                    return (
-                      <div 
-                        key={act.id} 
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '8px',
-                          width: '100%'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                          <div 
-                            style={{
-                              width: '28px',
-                              height: '28px',
-                              borderRadius: '6px',
-                              backgroundColor: act.bg,
-                              color: act.color,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}
-                          >
-                            <Icon size={14} />
-                          </div>
-                          <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                              {act.title}
-                            </div>
-                            <div style={{ fontSize: '10.5px', color: '#64748B', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
-                              {act.subtitle}
-                            </div>
-                          </div>
-                        </div>
-                        <span style={{ fontSize: '11px', color: '#94A3B8', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                          {act.time}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ================= ROW 4: UPCOMING ACTIVITY ================= */}
-          <div style={{ ...compactCardStyle, flex: '0 0 auto', padding: '8px 14px' }}>
-            <div style={{ ...compactCardHeaderStyle, marginBottom: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Calendar size={15} color="#EA580C" />
-                <h3 style={compactCardTitleStyle}>Upcoming Activity & Schedules</h3>
-              </div>
-
-              <button 
-                onClick={() => setActiveNav('notifications')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#EB5A1D',
-                  fontWeight: 600,
-                  fontSize: '11.5px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '2px 4px',
-                  borderRadius: '4px'
-                }}
-                title="View all notifications and scheduled assessments"
-              >
-                <span>View All</span>
-                <ExternalLink size={11} />
-              </button>
-            </div>
-
-            <div style={{ width: '100%', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                    <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Activity</th>
-                    <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Target / School</th>
-                    <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Date</th>
-                    <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {upcomingActivities.length === 0 ? (
-                    <tr>
-                      <td colSpan="4" style={{ padding: '10px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
-                        No upcoming activities scheduled. <button onClick={() => setActiveNav('notifications')} style={{ background: 'none', border: 'none', color: '#EB5A1D', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}>Schedule in Notifications</button>
-                      </td>
+              <div style={{ width: '100%', overflowY: 'auto', maxHeight: '220px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
+                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Activity</th>
+                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Target School</th>
+                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Date</th>
+                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Status</th>
                     </tr>
-                  ) : (
-                    upcomingActivities.slice(0, 3).map((item) => (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                        <td style={{ padding: '5px 0' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div 
-                              style={{
-                                width: '26px',
-                                height: '26px',
-                                borderRadius: '5px',
-                                backgroundColor: '#FFEDD5',
-                                color: '#EA580C',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                              }}
-                            >
-                              <FileText size={13} />
-                            </div>
-                            <span style={{ fontWeight: 600, fontSize: '12px', color: '#0F172A' }}>
-                              {item.activity}
-                            </span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '5px 0', color: '#475569', fontSize: '12px' }}>
-                          {item.school}
-                        </td>
-                        <td style={{ padding: '5px 0' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#475569', fontSize: '12px' }}>
-                            <Calendar size={13} color="#94A3B8" />
-                            <span>{item.date}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '5px 0' }}>
-                          <span 
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              padding: '2px 8px',
-                              backgroundColor: item.status === 'Scheduled' ? '#DCFCE7' : '#EFF6FF',
-                              color: item.status === 'Scheduled' ? '#15803D' : '#1D4ED8',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              borderRadius: '99px'
+                  </thead>
+                  <tbody>
+                    {upcomingActivities.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '24px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
+                          No upcoming activities scheduled.{' '}
+                          <button 
+                            onClick={() => setActiveNav('notifications')} 
+                            style={{ 
+                              background: 'none', 
+                              border: 'none', 
+                              color: '#EB5A1D', 
+                              cursor: 'pointer', 
+                              fontWeight: 600, 
+                              textDecoration: 'underline' 
                             }}
                           >
-                            {item.status}
-                          </span>
+                            Schedule in Notifications
+                          </button>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      upcomingActivities.slice(0, 5).map((item) => (
+                        <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
+                          <td style={{ padding: '7px 0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div 
+                                style={{
+                                  width: '24px',
+                                  height: '24px',
+                                  borderRadius: '5px',
+                                  backgroundColor: '#FFEDD5',
+                                  color: '#EA580C',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}
+                              >
+                                <FileText size={12} />
+                              </div>
+                              <span style={{ fontWeight: 600, fontSize: '12px', color: '#0F172A' }}>
+                                {item.activity}
+                              </span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '7px 0', color: '#475569', fontSize: '12px' }}>
+                            {item.school}
+                          </td>
+                          <td style={{ padding: '7px 0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#475569', fontSize: '12px' }}>
+                              <Calendar size={12} color="#94A3B8" />
+                              <span>{item.date}</span>
+                            </div>
+                          </td>
+                          <td style={{ padding: '7px 0' }}>
+                            <span 
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                backgroundColor: item.status === 'Scheduled' ? '#DCFCE7' : '#EFF6FF',
+                                color: item.status === 'Scheduled' ? '#15803D' : '#1D4ED8',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                borderRadius: '99px'
+                              }}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </main>
         )}
 
-        {/* ================= VIEW ALL ACTIVITIES MODAL ================= */}
-        {showAllActivitiesModal && (
-          <div 
-            style={{
-              position: 'fixed',
-              inset: 0,
-              backgroundColor: 'rgba(15, 23, 42, 0.65)',
-              backdropFilter: 'blur(3px)',
-              zIndex: 1200,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px'
-            }}
-            onClick={() => setShowAllActivitiesModal(false)}
-          >
-            <div 
-              style={{
-                width: '100%',
-                maxWidth: '640px',
-                backgroundColor: '#FFFFFF',
-                borderRadius: '14px',
-                boxShadow: '0 20px 40px rgba(0, 0, 0, 0.2)',
-                display: 'flex',
-                flexDirection: 'column',
-                maxHeight: '85vh',
-                overflow: 'hidden',
-                border: '1px solid #E2E8F0'
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Modal Header */}
-              <div 
-                style={{
-                  padding: '16px 20px',
-                  borderBottom: '1px solid #F1F5F9',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'linear-gradient(to right, #FFF7ED, #FFFFFF)'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div 
-                    style={{
-                      width: '36px',
-                      height: '36px',
-                      borderRadius: '8px',
-                      backgroundColor: '#FFEDD5',
-                      color: '#EA580C',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <Clock size={18} />
-                  </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0F172A' }}>
-                      All System Activities & Events
-                    </h3>
-                    <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>
-                      Complete real-time log of assessments, users, and imports
-                    </p>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setShowAllActivitiesModal(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#94A3B8',
-                    padding: '6px',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {/* Modal Filters & Search */}
-              <div style={{ padding: '12px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div 
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    backgroundColor: '#F8FAFC',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: '8px',
-                    padding: '7px 12px'
-                  }}
-                >
-                  <Search size={15} color="#94A3B8" />
-                  <input 
-                    type="text"
-                    placeholder="Search activities by title, school, or user..."
-                    value={activitySearchQuery}
-                    onChange={(e) => setActivitySearchQuery(e.target.value)}
-                    style={{
-                      border: 'none',
-                      outline: 'none',
-                      background: 'transparent',
-                      fontSize: '12.5px',
-                      color: '#0F172A',
-                      width: '100%'
-                    }}
-                  />
-                  {activitySearchQuery && (
-                    <button 
-                      onClick={() => setActivitySearchQuery('')}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: 0 }}
-                    >
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-
-                {/* Filter Pills */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  {[
-                    { key: 'ALL', label: 'All Activities' },
-                    { key: 'assessment', label: 'Assessments' },
-                    { key: 'user', label: 'User Actions' },
-                    { key: 'import', label: 'Data Imports' },
-                  ].map((filterTab) => (
-                    <button 
-                      key={filterTab.key}
-                      onClick={() => setActivityCategoryFilter(filterTab.key)}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
-                        border: 'none',
-                        cursor: 'pointer',
-                        backgroundColor: activityCategoryFilter === filterTab.key ? '#EA580C' : '#F1F5F9',
-                        color: activityCategoryFilter === filterTab.key ? '#FFFFFF' : '#475569',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {filterTab.label}
-                    </button>
-                  ))}
-                  <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#94A3B8' }}>
-                    Showing {allActivities.filter(act => {
-                      const matchesFilter = activityCategoryFilter === 'ALL' || act.rawType === activityCategoryFilter;
-                      const matchesSearch = !activitySearchQuery || 
-                        act.title?.toLowerCase().includes(activitySearchQuery.toLowerCase()) || 
-                        act.subtitle?.toLowerCase().includes(activitySearchQuery.toLowerCase());
-                      return matchesFilter && matchesSearch;
-                    }).length} items
-                  </span>
-                </div>
-              </div>
-
-              {/* Modal Activity List (Scrollable) */}
-              <div 
-                style={{
-                  padding: '12px 20px',
-                  overflowY: 'auto',
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}
-              >
-                {allActivities
-                  .filter(act => {
-                    const matchesFilter = activityCategoryFilter === 'ALL' || act.rawType === activityCategoryFilter;
-                    const matchesSearch = !activitySearchQuery || 
-                      act.title?.toLowerCase().includes(activitySearchQuery.toLowerCase()) || 
-                      act.subtitle?.toLowerCase().includes(activitySearchQuery.toLowerCase());
-                    return matchesFilter && matchesSearch;
-                  })
-                  .map((act) => {
-                    const Icon = act.icon;
-                    return (
-                      <div 
-                        key={act.id} 
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '12px',
-                          padding: '10px 12px',
-                          backgroundColor: '#F8FAFC',
-                          borderRadius: '8px',
-                          border: '1px solid #F1F5F9'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
-                          <div 
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '7px',
-                              backgroundColor: act.bg,
-                              color: act.color,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}
-                          >
-                            <Icon size={16} />
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                              {act.title}
-                            </div>
-                            <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                              {act.subtitle}
-                            </div>
-                          </div>
-                        </div>
-                        <span 
-                          style={{
-                            fontSize: '11px',
-                            color: '#94A3B8',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                            backgroundColor: '#FFFFFF',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            border: '1px solid #E2E8F0'
-                          }}
-                        >
-                          {act.time}
-                        </span>
-                      </div>
-                    );
-                  })}
-              </div>
-
-              {/* Modal Footer */}
-              <div 
-                style={{
-                  padding: '12px 20px',
-                  borderTop: '1px solid #F1F5F9',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: '#F8FAFC'
-                }}
-              >
-                <button 
-                  onClick={() => {
-                    setShowAllActivitiesModal(false);
-                    setActiveNav('reports');
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    color: '#EA580C',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <span>Go to Detailed Reports & Analytics</span>
-                  <ArrowRight size={13} />
-                </button>
-
-                <button 
-                  onClick={() => setShowAllActivitiesModal(false)}
-                  style={{
-                    padding: '6px 14px',
-                    borderRadius: '6px',
-                    backgroundColor: '#0F172A',
-                    color: '#FFFFFF',
-                    border: 'none',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Logout Confirmation Popup Modal */}
         <LogoutConfirmModal
@@ -1835,18 +1594,18 @@ export default function DashboardView() {
   );
 }
 
-/* ================= COMPACT PURE REACT STYLE OBJECTS ================= */
+/* ================= CLEAN & MAINTAINABLE REACT STYLE OBJECTS ================= */
 
 const compactKpiCardStyle = {
   backgroundColor: '#FFFFFF',
   border: '1px solid #ECEEF2',
-  borderRadius: '10px',
-  padding: '8px 10px',
+  borderRadius: '12px',
+  padding: '12px 14px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  gap: '6px',
-  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+  gap: '8px',
+  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)',
   minWidth: 0,
   overflow: 'hidden',
   boxSizing: 'border-box',
@@ -1857,15 +1616,15 @@ const compactKpiCardStyle = {
 const compactKpiLeftStyle = {
   display: 'flex',
   alignItems: 'center',
-  gap: '8px',
+  gap: '10px',
   minWidth: 0,
   overflow: 'hidden'
 };
 
 const compactKpiIconBoxStyle = {
-  width: '32px',
-  height: '32px',
-  borderRadius: '7px',
+  width: '36px',
+  height: '36px',
+  borderRadius: '8px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -1880,7 +1639,7 @@ const compactKpiInfoStyle = {
 };
 
 const compactKpiLabelStyle = {
-  fontSize: '10.5px',
+  fontSize: '11px',
   fontWeight: 600,
   color: '#64748B',
   whiteSpace: 'nowrap',
@@ -1889,17 +1648,17 @@ const compactKpiLabelStyle = {
 };
 
 const compactKpiValueStyle = {
-  fontSize: '18px',
+  fontSize: '20px',
   fontWeight: 800,
   color: '#0F172A',
-  lineHeight: 1.1,
-  marginTop: '1px',
+  lineHeight: 1.15,
+  marginTop: '2px',
   whiteSpace: 'nowrap'
 };
 
 const compactKpiArrowStyle = {
-  width: '20px',
-  height: '20px',
+  width: '22px',
+  height: '22px',
   borderRadius: '50%',
   backgroundColor: '#F8FAFC',
   border: '1px solid #E2E8F0',
@@ -1913,9 +1672,9 @@ const compactKpiArrowStyle = {
 const compactCardStyle = {
   backgroundColor: '#FFFFFF',
   border: '1px solid #ECEEF2',
-  borderRadius: '12px',
-  padding: '10px 14px',
-  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+  borderRadius: '14px',
+  padding: '16px 18px',
+  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.04)',
   width: '100%',
   minWidth: 0,
   boxSizing: 'border-box',
@@ -1928,13 +1687,13 @@ const compactCardHeaderStyle = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  marginBottom: '8px',
+  marginBottom: '14px',
   width: '100%',
   flexShrink: 0
 };
 
 const compactCardTitleStyle = {
-  fontSize: '14px',
+  fontSize: '14.5px',
   fontWeight: 700,
   color: '#0F172A',
   margin: 0,
@@ -1942,13 +1701,13 @@ const compactCardTitleStyle = {
 };
 
 const compactSelectStyle = {
-  height: '26px',
-  padding: '0 8px',
+  height: '28px',
+  padding: '0 10px',
   border: '1px solid #E2E8F0',
   borderRadius: '6px',
   backgroundColor: '#FFFFFF',
   color: '#334155',
-  fontSize: '11px',
+  fontSize: '11.5px',
   fontWeight: 500,
   outline: 'none',
   cursor: 'pointer'
@@ -1956,10 +1715,10 @@ const compactSelectStyle = {
 
 const compactHealthBarRow = {
   display: 'grid',
-  gridTemplateColumns: '95px minmax(0, 1fr) 38px 38px',
+  gridTemplateColumns: '100px minmax(0, 1fr) 42px 42px',
   alignItems: 'center',
-  gap: '8px',
-  fontSize: '11.5px',
+  gap: '10px',
+  fontSize: '12px',
   width: '100%',
   minWidth: 0
 };
@@ -1973,7 +1732,7 @@ const compactHealthLabel = {
 };
 
 const compactHealthTrack = {
-  height: '7px',
+  height: '8px',
   backgroundColor: '#F1F5F9',
   borderRadius: '99px',
   overflow: 'hidden',
@@ -1990,11 +1749,11 @@ const compactHealthCount = {
   fontWeight: 700,
   color: '#0F172A',
   textAlign: 'right',
-  fontSize: '11.5px'
+  fontSize: '12px'
 };
 
 const compactHealthPct = {
   color: '#64748B',
   textAlign: 'right',
-  fontSize: '11px'
+  fontSize: '11.5px'
 };

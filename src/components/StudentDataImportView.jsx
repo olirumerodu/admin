@@ -34,7 +34,10 @@ import {
   Filter,
   Plus,
   Wand2,
-  FileText
+  FileText,
+  Home,
+  Edit3,
+  Building
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -89,7 +92,7 @@ export default function StudentDataImportView({ onNavigateTab }) {
   const [allSchoolsList, setAllSchoolsList] = useState([]);
   const [selectedCluster, setSelectedCluster] = useState('All Clusters');
   const [selectedSchool, setSelectedSchool] = useState('');
-  const [academicYear, setAcademicYear] = useState('2025-2026');
+  const [academicYear, setAcademicYear] = useState('2026-2027');
 
   // Modals in Step 1
   const [showCreateClusterModal, setShowCreateClusterModal] = useState(false);
@@ -98,16 +101,88 @@ export default function StudentDataImportView({ onNavigateTab }) {
   const [isCreatingCluster, setIsCreatingCluster] = useState(false);
 
   const [showCreateSchoolModal, setShowCreateSchoolModal] = useState(false);
+  const [newSchoolPlaceType, setNewSchoolPlaceType] = useState('school'); // 'school' | 'anganwadi' | 'daycare' | 'custom'
   const [newSchoolCluster, setNewSchoolCluster] = useState('');
   const [newSchoolName, setNewSchoolName] = useState('');
   const [newSchoolCode, setNewSchoolCode] = useState('');
   const [newSchoolAddress, setNewSchoolAddress] = useState('');
+  const [newSchoolClassMode, setNewSchoolClassMode] = useState('standard'); // 'standard' | 'manual' | 'none'
   const [newSchoolSelectedClasses, setNewSchoolSelectedClasses] = useState([1, 2, 3, 4, 5, 6, 7, 8]);
+  const [newSchoolManualClasses, setNewSchoolManualClasses] = useState('Classes 1–8');
+  const [newSchoolNoSections, setNewSchoolNoSections] = useState(false);
+  const [newSchoolSectionMode, setNewSchoolSectionMode] = useState('standard'); // 'standard' | 'manual'
   const [newSchoolSelectedSections, setNewSchoolSelectedSections] = useState(['A', 'B', 'C']);
   const [newSchoolCustomSections, setNewSchoolCustomSections] = useState([]);
+  const [newSchoolManualSections, setNewSchoolManualSections] = useState('A, B, C');
   const [customSectionInput, setCustomSectionInput] = useState('');
   const [showAddCustomSection, setShowAddCustomSection] = useState(false);
   const [isCreatingSchool, setIsCreatingSchool] = useState(false);
+
+  const [newSchoolClassSelectValue, setNewSchoolClassSelectValue] = useState('1-8');
+  const [newSchoolSectionSelectValue, setNewSchoolSectionSelectValue] = useState('A-C');
+
+  const handleNewSchoolClassSelectChange = (val) => {
+    setNewSchoolClassSelectValue(val);
+    if (val === '1-8') {
+      setNewSchoolClassMode('standard');
+      setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
+    } else if (val === '1-5') {
+      setNewSchoolClassMode('standard');
+      setNewSchoolSelectedClasses([1, 2, 3, 4, 5]);
+    } else if (val === '1-10') {
+      setNewSchoolClassMode('standard');
+      setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    } else if (val === '1-12') {
+      setNewSchoolClassMode('standard');
+      setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    } else if (val === 'anganwadi') {
+      setNewSchoolClassMode('manual');
+      setNewSchoolManualClasses('Anganwadi');
+    } else if (val === 'balwadi') {
+      setNewSchoolClassMode('manual');
+      setNewSchoolManualClasses('Balwadi');
+    } else if (val === 'prekg') {
+      setNewSchoolClassMode('manual');
+      setNewSchoolManualClasses('Pre-KG & LKG');
+    } else if (val === 'general') {
+      setNewSchoolClassMode('manual');
+      setNewSchoolManualClasses('General');
+    } else if (val === 'none') {
+      setNewSchoolClassMode('none');
+      setNewSchoolManualClasses('N/A');
+    } else if (val === 'manual') {
+      setNewSchoolClassMode('manual');
+      if (!newSchoolManualClasses) setNewSchoolManualClasses('');
+    }
+  };
+
+  const handleNewSchoolSectionSelectChange = (val) => {
+    setNewSchoolSectionSelectValue(val);
+    if (val === 'none') {
+      setNewSchoolNoSections(true);
+      setNewSchoolSectionMode('standard');
+      setNewSchoolSelectedSections([]);
+    } else if (val === 'A-C') {
+      setNewSchoolNoSections(false);
+      setNewSchoolSectionMode('standard');
+      setNewSchoolSelectedSections(['A', 'B', 'C']);
+    } else if (val === 'A-D') {
+      setNewSchoolNoSections(false);
+      setNewSchoolSectionMode('standard');
+      setNewSchoolSelectedSections(['A', 'B', 'C', 'D']);
+    } else if (val === 'A-H') {
+      setNewSchoolNoSections(false);
+      setNewSchoolSectionMode('standard');
+      setNewSchoolSelectedSections(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+    } else if (val === 'A') {
+      setNewSchoolNoSections(false);
+      setNewSchoolSectionMode('standard');
+      setNewSchoolSelectedSections(['A']);
+    } else if (val === 'manual') {
+      setNewSchoolNoSections(false);
+      setNewSchoolSectionMode('manual');
+    }
+  };
 
   // Confirmation Modals
   const [showStep1ConfirmModal, setShowStep1ConfirmModal] = useState(false);
@@ -338,7 +413,6 @@ export default function StudentDataImportView({ onNavigateTab }) {
   const toggleSchoolClass = (clsNum) => {
     setNewSchoolSelectedClasses(prev => {
       if (prev.includes(clsNum)) {
-        if (prev.length <= 1) return prev;
         return prev.filter(c => c !== clsNum).sort((a, b) => a - b);
       } else {
         return [...prev, clsNum].sort((a, b) => a - b);
@@ -357,7 +431,6 @@ export default function StudentDataImportView({ onNavigateTab }) {
     setNewSchoolSelectedSections(prev => {
       const clean = secName.trim().toUpperCase();
       if (prev.includes(clean)) {
-        if (prev.length <= 1) return prev;
         return prev.filter(s => s !== clean);
       } else {
         return [...prev, clean];
@@ -382,22 +455,15 @@ export default function StudentDataImportView({ onNavigateTab }) {
   const handleCreateSchool = async (e) => {
     e.preventDefault();
     if (!newSchoolName.trim()) {
-      alert('Please enter a school name.');
-      return;
-    }
-    if (newSchoolSelectedClasses.length === 0) {
-      alert('Please select at least one class covered by this school.');
-      return;
-    }
-    if (newSchoolSelectedSections.length === 0) {
-      alert('Please select at least one section for this school.');
+      alert('Please enter a name for the school or student place.');
       return;
     }
     setIsCreatingSchool(true);
     try {
       const clusterTarget = newSchoolCluster || (selectedCluster !== 'All Clusters' ? selectedCluster : (clustersList[0]?.name || 'Central District'));
-      const formattedClasses = formatClassesRange(newSchoolSelectedClasses);
-      const formattedSections = newSchoolSelectedSections.join(', ');
+
+      const formattedClasses = newSchoolManualClasses.trim() || 'Classes 1–8';
+      const formattedSections = newSchoolManualSections.trim() || 'None';
 
       const res = await api.createSchool({
         cluster_id: clusterTarget,
@@ -407,10 +473,16 @@ export default function StudentDataImportView({ onNavigateTab }) {
         classes_range: formattedClasses,
         sections: formattedSections,
       });
-      showToast(`School "${res.name}" (Classes ${formattedClasses}, Sec: ${formattedSections}) created successfully and reflected in application!`);
+      showToast(`School / Place "${res.name}" (Classes: ${formattedClasses}, Sections: ${formattedSections}) created successfully!`);
       setNewSchoolName('');
       setNewSchoolCode('');
       setNewSchoolAddress('');
+      setNewSchoolPlaceType('school');
+      setNewSchoolClassMode('standard');
+      setNewSchoolManualClasses('Classes 1–8');
+      setNewSchoolNoSections(false);
+      setNewSchoolSectionMode('standard');
+      setNewSchoolManualSections('A, B, C');
       setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
       setNewSchoolSelectedSections(['A', 'B', 'C']);
       setNewSchoolCustomSections([]);
@@ -1140,8 +1212,9 @@ export default function StudentDataImportView({ onNavigateTab }) {
                     onChange={(e) => setAcademicYear(e.target.value)}
                     style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0F172A', cursor: 'pointer' }}
                   >
-                    <option value="2025-2026">2025–2026 (Current Academic Year)</option>
-                    <option value="2026-2027">2026–2027</option>
+                    <option value="2026-2027">2026–2027 (Current Academic Year)</option>
+                    <option value="2027-2028">2027–2028</option>
+                    <option value="2025-2026">2025–2026 (Previous)</option>
                   </select>
                 </div>
               </div>
@@ -2110,12 +2183,24 @@ export default function StudentDataImportView({ onNavigateTab }) {
                                                 fontWeight: 700,
                                                 padding: '2px 7px',
                                                 borderRadius: '4px',
-                                                backgroundColor: (std.nutrition_status?.toLowerCase().includes('severely') || std.nutrition_status?.toLowerCase().includes('waste'))
+                                                backgroundColor: (std.nutrition_status?.toLowerCase().includes('severely') || std.nutrition_status?.toLowerCase().includes('severe'))
                                                   ? '#FEE2E2'
-                                                  : (std.nutrition_status === 'Pending Calculation' ? '#FEF3C7' : '#DCFCE7'),
-                                                color: (std.nutrition_status?.toLowerCase().includes('severely') || std.nutrition_status?.toLowerCase().includes('waste'))
+                                                  : (std.nutrition_status?.toLowerCase().includes('wasted') || std.nutrition_status?.toLowerCase().includes('thinness'))
+                                                  ? '#FFEDD5'
+                                                  : (std.nutrition_status?.toLowerCase().includes('obesity') || std.nutrition_status?.toLowerCase().includes('obese'))
+                                                  ? '#F3E8FF'
+                                                  : (std.nutrition_status?.toLowerCase().includes('overweight'))
+                                                  ? '#FEF3C7'
+                                                  : (std.nutrition_status === 'Pending Calculation' ? '#F1F5F9' : '#DCFCE7'),
+                                                color: (std.nutrition_status?.toLowerCase().includes('severely') || std.nutrition_status?.toLowerCase().includes('severe'))
                                                   ? '#DC2626'
-                                                  : (std.nutrition_status === 'Pending Calculation' ? '#B45309' : '#15803D')
+                                                  : (std.nutrition_status?.toLowerCase().includes('wasted') || std.nutrition_status?.toLowerCase().includes('thinness'))
+                                                  ? '#EA580C'
+                                                  : (std.nutrition_status?.toLowerCase().includes('obesity') || std.nutrition_status?.toLowerCase().includes('obese'))
+                                                  ? '#7E22CE'
+                                                  : (std.nutrition_status?.toLowerCase().includes('overweight'))
+                                                  ? '#B45309'
+                                                  : (std.nutrition_status === 'Pending Calculation' ? '#64748B' : '#15803D')
                                               }}>
                                                 {std.nutrition_status}
                                               </span>
@@ -2227,18 +2312,22 @@ export default function StudentDataImportView({ onNavigateTab }) {
           onClick={() => setShowCreateSchoolModal(false)}
         >
           <div 
-            style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', maxWidth: '560px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} 
+            style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', maxWidth: '600px', width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }} 
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div style={{ padding: '16px 22px', borderBottom: '1px solid #ECEEF2', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF7ED' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#FFEDD5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C' }}>
-                  <School size={20} />
+                  {newSchoolPlaceType === 'anganwadi' ? <Home size={20} /> : <School size={20} />}
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Create New School</h3>
-                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>Register school with covered classes and sections matching mobile app</p>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                    {newSchoolPlaceType === 'anganwadi' ? 'Register Anganwadi Center' : 'Create School / Student Center'}
+                  </h3>
+                  <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
+                    Register schools, Anganwadis, or student places with optional classes and sections
+                  </p>
                 </div>
               </div>
               <button 
@@ -2251,7 +2340,80 @@ export default function StudentDataImportView({ onNavigateTab }) {
             </div>
 
             {/* Modal Body - Scrollable Form */}
-            <form onSubmit={handleCreateSchool} style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', flex: 1 }}>
+            <form onSubmit={handleCreateSchool} style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1 }}>
+              {/* Place / Center Type Pills */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Place / Center Type
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                  {[
+                    { id: 'school', label: 'School', icon: School, desc: 'Class 1–12' },
+                    { id: 'anganwadi', label: 'Anganwadi', icon: Home, desc: 'Early Childhood' },
+                    { id: 'daycare', label: 'Daycare / Pre-KG', icon: Building, desc: 'Pre-primary' },
+                    { id: 'custom', label: 'Custom Place', icon: Edit3, desc: 'Manual Entry' },
+                  ].map(item => {
+                    const isSelected = newSchoolPlaceType === item.id;
+                    const IconComponent = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setNewSchoolPlaceType(item.id);
+                          if (item.id === 'anganwadi') {
+                            setNewSchoolClassMode('manual');
+                            setNewSchoolManualClasses('Anganwadi');
+                            setNewSchoolManualSections('None');
+                            setNewSchoolNoSections(true);
+                            if (!newSchoolCode) setNewSchoolCode('ANG-');
+                          } else if (item.id === 'daycare') {
+                            setNewSchoolClassMode('manual');
+                            setNewSchoolManualClasses('Pre-KG & LKG');
+                            setNewSchoolManualSections('None');
+                            setNewSchoolNoSections(true);
+                            if (!newSchoolCode) setNewSchoolCode('DC-');
+                          } else if (item.id === 'custom') {
+                            setNewSchoolClassMode('manual');
+                            setNewSchoolManualClasses('');
+                            setNewSchoolManualSections('None');
+                            setNewSchoolNoSections(true);
+                          } else {
+                            setNewSchoolClassMode('standard');
+                            setNewSchoolManualClasses('Classes 1–8');
+                            setNewSchoolManualSections('A, B, C');
+                            setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
+                            setNewSchoolNoSections(false);
+                            setNewSchoolSectionMode('standard');
+                            setNewSchoolSelectedSections(['A', 'B', 'C']);
+                            if (newSchoolCode.startsWith('ANG-') || newSchoolCode.startsWith('DC-')) setNewSchoolCode('');
+                          }
+                        }}
+                        style={{
+                          padding: '8px 6px',
+                          borderRadius: '10px',
+                          border: isSelected ? '1.5px solid #EA580C' : '1px solid #E2E8F0',
+                          backgroundColor: isSelected ? '#FFF7ED' : '#FFFFFF',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: '3px',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: isSelected ? '0 1px 3px rgba(234, 88, 12, 0.15)' : 'none'
+                        }}
+                      >
+                        <IconComponent size={16} color={isSelected ? '#EA580C' : '#64748B'} />
+                        <span style={{ fontSize: '11px', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#C2410C' : '#334155' }}>
+                          {item.label}
+                        </span>
+                        <span style={{ fontSize: '9px', color: '#94A3B8' }}>{item.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Cluster Dropdown */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '5px' }}>
@@ -2266,34 +2428,48 @@ export default function StudentDataImportView({ onNavigateTab }) {
                 </select>
               </div>
 
-              {/* School Name */}
+              {/* School / Place Name */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '5px' }}>
-                  School Name <span style={{ color: '#EF4444' }}>*</span>
+                  {newSchoolPlaceType === 'anganwadi' ? 'Anganwadi Center Name' : newSchoolPlaceType === 'custom' ? 'Place / Center Name' : 'School Name'}{' '}
+                  <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. Government Higher Secondary School"
+                  placeholder={
+                    newSchoolPlaceType === 'anganwadi'
+                      ? 'e.g. Anganwadi Center - Modachur, Erode'
+                      : newSchoolPlaceType === 'daycare'
+                      ? 'e.g. Little Stars Balwadi & Daycare'
+                      : newSchoolPlaceType === 'custom'
+                      ? 'e.g. Community Health Screening Center'
+                      : 'e.g. Government Higher Secondary School'
+                  }
                   value={newSchoolName}
                   onChange={e => setNewSchoolName(e.target.value)}
                   style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1.5px solid #CBD5E1', padding: '0 12px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
 
-              {/* School Code & Address */}
+              {/* Code & Address */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '5px' }}>School Code</label>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '5px' }}>
+                    {newSchoolPlaceType === 'anganwadi' ? 'Center Code' : 'School Code'}{' '}
+                    <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>(Optional)</span>
+                  </label>
                   <input
                     type="text"
-                    placeholder="e.g. SCH-012"
+                    placeholder={newSchoolPlaceType === 'anganwadi' ? 'e.g. ANG-012' : 'e.g. SCH-012'}
                     value={newSchoolCode}
                     onChange={e => setNewSchoolCode(e.target.value)}
                     style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1.5px solid #CBD5E1', padding: '0 10px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '5px' }}>Campus Address</label>
+                  <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '5px' }}>
+                    Campus Address <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>(Optional)</span>
+                  </label>
                   <input
                     type="text"
                     placeholder="e.g. East Campus, Main Road"
@@ -2304,223 +2480,195 @@ export default function StudentDataImportView({ onNavigateTab }) {
                 </div>
               </div>
 
-              {/* SECTION 1: CLASSES COVERED SELECTOR */}
+              {/* SECTION 1: CLASSES COVERED MANUAL ENTRY & PRESETS */}
               <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Layers size={15} color="#EA580C" />
                     <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                      Select Classes Covered <span style={{ color: '#EF4444' }}>*</span>
+                      Classes / Groups Covered
+                    </span>
+                    <span style={{ fontSize: '10.5px', color: '#EA580C', backgroundColor: '#FFF7ED', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                      Manual Typing
                     </span>
                   </div>
-                  {/* Preset Pills */}
-                  <div style={{ display: 'flex', gap: '5px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setClassPreset('primary')}
-                      style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '5px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', cursor: 'pointer' }}
-                    >
-                      1–5
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClassPreset('middle')}
-                      style={{ fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '5px', border: '1px solid #FED7AA', backgroundColor: '#FFF7ED', color: '#EA580C', cursor: 'pointer' }}
-                    >
-                      1–8
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClassPreset('high')}
-                      style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '5px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', cursor: 'pointer' }}
-                    >
-                      1–10
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClassPreset('all')}
-                      style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '5px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', cursor: 'pointer' }}
-                    >
-                      1–12
-                    </button>
-                  </div>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    Type directly or select preset
+                  </span>
                 </div>
 
-                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '0 0 10px 0' }}>
-                  Click to select or unselect classes offered by this school. The mobile app syncs these classes for student enrollment.
-                </p>
-
-                {/* Grid of Class Buttons (1 to 12) */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '6px' }}>
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => {
-                    const isSelected = newSchoolSelectedClasses.includes(num);
-                    return (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => toggleSchoolClass(num)}
-                        style={{
-                          height: '38px',
-                          borderRadius: '8px',
-                          border: isSelected ? '1.5px solid #EA580C' : '1px solid #E2E8F0',
-                          backgroundColor: isSelected ? '#FFF7ED' : '#FFFFFF',
-                          color: isSelected ? '#0F172A' : '#64748B',
-                          fontWeight: isSelected ? 800 : 600,
-                          fontSize: '13px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '4px',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          boxShadow: isSelected ? '0 1px 3px rgba(234, 88, 12, 0.15)' : 'none'
-                        }}
-                      >
-                        {isSelected && <Check size={12} color="#EA580C" strokeWidth={3} />}
-                        <span>{num}</span>
-                      </button>
-                    );
-                  })}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Type classes manually (e.g. Classes 1–8, Anganwadi, Pre-KG)..."
+                    value={newSchoolManualClasses}
+                    onChange={e => setNewSchoolManualClasses(e.target.value)}
+                    style={{
+                      flex: 1,
+                      height: '38px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      padding: '0 12px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <select
+                    value=""
+                    onChange={e => {
+                      if (e.target.value) setNewSchoolManualClasses(e.target.value);
+                    }}
+                    style={{
+                      width: '145px',
+                      height: '38px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      padding: '0 8px',
+                      fontSize: '12px',
+                      color: '#334155',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="" disabled>⚡ Presets...</option>
+                    <option value="Classes 1–8">Classes 1–8 (Standard Elementary)</option>
+                    <option value="Classes 1–5">Classes 1–5 (Primary)</option>
+                    <option value="Classes 1–10">Classes 1–10 (Secondary)</option>
+                    <option value="Classes 1–12">Classes 1–12 (Higher Sec)</option>
+                    <option value="Anganwadi">Anganwadi (Early Childhood)</option>
+                    <option value="Balwadi">Balwadi (Pre-Primary)</option>
+                    <option value="Pre-KG & LKG">Pre-KG & LKG</option>
+                    <option value="General">General (Mixed Groups)</option>
+                    <option value="None">None / N/A</option>
+                  </select>
                 </div>
 
-                {/* Selected Classes Summary */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '11.5px' }}>
-                  <span style={{ color: '#0F766E', fontWeight: 700 }}>
-                    Active Range: Classes {formatClassesRange(newSchoolSelectedClasses)}
-                  </span>
-                  <span style={{ color: '#64748B' }}>
-                    {newSchoolSelectedClasses.length} of 12 classes selected
-                  </span>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: 600 }}>Quick insert:</span>
+                  {['Classes 1–8', 'Classes 1–5', 'Classes 1–10', 'Anganwadi', 'Balwadi', 'Pre-KG & LKG', 'General', 'None'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setNewSchoolManualClasses(tag)}
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: newSchoolManualClasses === tag ? '#FFF7ED' : '#FFFFFF',
+                        color: newSchoolManualClasses === tag ? '#EA580C' : '#475569',
+                        fontWeight: newSchoolManualClasses === tag ? 700 : 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {/* SECTION 2: SECTIONS SELECTOR (SAME AS APPLICATION) */}
+              {/* SECTION 2: SECTIONS OFFERED MANUAL ENTRY & PRESETS */}
               <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <Users size={15} color="#EA580C" />
                     <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                      Select Sections <span style={{ color: '#EF4444' }}>*</span>
+                      Sections / Batches Offered
+                    </span>
+                    <span style={{ fontSize: '10.5px', color: '#EA580C', backgroundColor: '#FFF7ED', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                      Manual Typing
                     </span>
                   </div>
-                  {/* Preset Pills + Add Custom Button */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <button
-                      type="button"
-                      onClick={() => setNewSchoolSelectedSections(['A', 'B', 'C'])}
-                      style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '5px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', cursor: 'pointer' }}
-                    >
-                      A–C
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNewSchoolSelectedSections(['A', 'B', 'C', 'D', 'E'])}
-                      style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '5px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', cursor: 'pointer' }}
-                    >
-                      A–E
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNewSchoolSelectedSections(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'])}
-                      style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '5px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', cursor: 'pointer' }}
-                    >
-                      A–H (All)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddCustomSection(!showAddCustomSection)}
-                      style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '5px', border: '1px solid #FED7AA', backgroundColor: '#FFF7ED', color: '#EA580C', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}
-                    >
-                      <Plus size={12} strokeWidth={3} />
-                      <span>Custom</span>
-                    </button>
-                  </div>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    Type directly or select preset
+                  </span>
                 </div>
 
-                <p style={{ fontSize: '11.5px', color: '#64748B', margin: '0 0 10px 0' }}>
-                  Matches mobile application sections (standard A to H plus custom sections).
-                </p>
-
-                {/* Inline Custom Section Input Box */}
-                {showAddCustomSection && (
-                  <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', backgroundColor: '#FFFFFF', padding: '8px 10px', borderRadius: '8px', border: '1px solid #FED7AA' }}>
-                    <input
-                      type="text"
-                      placeholder="Enter section name (e.g. I, J, Rose)"
-                      value={customSectionInput}
-                      onChange={e => setCustomSectionInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleAddCustomSection(e); }}
-                      style={{ flex: 1, height: '32px', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '0 8px', fontSize: '12px', outline: 'none' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddCustomSection}
-                      style={{ height: '32px', padding: '0 12px', backgroundColor: '#EA580C', color: '#FFFFFF', border: 'none', borderRadius: '6px', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddCustomSection(false)}
-                      style={{ height: '32px', padding: '0 8px', backgroundColor: '#F1F5F9', color: '#64748B', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-
-                {/* Grid of Sections (A to H + any custom added sections) */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                  {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', ...newSchoolCustomSections].map(sec => {
-                    const isSelected = newSchoolSelectedSections.includes(sec);
-                    return (
-                      <button
-                        key={sec}
-                        type="button"
-                        onClick={() => toggleSchoolSection(sec)}
-                        style={{
-                          height: '40px',
-                          borderRadius: '8px',
-                          border: isSelected ? '1.5px solid #EA580C' : '1px solid #E2E8F0',
-                          backgroundColor: isSelected ? '#FFF7ED' : '#FFFFFF',
-                          color: isSelected ? '#0F172A' : '#64748B',
-                          fontWeight: isSelected ? 800 : 600,
-                          fontSize: sec.length > 2 ? '12px' : '14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '5px',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          boxShadow: isSelected ? '0 1px 3px rgba(234, 88, 12, 0.15)' : 'none',
-                          padding: '0 4px',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        {isSelected && <Check size={12} color="#EA580C" strokeWidth={3} />}
-                        <span>Sec {sec}</span>
-                      </button>
-                    );
-                  })}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    placeholder="Type sections manually (e.g. A, B, C or Batch 1, Batch 2 or None)..."
+                    value={newSchoolManualSections}
+                    onChange={e => setNewSchoolManualSections(e.target.value)}
+                    style={{
+                      flex: 1,
+                      height: '38px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      padding: '0 12px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#0F172A',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  <select
+                    value=""
+                    onChange={e => {
+                      if (e.target.value) setNewSchoolManualSections(e.target.value);
+                    }}
+                    style={{
+                      width: '145px',
+                      height: '38px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #CBD5E1',
+                      padding: '0 8px',
+                      fontSize: '12px',
+                      color: '#334155',
+                      backgroundColor: '#FFFFFF',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="" disabled>⚡ Presets...</option>
+                    <option value="A, B, C">A, B, C</option>
+                    <option value="A, B, C, D">A, B, C, D</option>
+                    <option value="A, B">A, B</option>
+                    <option value="A">Section A only</option>
+                    <option value="A, B, C, D, E, F, G, H">A through H</option>
+                    <option value="Batch 1, Batch 2">Batch 1, Batch 2</option>
+                    <option value="Morning, Afternoon">Morning, Afternoon</option>
+                    <option value="None">None (No sections)</option>
+                  </select>
                 </div>
 
-                {/* Selected Sections Summary */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', fontSize: '11.5px' }}>
-                  <span style={{ color: '#0F766E', fontWeight: 700 }}>
-                    Active Sections: {newSchoolSelectedSections.join(', ')}
-                  </span>
-                  <span style={{ color: '#64748B' }}>
-                    {newSchoolSelectedSections.length} sections active
-                  </span>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: 600 }}>Quick insert:</span>
+                  {['A, B, C', 'A, B', 'A, B, C, D', 'Batch 1, Batch 2', 'None'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setNewSchoolManualSections(tag)}
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        border: '1px solid #CBD5E1',
+                        backgroundColor: newSchoolManualSections === tag ? '#FFF7ED' : '#FFFFFF',
+                        color: newSchoolManualSections === tag ? '#EA580C' : '#475569',
+                        fontWeight: newSchoolManualSections === tag ? 700 : 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
                 </div>
               </div>
 
               {/* Modal Actions */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid #F1F5F9' }}>
                 <div style={{ fontSize: '11px', color: '#64748B' }}>
-                  Config: Classes {formatClassesRange(newSchoolSelectedClasses)} • {newSchoolSelectedSections.length} Sections
+                  Classes & Sections are optional
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button 
@@ -2543,7 +2691,7 @@ export default function StudentDataImportView({ onNavigateTab }) {
                     ) : (
                       <>
                         <Plus size={14} strokeWidth={3} />
-                        <span>Create School</span>
+                        <span>{newSchoolPlaceType === 'anganwadi' ? 'Create Anganwadi' : 'Create School / Place'}</span>
                       </>
                     )}
                   </button>

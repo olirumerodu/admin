@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Building2
 } from 'lucide-react';
+import StudentHealthLogo from './StudentHealthLogo';
 
 export default function SchoolGrowthChartModal({ isOpen, onClose, school, students = [], clusterName }) {
   const printContentRef = useRef(null);
@@ -61,6 +62,21 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
   );
 
   const totalEnrolled = schoolStudents.length || school.students || school.students_count || 0;
+  
+  // Dynamic academic session: from school students or current date
+  const studentAcademicYear = schoolStudents.find(s => s.raw?.academic_year || s.academicYear)?.raw?.academic_year || 
+    schoolStudents.find(s => s.academicYear)?.academicYear ||
+    (students || []).find(s => s.raw?.academic_year || s.academicYear)?.raw?.academic_year ||
+    (students || []).find(s => s.academicYear)?.academicYear;
+
+  const currentAcademicSession = (() => {
+    if (studentAcademicYear) {
+      return String(studentAcademicYear).replace('-', '–');
+    }
+    const now = new Date();
+    const curYear = now.getFullYear();
+    return now.getMonth() >= 5 ? `${curYear}–${curYear + 1}` : `${curYear - 1}–${curYear}`;
+  })();
   
   // Categorize students strictly by real status and Z-scores
   const severelyWastedStudents = schoolStudents.filter(s => s.isSeverelyWasted);
@@ -241,10 +257,10 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
             </div>
             <div>
               <div style={{ fontWeight: 800, fontSize: '15px', color: '#0F172A' }}>
-                School Nutritional Growth & Surveillance Report
+                School Nutritional Growth Report
               </div>
               <div style={{ fontSize: '11px', color: '#64748B' }}>
-                Institutional Clinical Summary & Follow-Up Planning Document
+                Official School Health & Growth Report
               </div>
             </div>
           </div>
@@ -304,29 +320,104 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
               color: '#0F172A'
             }}
           >
-            {/* Document Header */}
-            <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '14px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, color: '#2563EB' }}>
-                    Department of School Education & Health Surveillance
-                  </div>
-                  <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', margin: '3px 0 0 0' }}>
-                    SCHOOL NUTRITIONAL GROWTH REPORT
-                  </h1>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A', marginTop: '2px' }}>
-                    {school.name}
+            {/* WATTASATTAM Brand Report Header */}
+            <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '14px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <StudentHealthLogo size={52} showText={false} isWhite={false} />
+                  <div>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800, color: '#EA580C' }}>
+                      WATTASATTAM • STUDENT HEALTH TRACKING
+                    </div>
+                    <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0F172A', margin: '2px 0 0 0', letterSpacing: '-0.3px' }}>
+                      SCHOOL NUTRITIONAL GROWTH REPORT
+                    </h1>
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'right', fontSize: '11px', color: '#64748B' }}>
-                  <div><strong>Cluster:</strong> {clusterName || school.cluster_name || 'Erode Cluster'}</div>
-                  <div><strong>Academic Session:</strong> 2025–2026</div>
+                <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
                   <div><strong>Report Date:</strong> {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                  <div><strong>School Code:</strong> {school.code || 'SCH-ERD-042'}</div>
+                  <div><strong>Academic Session:</strong> {currentAcademicSession}</div>
+                </div>
+              </div>
+
+              {/* HIGHLIGHTED SCHOOL BANNER */}
+              <div
+                style={{
+                  marginTop: '12px',
+                  backgroundColor: '#F8FAFC',
+                  border: '2px solid #3B82F6',
+                  borderRadius: '10px',
+                  padding: '12px 16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  boxShadow: '0 2px 6px rgba(59, 130, 246, 0.08)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '8px',
+                      backgroundColor: '#1E3A8A',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Building2 size={24} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.8px', color: '#2563EB' }}>
+                      SCHOOL INFORMATION
+                    </div>
+                    <div style={{ fontSize: '20px', fontWeight: 900, color: '#0F172A', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
+                      {school.name}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                      <span style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
+                        Cluster: {clusterName || school.cluster_name || 'Erode Cluster'}
+                      </span>
+                      <span style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
+                        School Code: {school.code || 'SCH-ERD-042'}
+                      </span>
+                      <span style={{ backgroundColor: '#F1F5F9', color: '#334155', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 600 }}>
+                        Total Enrolled: {totalEnrolled} Students
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary Alert / Status Stamp */}
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    backgroundColor: swCount > 0 ? '#FEE2E2' : wCount > 0 ? '#FFEDD5' : '#DCFCE7',
+                    color: swCount > 0 ? '#B91C1C' : wCount > 0 ? '#C2410C' : '#15803D',
+                    border: `1px solid ${swCount > 0 ? '#FCA5A5' : wCount > 0 ? '#FDBA74' : '#86EFAC'}`
+                  }}>
+                    {swCount > 0 ? '🔴 URGENT INTERVENTION' : wCount > 0 ? '🟠 MONITORING REQUIRED' : '🟢 HEALTHY CAMPUS'}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '4px' }}>
+                    {coveragePct}% Screening Coverage Completed
+                  </div>
                 </div>
               </div>
             </div>
+
+
 
             {/* Top KPI Cards Row */}
             <div

@@ -13,6 +13,7 @@ import {
   Award,
   CheckCircle2
 } from 'lucide-react';
+import StudentHealthLogo from './StudentHealthLogo';
 
 export default function StudentGrowthChartModal({ isOpen, onClose, student, schoolName, clusterName }) {
   const printContentRef = useRef(null);
@@ -42,6 +43,17 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
   const latestAssessment = assessments[0] || null;
   const isSeverelyWasted = student.isSeverelyWasted || String(student.currentStatus || '').toLowerCase().includes('severely wasted') || (typeof student.bmiZScore === 'number' && student.bmiZScore < -3);
   const isWasted = !isSeverelyWasted && (student.isWasted || String(student.currentStatus || '').toLowerCase().includes('wasted') || (typeof student.bmiZScore === 'number' && student.bmiZScore < -2));
+
+  // Dynamic academic session: from student data or current date
+  const studentAcademicYear = student.raw?.academic_year || student.academicYear;
+  const currentAcademicSession = (() => {
+    if (studentAcademicYear) {
+      return String(studentAcademicYear).replace('-', '–');
+    }
+    const now = new Date();
+    const curYear = now.getFullYear();
+    return now.getMonth() >= 5 ? `${curYear}–${curYear + 1}` : `${curYear - 1}–${curYear}`;
+  })();
 
   // Determine next follow-up date (30 days from last screening date)
   let nextDueFormatted = student.nextDueDateFormatted || 'Pending Initial Screening';
@@ -192,10 +204,10 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
             </div>
             <div>
               <div style={{ fontWeight: 800, fontSize: '15px', color: '#0F172A' }}>
-                Student WHO Growth Chart & Medical Record
+                Student Health & Growth Report
               </div>
               <div style={{ fontSize: '11px', color: '#64748B' }}>
-                Printable Clinical Reference Document (WHO 2007 Standards)
+                Printable Official Student Health Document
               </div>
             </div>
           </div>
@@ -255,93 +267,149 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
               color: '#0F172A'
             }}
           >
-            {/* Document Header */}
-            <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '14px', marginBottom: '18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, color: '#EA580C' }}>
-                    Student Health & Wellness Surveillance Program
-                  </div>
-                  <h1 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', margin: '3px 0 0 0' }}>
-                    STUDENT NUTRITIONAL GROWTH CHART
-                  </h1>
-                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
-                    WHO AnthroPlus Standardized Growth Assessment (Ages 5–19)
+            {/* WATTASATTAM Brand Report Header */}
+            <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '14px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <StudentHealthLogo size={52} showText={false} isWhite={false} />
+                  <div>
+                    <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800, color: '#EA580C' }}>
+                      WATTASATTAM • STUDENT HEALTH TRACKING
+                    </div>
+                    <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0F172A', margin: '2px 0 0 0', letterSpacing: '-0.3px' }}>
+                      STUDENT NUTRITIONAL HEALTH REPORT
+                    </h1>
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'right', fontSize: '11px', color: '#64748B' }}>
+                <div style={{ textAlign: 'right', fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
                   <div><strong>Report Date:</strong> {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
-                  <div><strong>Ref ID:</strong> WHO-GC-{student.id || student.idCode || '1042'}</div>
-                  <div style={{ color: '#059669', fontWeight: 600, marginTop: '2px' }}>● Verified WHO Engine</div>
+                  <div><strong>Student ID:</strong> {student.id || student.idCode || '—'}</div>
+                  <div><strong>Academic Session:</strong> {currentAcademicSession}</div>
+                </div>
+              </div>
+
+              {/* HIGHLIGHTED STUDENT DEMOGRAPHICS HERO CARD */}
+              <div
+                style={{
+                  marginTop: '12px',
+                  backgroundColor: '#F8FAFC',
+                  border: '2px solid #EA580C',
+                  borderRadius: '10px',
+                  padding: '14px 18px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px',
+                  boxShadow: '0 2px 8px rgba(234, 88, 12, 0.08)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div
+                    style={{
+                      width: '46px',
+                      height: '46px',
+                      borderRadius: '10px',
+                      backgroundColor: '#EA580C',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 900,
+                      fontSize: '18px',
+                      flexShrink: 0
+                    }}
+                  >
+                    <User size={26} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.8px', color: '#C2410C' }}>
+                      STUDENT IDENTITY & REGISTRATION
+                    </div>
+                    <div style={{ fontSize: '22px', fontWeight: 900, color: '#0F172A', letterSpacing: '-0.4px', lineHeight: 1.15 }}>
+                      {student.name}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '5px' }}>
+                      <span style={{ backgroundColor: '#FED7AA', color: '#9A3412', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 800 }}>
+                        ID: {student.id || student.idCode || 'N/A'}
+                      </span>
+                      <span style={{ backgroundColor: '#DBEAFE', color: '#1E40AF', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                        Grade {student.classVal} • Section {student.section}
+                      </span>
+                      <span style={{ backgroundColor: '#F3E8FF', color: '#6B21A8', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                        {student.gender || 'Female'} • Age: {student.ageDisplay || '9 yrs'}
+                      </span>
+                      <span style={{ backgroundColor: '#E2E8F0', color: '#334155', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                        DOB: {student.dobFormatted || student.dob || '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Institution & Cluster Chip */}
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>ENROLLED AT</div>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>
+                    🏫 {schoolName || student.raw?.school_name || 'Government School'}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
+                    Cluster: <strong>{clusterName || student.raw?.cluster_name || 'Erode Cluster'}</strong>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Student & School Demographics Box */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1.4fr 1fr',
-                gap: '12px',
-                padding: '12px 14px',
-                backgroundColor: '#F8FAFC',
-                borderRadius: '8px',
-                border: '1px solid #E2E8F0',
-                marginBottom: '16px',
-                fontSize: '12px'
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div><strong>Student Name:</strong> <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{student.name}</span></div>
-                <div><strong>Student ID / EMIS:</strong> {student.id || student.idCode}</div>
-                <div><strong>Institution:</strong> {schoolName || student.raw?.school_name || 'Government Higher Secondary School'}</div>
-                <div><strong>Cluster / District:</strong> {clusterName || student.raw?.cluster_name || 'Erode Cluster'}</div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <div><strong>Class & Section:</strong> Grade {student.classVal} - Section {student.section}</div>
-                <div><strong>Gender:</strong> {student.gender || 'Female'}</div>
-                <div><strong>Date of Birth:</strong> {student.dobFormatted || student.dob || '2017-04-12'}</div>
-                <div><strong>Age:</strong> {student.ageDisplay || '9 yrs 6 mos'}</div>
-              </div>
-            </div>
-
-            {/* Current Classification Banner */}
+            {/* OBSERVATIONAL CLINICAL STATUS & DIAGNOSTIC BANNER */}
             <div
               style={{
                 backgroundColor: isSeverelyWasted ? '#FEF2F2' : isWasted ? '#FFF7ED' : '#F0FDF4',
                 border: `1.5px solid ${isSeverelyWasted ? '#F87171' : isWasted ? '#FDBA74' : '#86EFAC'}`,
                 borderRadius: '8px',
                 padding: '12px 16px',
-                marginBottom: '18px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                marginBottom: '16px'
               }}
             >
-              <div>
-                <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 700, color: isSeverelyWasted ? '#991B1B' : isWasted ? '#9A3412' : '#166534' }}>
-                  Current Nutritional Status
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: isSeverelyWasted ? '#991B1B' : isWasted ? '#9A3412' : '#166534', textTransform: 'uppercase' }}>
+                  {isSeverelyWasted || isWasted ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
+                  <span>Clinical Assessment & Nutritional Finding</span>
                 </div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: isSeverelyWasted ? '#DC2626' : isWasted ? '#EA580C' : '#15803D', marginTop: '1px' }}>
-                  {student.currentStatus || (isSeverelyWasted ? 'Severely Wasted' : 'Wasted')}
-                </div>
-                <div style={{ fontSize: '11.5px', color: '#475569', marginTop: '2px' }}>
-                  {isSeverelyWasted 
-                    ? '🔴 Critical Nutritional Deficit (Z-Score < -3.0 SD). Mandatory Monthly Clinical Assessment & Dietary Follow-up.'
-                    : isWasted
-                    ? '🟠 Moderate Nutritional Deficit (Z-Score < -2.0 SD). Monthly Assessment & Supplementary Nutrition Follow-up.'
-                    : '🟢 Growth Parameters within normal WHO median boundaries.'}
+                <div style={{
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontWeight: 800,
+                  fontSize: '11px',
+                  backgroundColor: isSeverelyWasted ? '#DC2626' : isWasted ? '#EA580C' : '#16A34A',
+                  color: '#FFFFFF'
+                }}>
+                  {student.currentStatus || (isSeverelyWasted ? 'Severely Wasted' : isWasted ? 'Wasted' : 'Normal Weight')}
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right', minWidth: '160px' }}>
-                <div style={{ fontSize: '11px', color: '#64748B' }}>Next Assessment Due</div>
-                <div style={{ fontSize: '13px', fontWeight: 800, color: isSeverelyWasted ? '#DC2626' : '#EA580C' }}>
-                  {nextDueFormatted}
-                </div>
-                <div style={{ fontSize: '10.5px', color: '#64748B' }}>(Scheduled Follow-up)</div>
+              <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5, marginTop: '4px' }}>
+                {isSeverelyWasted ? (
+                  <span>
+                    <strong>Observation:</strong> Child exhibits <strong>Severe Acute Malnutrition (SAM)</strong> with a BMI-for-Age Z-Score below -3.0 SD. Requires immediate pediatrician review, iron & folic acid supplementation, and prioritized high-protein dietary intake under mid-day meal scheme.
+                  </span>
+                ) : isWasted ? (
+                  <span>
+                    <strong>Observation:</strong> Child exhibits <strong>Moderate Acute Malnutrition (MAM)</strong> with a BMI-for-Age Z-Score below -2.0 SD. Supplementary dietary counseling, daily boiled egg/protein rations, and mandatory 30-day weight tracking required.
+                  </span>
+                ) : (
+                  <span>
+                    <strong>Observation:</strong> Child’s height, weight, and BMI parameters are within the <strong>Healthy WHO Growth Median (Normal)</strong>. Growth trajectory is progressive and consistent with age percentiles. Maintain current balanced nutrition.
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '8px', marginTop: '8px', fontSize: '11px' }}>
+                <span style={{ color: '#64748B' }}>
+                  Latest Measurement: <strong>Height: {student.height || latestAssessment?.height_cm || '—'} cm</strong> • <strong>Weight: {student.weight || latestAssessment?.weight_kg || '—'} kg</strong> • <strong>BMI: {student.bmi || latestAssessment?.bmi || '—'} kg/m²</strong>
+                </span>
+                <span style={{ fontWeight: 700, color: isSeverelyWasted ? '#DC2626' : isWasted ? '#EA580C' : '#15803D' }}>
+                  Next Follow-up Due: {nextDueFormatted}
+                </span>
               </div>
             </div>
 

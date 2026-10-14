@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Users, 
   UserCheck, 
@@ -52,10 +52,12 @@ export default function UserManagementView() {
   const [successToast, setSuccessToast] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Confirmation Pop-up states for deletion and creation
+  // Confirmation Pop-up states for deletion, deactivation, and creation
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [userToToggleStatus, setUserToToggleStatus] = useState(null);
+  const [isTogglingStatus, setIsTogglingStatus] = useState(false);
   const [showCreateConfirmModal, setShowCreateConfirmModal] = useState(false);
 
   // New User Form State
@@ -70,6 +72,8 @@ export default function UserManagementView() {
 
   // Dynamic clusters map for resolving IDs to human-readable names
   const [clustersMap, setClustersMap] = useState({});
+  const [dbClusters, setDbClusters] = useState([]);
+  const [dbSchools, setDbSchools] = useState([]);
 
   // Map backend user response into UI row representation
   const formatUser = (u, idx, clusterMap = null) => {
@@ -120,6 +124,9 @@ export default function UserManagementView() {
       accessType: (roleDisplay === 'Super Admin' || roleDisplay === 'Admin') 
         ? 'Full Access' 
         : isAct ? 'Limited Access' : 'Inactive Users',
+      permissions: Array.isArray(u.permissions) ? u.permissions : (u.raw?.permissions || []),
+      scopeType: u.scope_type || (u.school_name && u.school_name !== 'All Assigned Schools' && u.school_name !== 'All Schools' ? 'school' : 'cluster'),
+      assigned_cluster_id: u.assigned_cluster_id || null,
       raw: u
     };
   };
@@ -128,9 +135,10 @@ export default function UserManagementView() {
   const loadBackendUsers = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const [backendData, clustersData] = await Promise.allSettled([
+      const [backendData, clustersData, schoolsData] = await Promise.allSettled([
         api.getUsers(),
-        api.getClusters()
+        api.getClusters(),
+        api.getSchools()
       ]);
 
       const cMap = {};
@@ -140,10 +148,27 @@ export default function UserManagementView() {
           if (c.name) cMap[c.name] = c.name;
         });
         setClustersMap(cMap);
+        setDbClusters(clustersData.value);
+      }
+
+      if (schoolsData.status === 'fulfilled' && Array.isArray(schoolsData.value)) {
+        setDbSchools(schoolsData.value);
       }
 
       if (backendData.status === 'fulfilled' && Array.isArray(backendData.value)) {
-        const mapped = backendData.value.map((u, idx) => formatUser(u, idx, cMap));
+        // Exclude admin user accounts so only users alone are shown in User Management
+        const regularUsers = backendData.value.filter(u => {
+          const role = (u.role || '').toLowerCase();
+          const username = (u.username || '').toLowerCase();
+          const email = (u.email || '').toLowerCase();
+          const id = (u.id || '').toLowerCase();
+          return role !== 'admin' &&
+                 role !== 'super admin' &&
+                 username !== 'admin' &&
+                 email !== 'admin@gmail.com' &&
+                 !id.startsWith('admin');
+        });
+        const mapped = regularUsers.map((u, idx) => formatUser(u, idx, cMap));
         setUsers(mapped);
       }
     } catch (err) {
@@ -166,40 +191,85 @@ export default function UserManagementView() {
   const totalUsersCount = users.length;
   const activeCount = users.filter(u => u.status === 'Active').length;
   const inactiveCount = users.filter(u => u.status === 'Inactive').length;
-  const fullAccessCount = users.filter(u => u.accessType === 'Full Access').length;
-  const limitedAccessCount = users.filter(u => u.accessType === 'Limited Access').length;
 
-  // Real cluster and school options dynamically derived from users
-  const uniqueClusters = Array.from(new Set(users.map(u => u.cluster).filter(Boolean)));
-  const uniqueSchools = Array.from(new Set(users.map(u => u.school).filter(Boolean)));
+  // Real-time clusters from database with user-assigned fallback
+  const availableClusters = React.useMemo(() => {
+    const list = dbClusters.map(c => c.name).filter(Boolean);
+    users.forEach(u => {
+      if (u.cluster && u.cluster !== 'All Clusters' && !list.includes(u.cluster)) {
+        list.push(u.cluster);
+      }
+    });
+    return Array.from(new Set(list)).sort();
+  }, [dbClusters, users]);
 
-  // Toggle user Active / Inactive status and persist to backend
-  const handleToggleStatus = async (userId) => {
-    const targetUser = users.find(u => u.id === userId);
-    if (!targetUser) return;
+  // Real-time schools from database, dynamically filtered when cluster is selected
+  const availableSchools = React.useMemo(() => {
+    let list = [];
+    if (clusterFilter !== 'ALL') {
+      const selectedClusterObj = dbClusters.find(c => c.name === clusterFilter || c.id === clusterFilter);
+      const filtered = dbSchools.filter(s => 
+        (selectedClusterObj && s.cluster_id === selectedClusterObj.id) ||
+        s.cluster_name === clusterFilter ||
+        s.cluster === clusterFilter
+      );
+      list = filtered.map(s => s.name).filter(Boolean);
+      users.forEach(u => {
+        if (u.cluster === clusterFilter && u.school && u.school !== 'All Assigned Schools' && u.school !== 'All Schools in District' && !list.includes(u.school)) {
+          list.push(u.school);
+        }
+      });
+    } else {
+      list = dbSchools.map(s => s.name).filter(Boolean);
+      users.forEach(u => {
+        if (u.school && u.school !== 'All Assigned Schools' && u.school !== 'All Schools in District' && !list.includes(u.school)) {
+          list.push(u.school);
+        }
+      });
+    }
+    return Array.from(new Set(list)).sort();
+  }, [dbSchools, dbClusters, clusterFilter, users]);
+
+  const handleClusterFilterChange = (val) => {
+    setClusterFilter(val);
+    setSchoolFilter('ALL');
+    setCurrentPage(1);
+  };
+
+  // Confirm and toggle user Active / Inactive status and persist to backend
+  const handleConfirmToggleStatus = async () => {
+    if (!userToToggleStatus) return;
+    setIsTogglingStatus(true);
+    const targetUser = userToToggleStatus;
     const nextStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
     const nextIsActive = nextStatus === 'Active';
 
     // Optimistic UI update
     setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
+      if (u.id === targetUser.id) {
         return { 
           ...u, 
           status: nextStatus, 
-          accessType: nextStatus === 'Active' ? ((u.role === 'Super Admin' || u.role === 'Admin') ? 'Full Access' : 'Limited Access') : 'Inactive Users' 
+          accessType: nextIsActive ? ((u.role === 'Super Admin' || u.role === 'Admin') ? 'Full Access' : 'Limited Access') : 'Inactive Users' 
         };
       }
       return u;
     }));
 
     try {
-      await api.updateUser(userId, { is_active: nextIsActive });
-      setSuccessToast(`User ${targetUser.name} status updated to ${nextStatus}`);
-      setTimeout(() => setSuccessToast(''), 3000);
+      await api.updateUser(targetUser.id, { is_active: nextIsActive });
+      setSuccessToast(`User ${targetUser.name} (${targetUser.id}) has been ${nextIsActive ? 'activated' : 'deactivated'}.`);
+      setTimeout(() => setSuccessToast(''), 4000);
+      setUserToToggleStatus(null);
+      await loadBackendUsers(true);
     } catch (err) {
       console.error('Failed to update status on server:', err);
-      // Revert if error
+      setSuccessToast(`Failed to update status: ${err.message}`);
+      setTimeout(() => setSuccessToast(''), 4000);
+      setUserToToggleStatus(null);
       loadBackendUsers(true);
+    } finally {
+      setIsTogglingStatus(false);
     }
   };
 
@@ -210,6 +280,7 @@ export default function UserManagementView() {
     setSchoolFilter('ALL');
     setRoleFilter('ALL');
     setStatusFilter('ALL');
+    setCurrentPage(1);
   };
 
   // Sort Handler
@@ -222,35 +293,58 @@ export default function UserManagementView() {
     }
   };
 
+  const renderSortIcon = (field) => {
+    if (sortField !== field) {
+      return <ArrowUpDown size={11} color="#94A3B8" />;
+    }
+    return (
+      <span style={{ color: '#EA580C', fontSize: '10px', fontWeight: 800, marginLeft: '2px' }}>
+        {sortAsc ? '▲' : '▼'}
+      </span>
+    );
+  };
+
   // Filtered & Sorted Users
-  const filteredUsers = users
-    .filter(u => {
-      const matchesSearch = 
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.id.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesCluster = clusterFilter === 'ALL' || u.cluster === clusterFilter || u.cluster === 'All Clusters';
-      const matchesSchool = schoolFilter === 'ALL' || u.school === schoolFilter || u.school === 'All Schools in District' || u.school === 'All Assigned Schools';
-      const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
-      const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
+  const filteredUsers = React.useMemo(() => {
+    return users
+      .filter(u => {
+        const q = searchQuery.toLowerCase().trim();
+        const matchesSearch = !q ||
+          u.name.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q) ||
+          u.id.toLowerCase().includes(q);
+        
+        const matchesCluster = clusterFilter === 'ALL' || u.cluster === clusterFilter || u.cluster === 'All Clusters';
+        const matchesSchool = schoolFilter === 'ALL' || u.school === schoolFilter || u.school === 'All Schools in District' || u.school === 'All Assigned Schools';
+        const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
+        const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
 
-      return matchesSearch && matchesCluster && matchesSchool && matchesRole && matchesStatus;
-    })
-    .sort((a, b) => {
-      const valA = a[sortField] || '';
-      const valB = b[sortField] || '';
-      if (valA < valB) return sortAsc ? -1 : 1;
-      if (valA > valB) return sortAsc ? 1 : -1;
-      return 0;
-    });
+        return matchesSearch && matchesCluster && matchesSchool && matchesRole && matchesStatus;
+      })
+      .sort((a, b) => {
+        const valA = a[sortField] || '';
+        const valB = b[sortField] || '';
+        if (valA < valB) return sortAsc ? -1 : 1;
+        if (valA > valB) return sortAsc ? 1 : -1;
+        return 0;
+      });
+  }, [users, searchQuery, clusterFilter, schoolFilter, roleFilter, statusFilter, sortField, sortAsc]);
 
-  // Select all handler
+  // Accurate Pagination Slicing
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedUsers = React.useMemo(() => {
+    return filteredUsers.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
+  }, [filteredUsers, safeCurrentPage, pageSize]);
+
+  // Select all visible users on current page
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedUserIds(filteredUsers.map(u => u.id));
+      const pageIds = paginatedUsers.map(u => u.id);
+      setSelectedUserIds(prev => Array.from(new Set([...prev, ...pageIds])));
     } else {
-      setSelectedUserIds([]);
+      const pageIds = new Set(paginatedUsers.map(u => u.id));
+      setSelectedUserIds(prev => prev.filter(id => !pageIds.has(id)));
     }
   };
 
@@ -356,10 +450,11 @@ export default function UserManagementView() {
         onNavigateBack={() => setViewMode(previousView === 'details' ? 'details' : 'list')}
         onUserUpdated={(updated) => {
           setUsers(prev => prev.map(u => u.id === updated.id ? { ...u, ...updated } : u));
-          setSelectedUser(prev => ({ ...prev, ...updated }));
+          setSelectedUser(prev => ({ ...(prev || {}), ...updated }));
           setViewMode(previousView === 'details' ? 'details' : 'list');
           setSuccessToast(`User ${updated.name} updated successfully.`);
           setTimeout(() => setSuccessToast(''), 4000);
+          loadBackendUsers(true);
         }}
       />
     );
@@ -465,11 +560,11 @@ export default function UserManagementView() {
         </div>
       )}
 
-      {/* ================= ROW 1: 4 KPI METRIC CARDS ================= */}
+      {/* ================= ROW 1: 3 KPI METRIC CARDS ================= */}
       <div 
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
           gap: '14px',
           width: '100%',
           boxSizing: 'border-box'
@@ -478,17 +573,18 @@ export default function UserManagementView() {
         {/* Card 1: Total Users */}
         <div style={kpiCardContainerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div style={{ ...kpiIconStyle, backgroundColor: '#FFEDD5', color: '#EA580C' }}>
-              <Users size={18} />
+            <div style={{ ...kpiIconStyle, backgroundColor: '#FFF7ED', color: '#EA580C', border: '1px solid #FFEDD5' }}>
+              <Users size={19} />
             </div>
-            <button style={kpiOptionsBtnStyle}><MoreVertical size={14} /></button>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#EA580C', backgroundColor: '#FFF7ED', padding: '3px 8px', borderRadius: '6px', border: '1px solid #FFEDD5', letterSpacing: '0.02em' }}>
+              DIRECTORY
+            </span>
           </div>
-          <div style={{ marginTop: '8px' }}>
+          <div style={{ marginTop: '10px' }}>
             <span style={kpiLabelStyle}>Total Users</span>
             <div style={kpiNumberStyle}>{totalUsersCount}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '11px' }}>
-              <span style={{ color: '#16A34A', fontWeight: 700 }}>↑ 12%</span>
-              <span style={{ color: '#94A3B8' }}>vs last month</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '11.5px', color: '#64748B' }}>
+              <span>Registered accounts in database</span>
             </div>
           </div>
         </div>
@@ -496,17 +592,19 @@ export default function UserManagementView() {
         {/* Card 2: Active Users */}
         <div style={kpiCardContainerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div style={{ ...kpiIconStyle, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
-              <UserCheck size={18} />
+            <div style={{ ...kpiIconStyle, backgroundColor: '#ECFDF5', color: '#059669', border: '1px solid #D1FAE5' }}>
+              <UserCheck size={19} />
             </div>
-            <button style={kpiOptionsBtnStyle}><MoreVertical size={14} /></button>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#059669', backgroundColor: '#ECFDF5', padding: '3px 8px', borderRadius: '6px', border: '1px solid #D1FAE5', letterSpacing: '0.02em' }}>
+              ● {totalUsersCount > 0 ? Math.round((activeCount / totalUsersCount) * 100) : 0}% ACTIVE
+            </span>
           </div>
-          <div style={{ marginTop: '8px' }}>
+          <div style={{ marginTop: '10px' }}>
             <span style={kpiLabelStyle}>Active Users</span>
             <div style={kpiNumberStyle}>{activeCount}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '11px' }}>
-              <span style={{ color: '#16A34A', fontWeight: 700 }}>↑ Live</span>
-              <span style={{ color: '#94A3B8' }}>from database</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', fontSize: '11.5px', color: '#059669' }}>
+              <span style={{ fontWeight: 600 }}>Operational</span>
+              <span style={{ color: '#94A3B8' }}>• Full access enabled</span>
             </div>
           </div>
         </div>
@@ -514,48 +612,19 @@ export default function UserManagementView() {
         {/* Card 3: Inactive Users */}
         <div style={kpiCardContainerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div style={{ ...kpiIconStyle, backgroundColor: '#FEE2E2', color: '#DC2626' }}>
-              <UserX size={18} />
+            <div style={{ ...kpiIconStyle, backgroundColor: '#FEF2F2', color: '#DC2626', border: '1px solid #FEE2E2' }}>
+              <UserX size={19} />
             </div>
-            <button style={kpiOptionsBtnStyle}><MoreVertical size={14} /></button>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#DC2626', backgroundColor: '#FEF2F2', padding: '3px 8px', borderRadius: '6px', border: '1px solid #FEE2E2', letterSpacing: '0.02em' }}>
+              ● {totalUsersCount > 0 ? Math.round((inactiveCount / totalUsersCount) * 100) : 0}% INACTIVE
+            </span>
           </div>
-          <div style={{ marginTop: '8px' }}>
+          <div style={{ marginTop: '10px' }}>
             <span style={kpiLabelStyle}>Inactive Users</span>
             <div style={kpiNumberStyle}>{inactiveCount}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px', fontSize: '11px' }}>
-              <span style={{ color: '#DC2626', fontWeight: 700 }}>•</span>
-              <span style={{ color: '#94A3B8' }}>Deactivated accounts</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Access Summary (Wider card) */}
-        <div style={{ ...kpiCardContainerStyle, padding: '12px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
-            <ShieldCheck size={16} color="#059669" />
-            <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>Access Summary</span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', width: '100%' }}>
-            {/* Full Access */}
-            <div>
-              <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Full Access</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>{fullAccessCount}</div>
-              <div style={{ height: '3.5px', backgroundColor: '#10B981', borderRadius: '99px', marginTop: '4px' }} />
-            </div>
-
-            {/* Limited Access */}
-            <div>
-              <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Limited Access</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>{limitedAccessCount}</div>
-              <div style={{ height: '3.5px', backgroundColor: '#F59E0B', borderRadius: '99px', marginTop: '4px' }} />
-            </div>
-
-            {/* Inactive Users */}
-            <div>
-              <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Inactive Users</div>
-              <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>{inactiveCount}</div>
-              <div style={{ height: '3.5px', backgroundColor: '#EF4444', borderRadius: '99px', marginTop: '4px' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px', fontSize: '11.5px', color: '#DC2626' }}>
+              <span style={{ fontWeight: 600 }}>Disabled</span>
+              <span style={{ color: '#94A3B8' }}>• Access revoked</span>
             </div>
           </div>
         </div>
@@ -574,10 +643,11 @@ export default function UserManagementView() {
           gap: '12px',
           flexWrap: 'wrap',
           width: '100%',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)'
         }}
       >
-        {/* Search Input */}
+        {/* Search Input on Left */}
         <div 
           style={{
             display: 'flex',
@@ -586,18 +656,23 @@ export default function UserManagementView() {
             backgroundColor: '#F8FAFC',
             border: '1px solid #E2E8F0',
             borderRadius: '8px',
-            padding: '6px 12px',
+            padding: '0 12px',
+            height: '36px',
             width: '280px',
+            maxWidth: '100%',
             boxSizing: 'border-box'
           }}
         >
           <Search size={14} color="#94A3B8" />
           <input
             type="text"
-            placeholder="Search by name, email or user ID..."
+            placeholder="Search by name, email or ID..."
             value={searchQuery}
             maxLength={60}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             style={{
               border: 'none',
               outline: 'none',
@@ -608,64 +683,91 @@ export default function UserManagementView() {
               fontFamily: 'inherit'
             }}
           />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#94A3B8',
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+              title="Clear search"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
 
-        {/* Dropdown Filters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Cluster */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={filterLabelStyle}>Cluster</span>
+        {/* Dropdown Filters on Right - All cleanly aligned at 36px height */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Cluster Filter */}
+          <div style={filterPillContainerStyle}>
+            <span style={filterPillLabelStyle}>Cluster:</span>
             <select 
-              style={filterSelectStyle}
+              style={filterPillSelectStyle}
               value={clusterFilter}
-              onChange={(e) => setClusterFilter(e.target.value)}
+              onChange={(e) => handleClusterFilterChange(e.target.value)}
             >
               <option value="ALL">All Clusters</option>
-              {uniqueClusters.map((c) => (
+              {availableClusters.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
 
-          {/* School */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={filterLabelStyle}>School</span>
+          {/* School Filter */}
+          <div style={filterPillContainerStyle}>
+            <span style={filterPillLabelStyle}>School:</span>
             <select 
-              style={filterSelectStyle}
+              style={filterPillSelectStyle}
               value={schoolFilter}
-              onChange={(e) => setSchoolFilter(e.target.value)}
+              onChange={(e) => {
+                setSchoolFilter(e.target.value);
+                setCurrentPage(1);
+              }}
             >
-              <option value="ALL">All Schools</option>
-              {uniqueSchools.map((s) => (
+              <option value="ALL">{clusterFilter !== 'ALL' ? `All in ${clusterFilter}` : 'All Schools'}</option>
+              {availableSchools.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
           </div>
 
-          {/* Role */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={filterLabelStyle}>Role</span>
+          {/* Role Filter */}
+          <div style={filterPillContainerStyle}>
+            <span style={filterPillLabelStyle}>Role:</span>
             <select 
-              style={filterSelectStyle}
+              style={filterPillSelectStyle}
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
+              onChange={(e) => {
+                setRoleFilter(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="ALL">All Roles</option>
-              <option value="Super Admin">Super Admin</option>
-              <option value="Admin">Admin</option>
               <option value="School Staff">School Staff</option>
               <option value="Staff">Staff</option>
               <option value="View Only">View Only</option>
             </select>
           </div>
 
-          {/* Status */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-            <span style={filterLabelStyle}>Status</span>
+          {/* Status Filter */}
+          <div style={filterPillContainerStyle}>
+            <span style={filterPillLabelStyle}>Status:</span>
             <select 
-              style={filterSelectStyle}
+              style={filterPillSelectStyle}
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
             >
               <option value="ALL">All Status</option>
               <option value="Active">Active</option>
@@ -677,22 +779,29 @@ export default function UserManagementView() {
           <button
             onClick={handleResetFilters}
             style={{
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '6px',
-              border: '1px solid #E2E8F0',
-              backgroundColor: '#FFFFFF',
-              borderRadius: '7px',
-              padding: '6px 12px',
+              gap: '5px',
+              height: '36px',
+              border: (searchQuery || clusterFilter !== 'ALL' || schoolFilter !== 'ALL' || roleFilter !== 'ALL' || statusFilter !== 'ALL')
+                ? '1px solid #FED7AA'
+                : '1px solid #E2E8F0',
+              backgroundColor: (searchQuery || clusterFilter !== 'ALL' || schoolFilter !== 'ALL' || roleFilter !== 'ALL' || statusFilter !== 'ALL')
+                ? '#FFF7ED'
+                : '#FFFFFF',
+              borderRadius: '8px',
+              padding: '0 12px',
               fontSize: '12px',
               fontWeight: 600,
-              color: '#475569',
+              color: (searchQuery || clusterFilter !== 'ALL' || schoolFilter !== 'ALL' || roleFilter !== 'ALL' || statusFilter !== 'ALL')
+                ? '#EA580C'
+                : '#64748B',
               cursor: 'pointer',
-              marginTop: '14px',
               transition: 'all 0.15s ease'
             }}
+            title="Reset Filters"
           >
-            <RotateCcw size={13} />
+            <RotateCcw size={12} />
             <span>Reset</span>
           </button>
         </div>
@@ -711,137 +820,144 @@ export default function UserManagementView() {
         }}
       >
         <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '880px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '940px' }}>
             <thead>
               <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #ECEEF2' }}>
-                <th style={{ width: '40px', padding: '10px 14px' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedUserIds.length === filteredUsers.length && filteredUsers.length > 0}
-                    onChange={handleSelectAll}
-                    style={{ cursor: 'pointer', accentColor: '#EB5A1D' }}
-                  />
-                </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('id')}>
                   <div style={headerFlexStyle}>
                     <span>User ID</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('id')}
                   </div>
                 </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('name')}>
                   <div style={headerFlexStyle}>
                     <span>Name</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('name')}
                   </div>
                 </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('email')}>
                   <div style={headerFlexStyle}>
                     <span>Email</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('email')}
                   </div>
                 </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('cluster')}>
                   <div style={headerFlexStyle}>
                     <span>Cluster</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('cluster')}
                   </div>
                 </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('school')}>
                   <div style={headerFlexStyle}>
                     <span>School</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('school')}
                   </div>
                 </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('role')}>
                   <div style={headerFlexStyle}>
                     <span>Role</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('role')}
                   </div>
                 </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('status')}>
                   <div style={headerFlexStyle}>
                     <span>Status</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('status')}
                   </div>
                 </th>
                 <th style={tableHeaderStyle} onClick={() => handleSort('lastLoginDate')}>
                   <div style={headerFlexStyle}>
                     <span>Last Login</span>
-                    <ArrowUpDown size={11} color="#94A3B8" />
+                    {renderSortIcon('lastLoginDate')}
                   </div>
                 </th>
-                <th style={{ ...tableHeaderStyle, textAlign: 'center' }}>Actions</th>
+                <th style={{ ...tableHeaderStyle, textAlign: 'center', cursor: 'default' }}>
+                  <span>Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.length > 0 ? (
-                filteredUsers.map((u) => {
-                  const isChecked = selectedUserIds.includes(u.id);
+              {paginatedUsers.length > 0 ? (
+                paginatedUsers.map((u) => {
                   const isActive = u.status === 'Active';
+                  const initials = u.name ? u.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() : 'U';
 
                   return (
                     <tr 
                       key={u.id}
                       style={{
                         borderBottom: '1px solid #F1F5F9',
-                        backgroundColor: isChecked ? '#FFF7ED' : 'transparent',
+                        backgroundColor: 'transparent',
                         transition: 'background-color 0.12s ease'
                       }}
                     >
-                      {/* Checkbox */}
-                      <td style={{ padding: '10px 14px' }}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleSelectOne(u.id)}
-                          style={{ cursor: 'pointer', accentColor: '#EB5A1D' }}
-                        />
-                      </td>
-
                       {/* User ID */}
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569', fontWeight: 600 }}>
-                        {u.id}
-                      </td>
-
-                      {/* Name */}
-                      <td 
-                        style={{ padding: '10px 14px', fontSize: '13px', fontWeight: 700, color: '#0F172A', cursor: 'pointer' }}
-                        onClick={() => handleOpenUserDetails(u)}
-                        title="Click to view user details"
-                      >
-                        <span 
-                          style={{ transition: 'color 0.15s ease' }} 
-                          onMouseEnter={(e) => e.currentTarget.style.color = '#EA580C'} 
-                          onMouseLeave={(e) => e.currentTarget.style.color = '#0F172A'}
-                        >
-                          {u.name}
+                      <td style={{ padding: '12px 14px', fontSize: '12px' }}>
+                        <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 600, color: '#475569', backgroundColor: '#F1F5F9', padding: '2px 6px', borderRadius: '4px' }}>
+                          {u.id}
                         </span>
                       </td>
 
+                      {/* Name with Avatar */}
+                      <td style={{ padding: '12px 14px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                          <div 
+                            style={{
+                              width: '30px',
+                              height: '30px',
+                              borderRadius: '50%',
+                              backgroundColor: isActive ? '#FFEDD5' : '#F1F5F9',
+                              color: isActive ? '#EA580C' : '#64748B',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '11.5px',
+                              fontWeight: 700,
+                              flexShrink: 0
+                            }}
+                          >
+                            {initials}
+                          </div>
+                          <span 
+                            style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', cursor: 'pointer', transition: 'color 0.15s ease' }} 
+                            onClick={() => handleOpenUserDetails(u)}
+                            onMouseEnter={(e) => e.currentTarget.style.color = '#EA580C'} 
+                            onMouseLeave={(e) => e.currentTarget.style.color = '#0F172A'}
+                            title="Click to view user details"
+                          >
+                            {u.name}
+                          </span>
+                        </div>
+                      </td>
+
                       {/* Email */}
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
+                      <td style={{ padding: '12px 14px', fontSize: '12.5px', color: '#475569' }}>
                         {u.email}
                       </td>
 
                       {/* Cluster */}
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>
-                        {(!u.cluster || /^[0-9a-fA-F-]{20,}$/.test(u.cluster)) ? 'All Clusters' : u.cluster}
+                      <td style={{ padding: '12px 14px', fontSize: '12.5px', color: '#475569' }}>
+                        {(!u.cluster || /^[0-9a-fA-F-]{20,}$/.test(u.cluster)) ? (
+                          <span style={{ color: '#94A3B8' }}>All Clusters</span>
+                        ) : (
+                          <span style={{ fontWeight: 500, color: '#334155' }}>{u.cluster}</span>
+                        )}
                       </td>
 
                       {/* School */}
-                      <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#334155', fontWeight: 500 }}>
+                      <td style={{ padding: '12px 14px', fontSize: '12.5px', color: '#334155', fontWeight: 500 }}>
                         {u.school}
                       </td>
 
                       {/* Role Pill */}
-                      <td style={{ padding: '10px 14px' }}>
+                      <td style={{ padding: '12px 14px' }}>
                         <span style={getRoleBadgeStyle(u.role)}>
                           {u.role}
                         </span>
                       </td>
 
                       {/* Status Pill */}
-                      <td style={{ padding: '10px 14px' }}>
+                      <td style={{ padding: '12px 14px' }}>
                         <span style={getStatusBadgeStyle(isActive)}>
                           <span 
                             style={{
@@ -857,13 +973,13 @@ export default function UserManagementView() {
                       </td>
 
                       {/* Last Login */}
-                      <td style={{ padding: '10px 14px', fontSize: '11.5px', color: '#475569', lineHeight: 1.25 }}>
+                      <td style={{ padding: '12px 14px', fontSize: '11.5px', color: '#475569', lineHeight: 1.3 }}>
                         <div>{u.lastLoginDate}</div>
                         <div style={{ color: '#94A3B8' }}>{u.lastLoginTime}</div>
                       </td>
 
                       {/* Actions */}
-                      <td style={{ padding: '10px 14px' }}>
+                      <td style={{ padding: '12px 14px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                           {/* Eye / View */}
                           <button 
@@ -882,7 +998,6 @@ export default function UserManagementView() {
                           >
                             <Pencil size={14} />
                           </button>
-
 
                           {/* Delete User */}
                           <button 
@@ -910,8 +1025,8 @@ export default function UserManagementView() {
                               justifyContent: isActive ? 'flex-end' : 'flex-start',
                               transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                             }}
-                            onClick={() => handleToggleStatus(u.id)}
-                            title={`Toggle Status (currently ${u.status})`}
+                            onClick={() => setUserToToggleStatus(u)}
+                            title={`Click to ${isActive ? 'Deactivate' : 'Activate'} user (currently ${u.status})`}
                           >
                             <div 
                               style={{
@@ -930,8 +1045,32 @@ export default function UserManagementView() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="10" style={{ textAlign: 'center', padding: '30px', color: '#64748B', fontSize: '13px' }}>
-                    No matching users found. Try clearing your filters.
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '48px 20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+                        <Users size={22} />
+                      </div>
+                      <div style={{ fontSize: '15px', fontWeight: 700, color: '#1E293B', marginTop: '4px' }}>No users found</div>
+                      <div style={{ fontSize: '12.5px', color: '#64748B', maxWidth: '340px' }}>
+                        No user accounts match your search query or filter criteria.
+                      </div>
+                      <button
+                        onClick={handleResetFilters}
+                        style={{
+                          marginTop: '8px',
+                          backgroundColor: '#F8FAFC',
+                          border: '1px solid #E2E8F0',
+                          borderRadius: '7px',
+                          padding: '6px 14px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#475569',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Reset All Filters
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -942,62 +1081,101 @@ export default function UserManagementView() {
         {/* Table Pagination Footer */}
         <div 
           style={{
-            padding: '10px 16px',
+            padding: '12px 18px',
             borderTop: '1px solid #ECEEF2',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: '10px',
+            gap: '12px',
             backgroundColor: '#FFFFFF',
             fontSize: '12px',
             color: '#64748B'
           }}
         >
           <div>
-            Showing 1-{filteredUsers.length} of {totalUsersCount} users
+            Showing <strong style={{ color: '#0F172A' }}>{filteredUsers.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}</strong>–<strong style={{ color: '#0F172A' }}>{Math.min(safeCurrentPage * pageSize, filteredUsers.length)}</strong> of <strong style={{ color: '#0F172A' }}>{filteredUsers.length}</strong> users
+            {filteredUsers.length !== totalUsersCount && (
+              <span style={{ color: '#94A3B8', marginLeft: '6px' }}>(filtered from {totalUsersCount} total)</span>
+            )}
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {/* Rows Per Page */}
-            <select 
-              style={{
-                height: '28px',
-                padding: '0 8px',
-                border: '1px solid #E2E8F0',
-                borderRadius: '6px',
-                fontSize: '12px',
-                color: '#334155',
-                outline: 'none',
-                cursor: 'pointer'
-              }}
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-            >
-              <option value={10}>10 per page</option>
-              <option value={20}>20 per page</option>
-              <option value={50}>50 per page</option>
-            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '11.5px', color: '#64748B' }}>Rows:</span>
+              <select 
+                style={{
+                  height: '30px',
+                  padding: '0 8px',
+                  border: '1px solid #E2E8F0',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  color: '#334155',
+                  outline: 'none',
+                  backgroundColor: '#FFFFFF',
+                  cursor: 'pointer'
+                }}
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+              >
+                <option value={10}>10 per page</option>
+                <option value={20}>20 per page</option>
+                <option value={50}>50 per page</option>
+              </select>
+            </div>
 
-            {/* Pagination Buttons */}
+            {/* Pagination Controls */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <button 
-                style={paginationArrowStyle}
-                disabled={currentPage === 1}
+                style={{
+                  ...paginationArrowStyle,
+                  opacity: safeCurrentPage === 1 ? 0.4 : 1,
+                  cursor: safeCurrentPage === 1 ? 'not-allowed' : 'pointer'
+                }}
+                disabled={safeCurrentPage === 1}
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                title="Previous page"
               >
                 <ChevronLeft size={14} />
               </button>
 
-              <button style={{ ...paginationPageStyle, backgroundColor: '#EB5A1D', color: '#FFFFFF', borderColor: '#EB5A1D' }}>
-                1
-              </button>
-              <button style={paginationPageStyle}>2</button>
-              <button style={paginationPageStyle}>3</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - safeCurrentPage) <= 1)
+                .map((page, idx, arr) => {
+                  const showEllipsis = idx > 0 && page - arr[idx - 1] > 1;
+                  return (
+                    <React.Fragment key={page}>
+                      {showEllipsis && <span style={{ padding: '0 3px', color: '#94A3B8', fontSize: '12px' }}>…</span>}
+                      <button 
+                        style={{
+                          ...paginationPageStyle,
+                          backgroundColor: safeCurrentPage === page ? '#EB5A1D' : '#FFFFFF',
+                          color: safeCurrentPage === page ? '#FFFFFF' : '#475569',
+                          borderColor: safeCurrentPage === page ? '#EB5A1D' : '#E2E8F0',
+                          fontWeight: safeCurrentPage === page ? 700 : 500
+                        }}
+                        onClick={() => setCurrentPage(page)}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  );
+                })
+              }
 
               <button 
-                style={paginationArrowStyle}
-                onClick={() => setCurrentPage(prev => prev + 1)}
+                style={{
+                  ...paginationArrowStyle,
+                  opacity: (safeCurrentPage >= totalPages || filteredUsers.length === 0) ? 0.4 : 1,
+                  cursor: (safeCurrentPage >= totalPages || filteredUsers.length === 0) ? 'not-allowed' : 'pointer'
+                }}
+                disabled={safeCurrentPage >= totalPages || filteredUsers.length === 0}
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                title="Next page"
               >
                 <ChevronRight size={14} />
               </button>
@@ -1058,8 +1236,6 @@ export default function UserManagementView() {
                     onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
                     style={modalInputStyle}
                   >
-                    <option value="Super Admin">Super Admin</option>
-                    <option value="Admin">Admin</option>
                     <option value="School Staff">School Staff</option>
                     <option value="Staff">Staff</option>
                     <option value="View Only">View Only</option>
@@ -1243,6 +1419,94 @@ export default function UserManagementView() {
         </div>
       )}
 
+      {/* ================= MODAL: STATUS (DEACTIVATE / ACTIVATE) CONFIRMATION ================= */}
+      {userToToggleStatus && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '14px', width: '92%', maxWidth: '440px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05)', overflow: 'hidden' }}>
+            <div style={{ padding: '18px 20px 14px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ 
+                  width: '36px', 
+                  height: '36px', 
+                  borderRadius: '10px', 
+                  backgroundColor: userToToggleStatus.status === 'Active' ? '#FEE2E2' : '#DCFCE7', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  color: userToToggleStatus.status === 'Active' ? '#DC2626' : '#16A34A' 
+                }}>
+                  {userToToggleStatus.status === 'Active' ? <AlertTriangle size={18} /> : <CheckCircle2 size={18} />}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>
+                    {userToToggleStatus.status === 'Active' ? 'Deactivate User Account?' : 'Activate User Account?'}
+                  </h3>
+                  <span style={{ fontSize: '11.5px', color: '#64748B' }}>Confirm account status change</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setUserToToggleStatus(null)} 
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#94A3B8', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13px', color: '#334155', margin: 0, lineHeight: 1.5 }}>
+                {userToToggleStatus.status === 'Active' ? (
+                  <>Are you sure you want to <strong>deactivate</strong> user <strong style={{ color: '#0F172A' }}>{userToToggleStatus.name}</strong> (<strong style={{ color: '#EA580C' }}>{userToToggleStatus.id}</strong>)?</>
+                ) : (
+                  <>Are you sure you want to <strong>activate</strong> user <strong style={{ color: '#0F172A' }}>{userToToggleStatus.name}</strong> (<strong style={{ color: '#EA580C' }}>{userToToggleStatus.id}</strong>)?</>
+                )}
+              </p>
+
+              <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <div><span style={{ color: '#64748B' }}>User ID:</span> <strong>{userToToggleStatus.id}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Email:</span> <strong>{userToToggleStatus.email}</strong></div>
+                <div><span style={{ color: '#64748B' }}>Current Status:</span> <strong style={{ color: userToToggleStatus.status === 'Active' ? '#16A34A' : '#DC2626' }}>{userToToggleStatus.status}</strong></div>
+                <div><span style={{ color: '#64748B' }}>New Status:</span> <strong style={{ color: userToToggleStatus.status === 'Active' ? '#DC2626' : '#16A34A' }}>{userToToggleStatus.status === 'Active' ? 'Inactive (Disabled)' : 'Active (Enabled)'}</strong></div>
+              </div>
+
+              {userToToggleStatus.status === 'Active' ? (
+                <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#DC2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                  <span>This user will be immediately logged out and blocked from logging into the mobile application and admin panel.</span>
+                </div>
+              ) : (
+                <div style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#16A34A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
+                  <span>This will restore the user's login access to the mobile application and admin panel.</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding: '12px 20px 16px 20px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setUserToToggleStatus(null)}
+                style={modalCancelBtnStyle}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmToggleStatus}
+                disabled={isTogglingStatus}
+                style={{
+                  ...modalSubmitBtnStyle,
+                  backgroundColor: userToToggleStatus.status === 'Active' ? '#DC2626' : '#16A34A',
+                  borderColor: userToToggleStatus.status === 'Active' ? '#DC2626' : '#16A34A',
+                  opacity: isTogglingStatus ? 0.7 : 1
+                }}
+              >
+                {isTogglingStatus ? 'Updating...' : (userToToggleStatus.status === 'Active' ? 'Confirm & Deactivate' : 'Confirm & Activate')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -1251,17 +1515,17 @@ export default function UserManagementView() {
 
 const kpiCardContainerStyle = {
   backgroundColor: '#FFFFFF',
-  border: '1px solid #ECEEF2',
+  border: '1px solid #E2E8F0',
   borderRadius: '12px',
-  padding: '12px 14px',
-  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)',
+  padding: '16px 18px',
+  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
   boxSizing: 'border-box'
 };
 
 const kpiIconStyle = {
-  width: '36px',
-  height: '36px',
-  borderRadius: '8px',
+  width: '38px',
+  height: '38px',
+  borderRadius: '9px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -1278,43 +1542,60 @@ const kpiOptionsBtnStyle = {
 
 const kpiLabelStyle = {
   fontSize: '11px',
-  fontWeight: 600,
-  color: '#64748B'
+  fontWeight: 700,
+  color: '#64748B',
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase'
 };
 
 const kpiNumberStyle = {
-  fontSize: '22px',
+  fontSize: '28px',
   fontWeight: 800,
   color: '#0F172A',
   lineHeight: 1.1,
-  marginTop: '2px'
+  marginTop: '3px'
 };
 
-const filterLabelStyle = {
-  fontSize: '10.5px',
-  fontWeight: 600,
-  color: '#64748B'
-};
-
-const filterSelectStyle = {
-  height: '28px',
-  padding: '0 8px',
+const filterPillContainerStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '5px',
+  height: '36px',
+  padding: '0 8px 0 10px',
+  backgroundColor: '#F8FAFC',
   border: '1px solid #E2E8F0',
-  borderRadius: '6px',
-  backgroundColor: '#FFFFFF',
-  fontSize: '11.5px',
-  color: '#334155',
+  borderRadius: '8px',
+  boxSizing: 'border-box'
+};
+
+const filterPillLabelStyle = {
+  fontSize: '11px',
+  fontWeight: 700,
+  color: '#64748B',
+  whiteSpace: 'nowrap'
+};
+
+const filterPillSelectStyle = {
+  border: 'none',
   outline: 'none',
-  cursor: 'pointer'
+  backgroundColor: 'transparent',
+  fontSize: '12px',
+  fontWeight: 500,
+  color: '#0F172A',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  maxWidth: '170px'
 };
 
 const tableHeaderStyle = {
-  padding: '10px 14px',
+  padding: '12px 14px',
   fontSize: '11.5px',
   fontWeight: 700,
-  color: '#64748B',
+  color: '#475569',
   cursor: 'pointer',
-  userSelect: 'none'
+  userSelect: 'none',
+  letterSpacing: '0.02em',
+  whiteSpace: 'nowrap'
 };
 
 const headerFlexStyle = {

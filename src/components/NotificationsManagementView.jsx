@@ -28,421 +28,13 @@ import {
   CheckCircle2,
   Filter,
   Check,
-  RotateCcw
+  RotateCcw,
+  Trash2
 } from 'lucide-react';
 import { api } from '../services/api';
 
-// Initial dynamic dataset of notifications
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'notif-1',
-    title: 'Monthly Assessment Reminder',
-    target: 'Cluster A',
-    targetType: 'Specific Cluster',
-    type: 'Monthly Assessment',
-    category: 'Monthly Assessment',
-    scheduledDate: '02 Oct 2026',
-    scheduledTime: '09:00 AM',
-    status: 'Scheduled',
-    recipients: 482,
-    delivered: 0,
-    failed: 0,
-    message: 'Dear School Coordinators and Staff, The monthly student health assessment schedule for Cluster A commences next week. Please verify student attendance lists.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '29 Sep 2026, 11:20 AM'
-  },
-  {
-    id: 'notif-2',
-    title: 'Quarterly Health Check Notification',
-    target: 'Greenwood Public School',
-    targetType: 'Specific School',
-    type: 'Health Check',
-    category: 'General Information',
-    scheduledDate: '28 Sep 2026',
-    scheduledTime: '10:30 AM',
-    status: 'Sent',
-    recipients: 126,
-    delivered: 124,
-    failed: 2,
-    message: 'Dear Parents,\n\nThe quarterly health check for all students will be conducted next week. Please ensure your child is present on the scheduled date.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '25 Sep 2026, 04:15 PM'
-  },
-  {
-    id: 'notif-3',
-    title: 'Parent Meeting Reminder',
-    target: 'Cluster B',
-    targetType: 'Specific Cluster',
-    type: 'General Update',
-    category: 'Reminder',
-    scheduledDate: '15 Sep 2026',
-    scheduledTime: '02:00 PM',
-    status: 'Sent',
-    recipients: 324,
-    delivered: 320,
-    failed: 4,
-    message: 'Dear Parents and Guardians, A virtual parent orientation session reviewing initial student health and nutrition reports is scheduled for this Friday.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '13 Sep 2026, 09:30 AM'
-  },
-  {
-    id: 'notif-4',
-    title: 'Vaccination Drive Announcement',
-    target: 'All Students',
-    targetType: 'All Users',
-    type: 'Health Campaign',
-    category: 'Important Update',
-    scheduledDate: '10 Sep 2026',
-    scheduledTime: '09:00 AM',
-    status: 'Sent',
-    recipients: 2486,
-    delivered: 2470,
-    failed: 16,
-    message: 'Important Notice: The annual school immunization and booster drive schedule is now published. Please review and submit consent slips.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '08 Sep 2026, 02:45 PM'
-  },
-  {
-    id: 'notif-5',
-    title: 'Assessment Schedule Update',
-    target: 'Oakridge Academy',
-    targetType: 'Specific School',
-    type: 'Assessment Schedule',
-    category: 'Monthly Assessment',
-    scheduledDate: '05 Sep 2026',
-    scheduledTime: '11:00 AM',
-    status: 'Expired',
-    recipients: 98,
-    delivered: 98,
-    failed: 0,
-    message: 'Health screening schedule updated for Grades 3 through 5 at Oakridge Academy due to local sports day activities.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '03 Sep 2026, 10:15 AM'
-  },
-  {
-    id: 'notif-6',
-    title: 'Health Camp Notification',
-    target: 'Cluster C',
-    targetType: 'Specific Cluster',
-    type: 'Health Campaign',
-    category: 'General Information',
-    scheduledDate: '01 Sep 2026',
-    scheduledTime: '09:00 AM',
-    status: 'Expired',
-    recipients: 412,
-    delivered: 408,
-    failed: 4,
-    message: 'Pediatric eye and dental screening camp registration has concluded for Cluster C schools.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '28 Aug 2026, 03:00 PM'
-  },
-  {
-    id: 'notif-7',
-    title: 'Monthly Assessment Reminder',
-    target: 'Riverside International',
-    targetType: 'Specific School',
-    type: 'Monthly Assessment',
-    category: 'Monthly Assessment',
-    scheduledDate: '02 Nov 2026',
-    scheduledTime: '09:00 AM',
-    status: 'Scheduled',
-    recipients: 68,
-    delivered: 0,
-    failed: 0,
-    message: 'November monthly biometric and growth measurement tracking will be held on the first Monday.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '29 Sep 2026, 01:10 PM'
-  },
-  {
-    id: 'notif-8',
-    title: 'Annual Health Report Release',
-    target: 'All Schools',
-    targetType: 'All Users',
-    type: 'Report',
-    category: 'General Information',
-    scheduledDate: '25 Aug 2026',
-    scheduledTime: '10:00 AM',
-    status: 'Sent',
-    recipients: 64,
-    delivered: 64,
-    failed: 0,
-    message: 'The consolidated academic year health report cards have been published to the administrator dashboard.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '24 Aug 2026, 05:00 PM'
-  },
-  {
-    id: 'notif-9',
-    title: 'Dental Checkup Notification',
-    target: 'St. Jude High School',
-    targetType: 'Specific School',
-    type: 'Health Check',
-    category: 'Reminder',
-    scheduledDate: '20 Aug 2026',
-    scheduledTime: '10:00 AM',
-    status: 'Sent',
-    recipients: 74,
-    delivered: 73,
-    failed: 1,
-    message: 'Oral health evaluations will begin tomorrow at 10 AM for lower primary classes.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '18 Aug 2026, 11:00 AM'
-  },
-  {
-    id: 'notif-10',
-    title: 'New Guidelines Update',
-    target: 'All Schools',
-    targetType: 'All Users',
-    type: 'General Update',
-    category: 'General Information',
-    scheduledDate: '15 Aug 2026',
-    scheduledTime: '09:30 AM',
-    status: 'Sent',
-    recipients: 64,
-    delivered: 64,
-    failed: 0,
-    message: 'Revised dietary guidance protocols and cafeteria nutrition requirements released for review.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '14 Aug 2026, 02:00 PM'
-  },
-  {
-    id: 'notif-11',
-    title: 'Vision Screening Follow-Up',
-    target: 'Sunrise Public School',
-    targetType: 'Specific School',
-    type: 'Health Check',
-    category: 'Reminder',
-    scheduledDate: '04 Oct 2026',
-    scheduledTime: '11:00 AM',
-    status: 'Scheduled',
-    recipients: 42,
-    delivered: 0,
-    failed: 0,
-    message: 'Follow-up vision check for students with prescribed corrective lenses.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '30 Sep 2026, 09:15 AM'
-  },
-  {
-    id: 'notif-12',
-    title: 'Health Portal Mobile App Launch',
-    target: 'All Students',
-    targetType: 'All Users',
-    type: 'Important Update',
-    category: 'Important Update',
-    scheduledDate: '06 Oct 2026',
-    scheduledTime: '08:30 AM',
-    status: 'Scheduled',
-    recipients: 2486,
-    delivered: 0,
-    failed: 0,
-    message: 'Parents can now track real-time BMI and growth charts on our newly released mobile application.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '30 Sep 2026, 10:00 AM'
-  },
-  {
-    id: 'notif-13',
-    title: 'Nutrition Workshop for Parents',
-    target: 'Cluster D',
-    targetType: 'Specific Cluster',
-    type: 'General Update',
-    category: 'General Information',
-    scheduledDate: '12 Aug 2026',
-    scheduledTime: '04:00 PM',
-    status: 'Sent',
-    recipients: 368,
-    delivered: 365,
-    failed: 3,
-    message: 'Free interactive session with pediatric nutritionists addressing balanced diet options.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '10 Aug 2026, 01:20 PM'
-  },
-  {
-    id: 'notif-14',
-    title: 'Physical Fitness Benchmark Drive',
-    target: 'Maplewood High School',
-    targetType: 'Specific School',
-    type: 'Monthly Assessment',
-    category: 'Monthly Assessment',
-    scheduledDate: '08 Aug 2026',
-    scheduledTime: '09:00 AM',
-    status: 'Sent',
-    recipients: 38,
-    delivered: 38,
-    failed: 0,
-    message: 'Physical education teachers are instructed to record standard fitness metrics into the system.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '05 Aug 2026, 11:45 AM'
-  },
-  {
-    id: 'notif-15',
-    title: 'First Aid Readiness Checklist',
-    target: 'All Schools',
-    targetType: 'All Users',
-    type: 'Report',
-    category: 'Reminder',
-    scheduledDate: '01 Aug 2026',
-    scheduledTime: '08:00 AM',
-    status: 'Sent',
-    recipients: 64,
-    delivered: 64,
-    failed: 0,
-    message: 'Annual school dispensary audit and emergency medicine kit verification.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '30 Jul 2026, 04:30 PM'
-  },
-  {
-    id: 'notif-16',
-    title: 'Cluster E Seasonal Flu Alert',
-    target: 'Cluster E',
-    targetType: 'Specific Cluster',
-    type: 'Health Campaign',
-    category: 'Important Update',
-    scheduledDate: '26 Jul 2026',
-    scheduledTime: '09:00 AM',
-    status: 'Sent',
-    recipients: 298,
-    delivered: 295,
-    failed: 3,
-    message: 'Advisory on hygiene and sanitation practices to mitigate seasonal viral flu transmission.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '25 Jul 2026, 08:15 AM'
-  },
-  {
-    id: 'notif-17',
-    title: 'Hillview School Height-Weight Drive',
-    target: 'Hillview School',
-    targetType: 'Specific School',
-    type: 'Monthly Assessment',
-    category: 'Monthly Assessment',
-    scheduledDate: '22 Jul 2026',
-    scheduledTime: '10:00 AM',
-    status: 'Sent',
-    recipients: 28,
-    delivered: 28,
-    failed: 0,
-    message: 'Mid-term anthropometric evaluations completed for Hillview students.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '20 Jul 2026, 02:00 PM'
-  },
-  {
-    id: 'notif-18',
-    title: 'Cluster F Sports Readiness Assessment',
-    target: 'Cluster F',
-    targetType: 'Specific Cluster',
-    type: 'Assessment Schedule',
-    category: 'General Information',
-    scheduledDate: '18 Jul 2026',
-    scheduledTime: '01:00 PM',
-    status: 'Sent',
-    recipients: 312,
-    delivered: 310,
-    failed: 2,
-    message: 'Pre-tournament cardiopulmonary readiness checkups scheduled across 9 schools.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '15 Jul 2026, 10:30 AM'
-  },
-  {
-    id: 'notif-19',
-    title: 'Lakeside Public School Deworming Day',
-    target: 'Lakeside Public School',
-    targetType: 'Specific School',
-    type: 'Health Campaign',
-    category: 'Reminder',
-    scheduledDate: '10 Jul 2026',
-    scheduledTime: '09:30 AM',
-    status: 'Sent',
-    recipients: 12,
-    delivered: 12,
-    failed: 0,
-    message: 'Government mandated deworming tablets administration report due by end of day.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '08 Jul 2026, 09:00 AM'
-  },
-  {
-    id: 'notif-20',
-    title: 'Emergency Contact Verification Reminder',
-    target: 'All Students',
-    targetType: 'All Users',
-    type: 'General Update',
-    category: 'General Information',
-    scheduledDate: '01 Jul 2026',
-    scheduledTime: '10:00 AM',
-    status: 'Sent',
-    recipients: 2486,
-    delivered: 2480,
-    failed: 6,
-    message: 'Please verify parent telephone numbers and primary contact addresses in the school registry.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '28 Jun 2026, 03:20 PM'
-  },
-  {
-    id: 'notif-21',
-    title: 'Medical Record Archival Notice',
-    target: 'All Schools',
-    targetType: 'All Users',
-    type: 'Report',
-    category: 'General Information',
-    scheduledDate: '20 Jun 2026',
-    scheduledTime: '04:00 PM',
-    status: 'Sent',
-    recipients: 64,
-    delivered: 64,
-    failed: 0,
-    message: 'Previous academic cycle medical and vaccination records successfully backed up.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '19 Jun 2026, 11:00 AM'
-  },
-  {
-    id: 'notif-22',
-    title: 'Staff First-Aid Training Session',
-    target: 'Greenwood Public School',
-    targetType: 'Specific School',
-    type: 'General Update',
-    category: 'Reminder',
-    scheduledDate: '15 Jun 2026',
-    scheduledTime: '02:00 PM',
-    status: 'Sent',
-    recipients: 18,
-    delivered: 18,
-    failed: 0,
-    message: 'CPR and pediatric first-aid certification renewal workshop.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '12 Jun 2026, 09:40 AM'
-  },
-  {
-    id: 'notif-23',
-    title: 'Posture and Spine Screening Camp',
-    target: 'Oakridge Academy',
-    targetType: 'Specific School',
-    type: 'Health Check',
-    category: 'General Information',
-    scheduledDate: '05 Jun 2026',
-    scheduledTime: '10:00 AM',
-    status: 'Sent',
-    recipients: 98,
-    delivered: 97,
-    failed: 1,
-    message: 'Ergonomic backpack weight awareness and spinal postural assessment.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '03 Jun 2026, 04:00 PM'
-  },
-  {
-    id: 'notif-24',
-    title: 'Academic Year Health Protocol Kickoff',
-    target: 'All Schools',
-    targetType: 'All Users',
-    type: 'Important Update',
-    category: 'Important Update',
-    scheduledDate: '01 Jun 2026',
-    scheduledTime: '09:00 AM',
-    status: 'Sent',
-    recipients: 64,
-    delivered: 64,
-    failed: 0,
-    message: 'Standard operating guidelines for student health checkup cadence for 2026-2027.',
-    createdBy: 'Karthikeyan (Administrator)',
-    createdDate: '28 May 2026, 10:00 AM'
-  }
-];
+// Real-time notifications state (no hardcoded mock data)
+const INITIAL_NOTIFICATIONS = [];
 
 export default function NotificationsManagementView() {
   // Navigation Mode: 'list' (Image 1) | 'create' (Image 2) | 'history' (Image 3)
@@ -458,11 +50,11 @@ export default function NotificationsManagementView() {
   const itemsPerPage = 10;
 
   // Selected Notification for Drawer Details
-  const [selectedNotificationId, setSelectedNotificationId] = useState('notif-2');
+  const [selectedNotificationId, setSelectedNotificationId] = useState(null);
   const [detailsDrawerOpen, setDetailsDrawerOpen] = useState(false);
 
   // History Filters
-  const [historyDateRange, setHistoryDateRange] = useState('01 Sep 2026 - 30 Sep 2026');
+  const [historyDateRange, setHistoryDateRange] = useState('All Dates');
   const [historyTargetFilter, setHistoryTargetFilter] = useState('ALL');
   const [historyTypeFilter, setHistoryTypeFilter] = useState('ALL');
   const [historyStatusFilter, setHistoryStatusFilter] = useState('ALL');
@@ -471,22 +63,26 @@ export default function NotificationsManagementView() {
   const [audienceType, setAudienceType] = useState('all_users'); // 'all_users' | 'specific_cluster' | 'specific_school' | 'specific_user'
   const [selectedCluster, setSelectedCluster] = useState('');
   const [selectedSchool, setSelectedSchool] = useState('');
-  const [selectedUser, setSelectedUser] = useState('');
 
   const [clustersList, setClustersList] = useState([]);
   const [schoolsList, setSchoolsList] = useState([]);
-  const [studentsList, setStudentsList] = useState([]);
+  const [usersList, setUsersList] = useState([]);
+
+  // User Filter & Selection States for Targeted Notifications
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userFilterRole, setUserFilterRole] = useState('ALL');
+  const [userFilterCluster, setUserFilterCluster] = useState('ALL');
+  const [selectedUserIds, setSelectedUserIds] = useState([]);
 
   const [notificationType, setNotificationType] = useState('general_info'); // 'general_info' | 'monthly_assessment' | 'reminder' | 'important_update'
 
-  const [formTitle, setFormTitle] = useState('Health Check Notification');
-  const [formMessage, setFormMessage] = useState(
-    'Dear Parents,\n\nThe monthly health check for all students will be conducted next week. Please ensure your child is present on the scheduled date.'
-  );
+  const [formTitle, setFormTitle] = useState('');
+  const [formMessage, setFormMessage] = useState('');
 
-  const [scheduleMode, setScheduleMode] = useState('schedule'); // 'now' | 'schedule'
-  const [scheduledDate, setScheduledDate] = useState('02 Oct 2026');
-  const [scheduledTime, setScheduledTime] = useState('09:00 AM');
+  const [scheduleMode, setScheduleMode] = useState('now'); // 'now' | 'schedule'
+  const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const [scheduledDate, setScheduledDate] = useState(todayStr);
+  const [scheduledTime, setScheduledTime] = useState('10:00 AM');
 
   const [showSuccessToast, setShowSuccessToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -494,33 +90,28 @@ export default function NotificationsManagementView() {
   // Synchronize live data from backend with real-time polling
   const loadNotificationsData = async () => {
     try {
-      const [notifsRes, clustersRes, schoolsRes, studentsRes] = await Promise.allSettled([
+      const [notifsRes, clustersRes, schoolsRes, usersRes] = await Promise.allSettled([
         api.getNotifications(),
         api.getClusters(),
         api.getSchools(),
-        api.getStudents()
+        api.getUsers()
       ]);
 
       const backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
       const cList = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : [];
       const sList = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
-      const stdList = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : [];
+      const uList = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value) ? usersRes.value : [];
 
       setClustersList(cList);
       setSchoolsList(sList);
-      setStudentsList(stdList);
+      setUsersList(uList);
+      setNotifications(backendNotifs);
 
-      if (backendNotifs.length > 0) {
-        setNotifications(backendNotifs);
-      }
       if (cList.length > 0 && !selectedCluster) {
         setSelectedCluster(cList[0].name);
       }
       if (sList.length > 0 && !selectedSchool) {
         setSelectedSchool(sList[0].name);
-      }
-      if (stdList.length > 0 && !selectedUser) {
-        setSelectedUser(`${stdList[0].name} (${stdList[0].class_name})`);
       }
     } catch (err) {
       console.warn('Failed to load notifications data:', err);
@@ -532,6 +123,44 @@ export default function NotificationsManagementView() {
     const interval = setInterval(loadNotificationsData, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Filtered real-time application users for targeted notification
+  const filteredAppUsers = useMemo(() => {
+    return usersList.filter(u => {
+      const q = userSearchQuery.toLowerCase().trim();
+      const matchesSearch = !q || 
+        (u.name && u.name.toLowerCase().includes(q)) || 
+        (u.email && u.email.toLowerCase().includes(q)) || 
+        (u.id && u.id.toLowerCase().includes(q)) ||
+        (u.username && u.username.toLowerCase().includes(q));
+
+      const matchesRole = userFilterRole === 'ALL' || 
+        (u.role && u.role.toLowerCase() === userFilterRole.toLowerCase());
+
+      const matchesCluster = userFilterCluster === 'ALL' || 
+        (u.cluster && u.cluster.toLowerCase() === userFilterCluster.toLowerCase()) ||
+        (u.assigned_cluster_id && u.assigned_cluster_id === userFilterCluster) ||
+        (u.cluster_name && u.cluster_name.toLowerCase() === userFilterCluster.toLowerCase());
+
+      return matchesSearch && matchesRole && matchesCluster;
+    });
+  }, [usersList, userSearchQuery, userFilterRole, userFilterCluster]);
+
+  const toggleUserSelection = (userId) => {
+    setSelectedUserIds(prev => 
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    const allFilteredIds = filteredAppUsers.map(u => u.id);
+    const allSelected = allFilteredIds.length > 0 && allFilteredIds.every(id => selectedUserIds.includes(id));
+    if (allSelected) {
+      setSelectedUserIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+    } else {
+      setSelectedUserIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+    }
+  };
 
   // Dynamic KPI counts
   const totalCount = notifications.length;
@@ -550,9 +179,9 @@ export default function NotificationsManagementView() {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
-        item.title.toLowerCase().includes(q) ||
-        item.target.toLowerCase().includes(q) ||
-        item.type.toLowerCase().includes(q);
+        (item.title && item.title.toLowerCase().includes(q)) ||
+        (item.target && item.target.toLowerCase().includes(q)) ||
+        (item.type && item.type.toLowerCase().includes(q));
 
       return matchesTab && matchesSearch;
     });
@@ -580,6 +209,7 @@ export default function NotificationsManagementView() {
 
   // Selected Notification Object
   const selectedNotification = useMemo(() => {
+    if (!notifications || notifications.length === 0) return null;
     return (
       notifications.find((n) => n.id === selectedNotificationId) ||
       notifications[0]
@@ -592,11 +222,34 @@ export default function NotificationsManagementView() {
       alert('Please enter a notification title.');
       return;
     }
+    if (!formMessage.trim()) {
+      alert('Please enter the notification message.');
+      return;
+    }
 
     let targetLabel = 'All Users';
-    if (audienceType === 'specific_cluster') targetLabel = selectedCluster || 'All Clusters';
-    else if (audienceType === 'specific_school') targetLabel = selectedSchool || 'All Schools';
-    else if (audienceType === 'specific_user') targetLabel = selectedUser || 'Specific Student';
+    let targetUserIds = null;
+    let targetClusterId = null;
+
+    if (audienceType === 'specific_cluster') {
+      targetLabel = selectedCluster || 'All Clusters';
+      const cObj = clustersList.find(c => c.name === selectedCluster);
+      targetClusterId = cObj ? cObj.id : null;
+    } else if (audienceType === 'specific_school') {
+      targetLabel = selectedSchool || 'All Schools';
+    } else if (audienceType === 'specific_user') {
+      if (selectedUserIds.length === 0) {
+        alert('Please select at least one recipient user from the list.');
+        return;
+      }
+      targetUserIds = selectedUserIds;
+      const selectedNames = usersList
+        .filter(u => selectedUserIds.includes(u.id))
+        .map(u => u.name);
+      targetLabel = selectedNames.length <= 2 
+        ? selectedNames.join(', ') 
+        : `${selectedNames[0]} +${selectedNames.length - 1} users (${selectedNames.length} total)`;
+    }
 
     let typeLabel = 'General Information';
     if (notificationType === 'monthly_assessment') typeLabel = 'Monthly Assessment';
@@ -616,6 +269,8 @@ export default function NotificationsManagementView() {
             ? 'Specific School'
             : 'Specific User',
         target: targetLabel,
+        target_user_ids: targetUserIds,
+        target_cluster_id: targetClusterId,
         category: typeLabel,
         type: typeLabel,
         scheduled_date: scheduleMode === 'now' ? null : scheduledDate,
@@ -627,14 +282,36 @@ export default function NotificationsManagementView() {
       setSelectedNotificationId(created.id);
       setToastMessage(
         scheduleMode === 'now'
-          ? 'Notification sent successfully in real-time!'
+          ? 'Notification sent successfully to user applications in real-time!'
           : 'Notification scheduled successfully in real-time!'
       );
       setShowSuccessToast(true);
       setTimeout(() => setShowSuccessToast(false), 4000);
       setViewMode('list');
+      setFormTitle('');
+      setFormMessage('');
+      setSelectedUserIds([]);
     } catch (err) {
       alert(`Failed to send notification: ${err.message}`);
+    }
+  };
+
+  // Handle Delete Notification
+  const handleDeleteNotification = async (notifId, e) => {
+    if (e) e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this notification?')) return;
+    try {
+      await api.deleteNotification(notifId);
+      setNotifications(prev => prev.filter(n => n.id !== notifId));
+      if (selectedNotificationId === notifId) {
+        setSelectedNotificationId(null);
+        setDetailsDrawerOpen(false);
+      }
+      setToastMessage('Notification deleted successfully.');
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 3000);
+    } catch (err) {
+      alert(`Failed to delete notification: ${err.message}`);
     }
   };
 
@@ -1239,6 +916,34 @@ export default function NotificationsManagementView() {
                             >
                               <MoreHorizontal size={14} />
                             </button>
+
+                            <button
+                              onClick={(e) => handleDeleteNotification(item.id, e)}
+                              title="Delete Notification"
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '6px',
+                                border: '1px solid #FEE2E2',
+                                backgroundColor: '#FFFFFF',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'pointer',
+                                color: '#EF4444',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FEE2E2';
+                                e.currentTarget.style.color = '#DC2626';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                                e.currentTarget.style.color = '#EF4444';
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1477,8 +1182,8 @@ export default function NotificationsManagementView() {
                       {
                         key: 'specific_user',
                         icon: User,
-                        title: 'Specific User',
-                        desc: 'Send to an individual user'
+                        title: 'Filter & Select Users',
+                        desc: 'Target specific application users'
                       }
                     ].map((aud) => {
                       const isSelected = audienceType === aud.key;
@@ -1596,34 +1301,152 @@ export default function NotificationsManagementView() {
                   )}
 
                   {audienceType === 'specific_user' && (
-                    <div style={{ marginTop: '12px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
-                        Select Student / User
-                      </label>
-                      <select
-                        value={selectedUser}
-                        onChange={(e) => setSelectedUser(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid #E2E8F0',
-                          fontSize: '13px',
-                          backgroundColor: '#FFFFFF',
-                          outline: 'none',
-                          color: '#0F172A'
-                        }}
-                      >
-                        {studentsList.length > 0 ? (
-                          studentsList.map((st) => (
-                            <option key={st.id} value={`${st.name} (${st.class_name})`}>
-                              {st.name} - {st.class_name} ({st.school_name})
-                            </option>
-                          ))
+                    <div style={{ marginTop: '14px', backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                            Filter & Select Real-Time Users
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#64748B' }}>
+                            Notification will be sent directly to the selected users' applications.
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: '#EA580C', backgroundColor: '#FFEDD5', padding: '3px 8px', borderRadius: '12px' }}>
+                            {selectedUserIds.length} Selected
+                          </span>
+                          <button
+                            type="button"
+                            onClick={handleSelectAllFiltered}
+                            style={{
+                              backgroundColor: '#FFFFFF',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: '6px',
+                              padding: '4px 10px',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              color: '#334155',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {filteredAppUsers.length > 0 && filteredAppUsers.every(u => selectedUserIds.includes(u.id)) ? 'Deselect All' : `Select All (${filteredAppUsers.length})`}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Filter Row */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '8px', marginBottom: '10px' }}>
+                        <div style={{ position: 'relative' }}>
+                          <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '10px' }} />
+                          <input
+                            type="text"
+                            placeholder="Search name, ID, phone..."
+                            value={userSearchQuery}
+                            onChange={(e) => setUserSearchQuery(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px 7px 30px',
+                              borderRadius: '6px',
+                              border: '1px solid #CBD5E1',
+                              fontSize: '12px',
+                              backgroundColor: '#FFFFFF',
+                              boxSizing: 'border-box'
+                            }}
+                          />
+                        </div>
+
+                        <select
+                          value={userFilterRole}
+                          onChange={(e) => setUserFilterRole(e.target.value)}
+                          style={{
+                            padding: '7px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #CBD5E1',
+                            fontSize: '12px',
+                            backgroundColor: '#FFFFFF',
+                            color: '#0F172A'
+                          }}
+                        >
+                          <option value="ALL">All Roles</option>
+                          <option value="health_officer">Health Officers / Staff</option>
+                          <option value="admin">Administrators</option>
+                        </select>
+
+                        <select
+                          value={userFilterCluster}
+                          onChange={(e) => setUserFilterCluster(e.target.value)}
+                          style={{
+                            padding: '7px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid #CBD5E1',
+                            fontSize: '12px',
+                            backgroundColor: '#FFFFFF',
+                            color: '#0F172A'
+                          }}
+                        >
+                          <option value="ALL">All Clusters</option>
+                          {clustersList.map(c => (
+                            <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Scrollable User Checklist */}
+                      <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px', backgroundColor: '#FFFFFF' }}>
+                        {filteredAppUsers.length === 0 ? (
+                          <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
+                            No users found matching filters.
+                          </div>
                         ) : (
-                          <option value="Student User">No students registered yet</option>
+                          filteredAppUsers.map(u => {
+                            const isSelected = selectedUserIds.includes(u.id);
+                            return (
+                              <div
+                                key={u.id}
+                                onClick={() => toggleUserSelection(u.id)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '8px 12px',
+                                  borderBottom: '1px solid #F1F5F9',
+                                  cursor: 'pointer',
+                                  backgroundColor: isSelected ? '#FFF7ED' : 'transparent',
+                                  transition: 'background-color 0.1s ease'
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => {}}
+                                    style={{ width: '15px', height: '15px', cursor: 'pointer' }}
+                                  />
+                                  <div>
+                                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                                      {u.name} <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>({u.id})</span>
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#64748B' }}>
+                                      {u.email || u.phone || 'Active User'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', backgroundColor: '#EFF6FF', color: '#1D4ED8', textTransform: 'capitalize' }}>
+                                    {u.role || 'Staff'}
+                                  </span>
+                                  {u.cluster_name && u.cluster_name !== 'All Clusters' && (
+                                    <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 7px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                                      {u.cluster_name}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
                         )}
-                      </select>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2023,57 +1846,6 @@ export default function NotificationsManagementView() {
                   borderTop: '1px solid #F1F5F9'
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setToastMessage('Draft saved successfully!');
-                    setShowSuccessToast(true);
-                    setTimeout(() => setShowSuccessToast(false), 3000);
-                  }}
-                  style={{
-                    padding: '9px 18px',
-                    borderRadius: '8px',
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: '#475569',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
-                >
-                  Save Draft
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Quick alert preview or scroll into view
-                    alert(`Preview:\nTitle: ${formTitle}\n\n${formMessage}`);
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '9px 18px',
-                    borderRadius: '8px',
-                    backgroundColor: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    color: '#475569',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
-                >
-                  <Eye size={15} />
-                  <span>Preview</span>
-                </button>
-
                 <button
                   type="button"
                   onClick={handleSendOrSchedule}
@@ -2894,7 +2666,9 @@ export default function NotificationsManagementView() {
                 gap: '18px'
               }}
             >
-              {/* Header with Title and Close X */}
+              {selectedNotification ? (
+                <>
+                  {/* Header with Title and Close X */}
               <div
                 style={{
                   display: 'flex',
@@ -3153,7 +2927,15 @@ export default function NotificationsManagementView() {
                   </span>
                 </div>
               </div>
+            </>
+          ) : (
+            <div style={{ padding: '48px 20px', textAlign: 'center', color: '#94A3B8' }}>
+              <Bell size={36} color="#CBD5E1" style={{ margin: '0 auto 12px' }} />
+              <p style={{ margin: 0, fontWeight: 600, fontSize: '14px', color: '#64748B' }}>No notification selected</p>
+              <p style={{ margin: '4px 0 0', fontSize: '12px' }}>Click on a notification in the table to view details</p>
             </div>
+          )}
+        </div>
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Home,
   ChevronRight,
@@ -26,353 +26,22 @@ import {
   Edit3
 } from 'lucide-react';
 import { api } from '../services/api';
+import SearchableDropdown from './SearchableDropdown';
 
-// Master Dataset for schools, years, gender, nutrition and assessments
-const MASTER_SCHOOLS_DATA = [
-  {
-    id: 'greenwood',
-    name: 'Greenwood Public School',
-    cluster: 'Cluster A',
-    totalStudents: 938,
-    sampleCount: 486,
-    male: 486,
-    female: 452,
-    assessed: 812,
-    pending: 126,
-    color: '#0D9488', // Teal
-    classes: {
-      'Grade 1': { total: 180, male: 92, female: 88, assessed: 160 },
-      'Grade 2': { total: 190, male: 98, female: 92, assessed: 170 },
-      'Grade 3': { total: 195, male: 102, female: 93, assessed: 168 },
-      'Grade 4': { total: 185, male: 96, female: 89, assessed: 158 },
-      'Grade 5': { total: 188, male: 98, female: 90, assessed: 156 }
-    },
-    nutrition: {
-      normal: 642,
-      wasted: 142,
-      severelyWasted: 74,
-      overweight: 48,
-      obesity: 32
-    }
-  },
-  {
-    id: 'oakridge',
-    name: 'Oakridge Academy',
-    cluster: 'Cluster A',
-    totalStudents: 622,
-    sampleCount: 324,
-    male: 324,
-    female: 298,
-    assessed: 540,
-    pending: 82,
-    color: '#3B82F6', // Blue
-    classes: {
-      'Grade 1': { total: 120, male: 62, female: 58, assessed: 105 },
-      'Grade 2': { total: 124, male: 65, female: 59, assessed: 110 },
-      'Grade 3': { total: 130, male: 68, female: 62, assessed: 112 },
-      'Grade 4': { total: 122, male: 64, female: 58, assessed: 106 },
-      'Grade 5': { total: 126, male: 65, female: 61, assessed: 107 }
-    },
-    nutrition: {
-      normal: 425,
-      wasted: 94,
-      severelyWasted: 48,
-      overweight: 33,
-      obesity: 22
-    }
-  },
-  {
-    id: 'st-jude',
-    name: 'St. Jude High School',
-    cluster: 'Cluster B',
-    totalStudents: 420,
-    sampleCount: 214,
-    male: 214,
-    female: 206,
-    assessed: 356,
-    pending: 64,
-    color: '#8B5CF6', // Purple
-    classes: {
-      'Grade 1': { total: 80, male: 41, female: 39, assessed: 68 },
-      'Grade 2': { total: 84, male: 43, female: 41, assessed: 72 },
-      'Grade 3': { total: 86, male: 44, female: 42, assessed: 74 },
-      'Grade 4': { total: 82, male: 42, female: 40, assessed: 70 },
-      'Grade 5': { total: 88, male: 44, female: 44, assessed: 72 }
-    },
-    nutrition: {
-      normal: 288,
-      wasted: 64,
-      severelyWasted: 33,
-      overweight: 21,
-      obesity: 14
-    }
-  },
-  {
-    id: 'riverside',
-    name: 'Riverside International',
-    cluster: 'Cluster B',
-    totalStudents: 374,
-    sampleCount: 198,
-    male: 198,
-    female: 176,
-    assessed: 318,
-    pending: 56,
-    color: '#F97316', // Orange
-    classes: {
-      'Grade 1': { total: 72, male: 38, female: 34, assessed: 62 },
-      'Grade 2': { total: 74, male: 39, female: 35, assessed: 64 },
-      'Grade 3': { total: 78, male: 41, female: 37, assessed: 66 },
-      'Grade 4': { total: 74, male: 39, female: 35, assessed: 62 },
-      'Grade 5': { total: 76, male: 41, female: 35, assessed: 64 }
-    },
-    nutrition: {
-      normal: 256,
-      wasted: 57,
-      severelyWasted: 29,
-      overweight: 19,
-      obesity: 13
-    }
-  },
-  {
-    id: 'sunrise',
-    name: 'Sunrise Global School',
-    cluster: 'Cluster C',
-    totalStudents: 132,
-    sampleCount: 176,
-    male: 58,
-    female: 74,
-    assessed: 110,
-    pending: 22,
-    color: '#F43F5E', // Pink
-    classes: {
-      'Grade 1': { total: 26, male: 11, female: 15, assessed: 22 },
-      'Grade 2': { total: 26, male: 12, female: 14, assessed: 21 },
-      'Grade 3': { total: 28, male: 12, female: 16, assessed: 24 },
-      'Grade 4': { total: 26, male: 11, female: 15, assessed: 21 },
-      'Grade 5': { total: 26, male: 12, female: 14, assessed: 22 }
-    },
-    nutrition: {
-      normal: 90,
-      wasted: 21,
-      severelyWasted: 10,
-      overweight: 6,
-      obesity: 5
-    }
-  }
-];
-
-// Academic Year Trends Dataset
-const YEAR_TRENDS = [
-  { year: 2022, students: 1420, male: 730, female: 690, assessed: 1240, coverage: '87.3%' },
-  { year: 2023, students: 1690, male: 870, female: 820, assessed: 1490, coverage: '88.2%' },
-  { year: 2024, students: 1820, male: 940, female: 880, assessed: 1650, coverage: '90.7%' },
-  { year: 2025, students: 2140, male: 1106, female: 1034, assessed: 1980, coverage: '92.5%' },
-  { year: 2026, students: 2486, male: 1266, female: 1220, assessed: 2312, coverage: '93.0%' }
-];
-
-// Cluster Health Statistics Data (Screenshot 1)
-const CLUSTER_HEALTH_STATS = [
-  {
-    cluster: 'Cluster A',
-    normal: '512 (66.8%)',
-    wasted: '124 (16.2%)',
-    severelyWasted: '64 (8.4%)',
-    overweight: '46 (6.0%)',
-    obesity: '20 (2.6%)',
-    total: 766
-  },
-  {
-    cluster: 'Cluster B',
-    normal: '428 (69.1%)',
-    wasted: '92 (14.8%)',
-    severelyWasted: '50 (8.1%)',
-    overweight: '27 (4.4%)',
-    obesity: '22 (3.6%)',
-    total: 619
-  },
-  {
-    cluster: 'Cluster C',
-    normal: '398 (70.2%)',
-    wasted: '86 (15.2%)',
-    severelyWasted: '40 (7.1%)',
-    overweight: '28 (4.9%)',
-    obesity: '15 (2.6%)',
-    total: 567
-  },
-  {
-    cluster: 'Cluster D',
-    normal: '221 (64.6%)',
-    wasted: '76 (22.2%)',
-    severelyWasted: '28 (8.2%)',
-    overweight: '18 (5.3%)',
-    obesity: '13 (3.8%)',
-    total: 356
-  },
-  {
-    cluster: 'Cluster E',
-    normal: '142 (67.9%)',
-    wasted: '36 (17.2%)',
-    severelyWasted: '12 (5.7%)',
-    overweight: '8 (3.8%)',
-    obesity: '16 (5.4%)',
-    total: 214
-  }
-];
-
-// Detailed School-wise Student Reports (Screenshot 2)
-const DETAILED_STUDENT_REPORTS = [
-  {
-    no: 1,
-    school: 'Greenwood Public School',
-    total: 938,
-    male: 486,
-    female: 452,
-    assessed: 812,
-    pending: 126,
-    normal: 642,
-    wasted: 142,
-    severelyWasted: 64,
-    overweight: 56,
-    obesity: 34
-  },
-  {
-    no: 2,
-    school: 'Oakridge Academy',
-    total: 622,
-    male: 324,
-    female: 298,
-    assessed: 540,
-    pending: 82,
-    normal: 428,
-    wasted: 92,
-    severelyWasted: 50,
-    overweight: 27,
-    obesity: 22
-  },
-  {
-    no: 3,
-    school: 'St. Jude High School',
-    total: 420,
-    male: 214,
-    female: 206,
-    assessed: 356,
-    pending: 64,
-    normal: 298,
-    wasted: 66,
-    severelyWasted: 32,
-    overweight: 18,
-    obesity: 6
-  },
-  {
-    no: 4,
-    school: 'Riverside International',
-    total: 374,
-    male: 198,
-    female: 176,
-    assessed: 318,
-    pending: 56,
-    normal: 221,
-    wasted: 76,
-    severelyWasted: 28,
-    overweight: 18,
-    obesity: 13
-  },
-  {
-    no: 5,
-    school: 'Sunrise Global School',
-    total: 132,
-    male: 58,
-    female: 74,
-    assessed: 110,
-    pending: 22,
-    normal: 89,
-    wasted: 24,
-    severelyWasted: 12,
-    overweight: 5,
-    obesity: 2
-  },
-  {
-    no: 6,
-    school: 'Maple Leaf School',
-    total: 128,
-    male: 64,
-    female: 64,
-    assessed: 106,
-    pending: 22,
-    normal: 92,
-    wasted: 20,
-    severelyWasted: 8,
-    overweight: 6,
-    obesity: 2
-  },
-  {
-    no: 7,
-    school: 'Horizon International',
-    total: 116,
-    male: 62,
-    female: 54,
-    assessed: 98,
-    pending: 18,
-    normal: 80,
-    wasted: 22,
-    severelyWasted: 6,
-    overweight: 5,
-    obesity: 3
-  },
-  {
-    no: 8,
-    school: 'Lotus Valley School',
-    total: 104,
-    male: 56,
-    female: 48,
-    assessed: 92,
-    pending: 12,
-    normal: 76,
-    wasted: 16,
-    severelyWasted: 6,
-    overweight: 4,
-    obesity: 2
-  },
-  {
-    no: 9,
-    school: 'Riverdale Academy',
-    total: 96,
-    male: 52,
-    female: 44,
-    assessed: 86,
-    pending: 10,
-    normal: 70,
-    wasted: 14,
-    severelyWasted: 6,
-    overweight: 4,
-    obesity: 2
-  },
-  {
-    no: 10,
-    school: 'Cedar Grove School',
-    total: 84,
-    male: 46,
-    female: 38,
-    assessed: 74,
-    pending: 10,
-    normal: 62,
-    wasted: 12,
-    severelyWasted: 4,
-    overweight: 4,
-    obesity: 2
-  }
-];
+// Color palette for dynamic school & chart visualization
+const PALETTE_COLORS = ['#0D9488', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EC4899', '#6366F1', '#14B8A6', '#F97316'];
 
 export default function ReportsAnalyticsView() {
   // Navigation Mode: 'overview' | 'gender' | 'school_wise' | 'year_wise' | 'health_stats' | 'student_report'
   const [viewMode, setViewMode] = useState('overview');
 
   // Filter States
-  const [selectedYear, setSelectedYear] = useState('2026');
+  const [selectedYear, setSelectedYear] = useState('ALL');
   const [selectedCluster, setSelectedCluster] = useState('ALL');
   const [selectedSchool, setSelectedSchool] = useState('ALL');
   const [selectedGender, setSelectedGender] = useState('ALL');
   const [selectedClass, setSelectedClass] = useState('ALL');
+  const [selectedSection, setSelectedSection] = useState('ALL');
   const [selectedGrade, setSelectedGrade] = useState('All Grades');
   const [selectedHealthCategory, setSelectedHealthCategory] = useState('ALL');
 
@@ -383,16 +52,22 @@ export default function ReportsAnalyticsView() {
   // Live Backend Data
   const [liveSchools, setLiveSchools] = useState([]);
   const [liveStudents, setLiveStudents] = useState([]);
+  const [liveClusters, setLiveClusters] = useState([]);
+  const [liveMetrics, setLiveMetrics] = useState(null);
 
   useEffect(() => {
     async function loadReportsData() {
       try {
-        const [sRes, stRes] = await Promise.all([
-          api.getSchools(),
-          api.getStudents()
+        const [sRes, stRes, cRes, mRes] = await Promise.all([
+          api.getSchools().catch(() => []),
+          api.getStudents().catch(() => []),
+          api.getClusters().catch(() => []),
+          api.getMetrics().catch(() => null)
         ]);
         if (Array.isArray(sRes)) setLiveSchools(sRes);
         if (Array.isArray(stRes)) setLiveStudents(stRes);
+        if (Array.isArray(cRes)) setLiveClusters(cRes);
+        if (mRes) setLiveMetrics(mRes);
       } catch (err) {
         console.warn('Reports live data fetch:', err);
       }
@@ -402,15 +77,164 @@ export default function ReportsAnalyticsView() {
     return () => clearInterval(timer);
   }, []);
 
-  // Compute master schools data dynamically from real backend
+  // Available Academic Years extracted from real students
+  const availableYears = useMemo(() => {
+    const yrSet = new Set();
+    liveStudents.forEach(st => {
+      if (st.academic_year) {
+        const y = String(st.academic_year).split('-')[0].trim();
+        if (y) yrSet.add(y);
+      }
+      if (st.created_at) {
+        const y = String(new Date(st.created_at).getFullYear());
+        if (y && !isNaN(y)) yrSet.add(y);
+      }
+    });
+    if (yrSet.size === 0) yrSet.add('2026');
+    return Array.from(yrSet).sort((a, b) => b.localeCompare(a));
+  }, [liveStudents]);
+
+  // Cluster Options from real backend
+  const clusterOptions = useMemo(() => {
+    const set = new Set();
+    liveClusters.forEach(c => { if (c.name) set.add(c.name); });
+    liveSchools.forEach(s => { if (s.cluster_name) set.add(s.cluster_name); });
+    liveStudents.forEach(st => { if (st.cluster_name) set.add(st.cluster_name); });
+    return Array.from(set).filter(Boolean).sort();
+  }, [liveClusters, liveSchools, liveStudents]);
+
+  // School Options from real backend, filtered by selectedCluster if chosen
+  const schoolOptions = useMemo(() => {
+    const relevant = liveSchools.filter(s => 
+      selectedCluster === 'ALL' || String(s.cluster_name || '').toLowerCase() === selectedCluster.toLowerCase()
+    );
+    const names = new Set(relevant.map(s => s.name).filter(Boolean));
+    if (names.size === 0) {
+      liveStudents.forEach(st => {
+        if (st.school_name && (selectedCluster === 'ALL' || String(st.cluster_name || '').toLowerCase() === selectedCluster.toLowerCase())) {
+          names.add(st.school_name);
+        }
+      });
+    }
+    return Array.from(names).sort();
+  }, [liveSchools, liveStudents, selectedCluster]);
+
+  // Dynamic Class & Section options for reports filter
+  const reportClassOptions = useMemo(() => {
+    const classSet = new Set();
+    liveStudents.forEach(st => {
+      if (st.class_name) {
+        const clean = String(st.class_name).replace(/class\s*/i, '').trim();
+        if (clean) classSet.add(clean);
+      }
+    });
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'Anganwadi', 'Balwadi'].forEach(c => classSet.add(c));
+    const sorted = Array.from(classSet).sort((a, b) => {
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      if (!isNaN(numA)) return -1;
+      if (!isNaN(numB)) return 1;
+      return a.localeCompare(b);
+    });
+    return sorted.map(c => ({
+      value: c,
+      label: /^\d+$/.test(c) ? `Class ${c}` : c
+    }));
+  }, [liveStudents]);
+
+  const reportSectionOptions = useMemo(() => {
+    const secSet = new Set();
+    liveStudents.forEach(st => {
+      if (st.section) {
+        const clean = String(st.section).replace(/section\s*/i, '').trim();
+        if (clean) secSet.add(clean);
+      }
+    });
+    ['A', 'B', 'C', 'D', 'None'].forEach(s => secSet.add(s));
+    const sorted = Array.from(secSet).sort((a, b) => {
+      if (a === 'None') return 1;
+      if (b === 'None') return -1;
+      return a.localeCompare(b);
+    });
+    return sorted.map(s => ({
+      value: s,
+      label: s === 'None' ? 'No Section (Single Group)' : `Section ${s}`
+    }));
+  }, [liveStudents]);
+
+  // Filtered students according to all active filter dropdowns
+  const filteredStudents = useMemo(() => {
+    return liveStudents.filter(st => {
+      // Year filter
+      if (selectedYear !== 'ALL') {
+        const yr = String(st.academic_year || '').trim();
+        const createdYr = st.created_at ? String(new Date(st.created_at).getFullYear()) : '';
+        if (!yr.includes(selectedYear) && createdYr !== selectedYear) return false;
+      }
+      // Cluster filter
+      if (selectedCluster !== 'ALL') {
+        if (String(st.cluster_name || '').toLowerCase() !== selectedCluster.toLowerCase()) return false;
+      }
+      // School filter
+      if (selectedSchool !== 'ALL') {
+        if (
+          String(st.school_name || '').toLowerCase() !== selectedSchool.toLowerCase() &&
+          String(st.school_id || '').toLowerCase() !== selectedSchool.toLowerCase()
+        ) return false;
+      }
+      // Gender filter
+      if (selectedGender !== 'ALL') {
+        if (String(st.gender || '').toLowerCase() !== selectedGender.toLowerCase()) return false;
+      }
+      // Class filter
+      if (selectedClass !== 'ALL') {
+        const cls = String(st.class_name || '').replace(/class\s*/i, '').trim();
+        if (cls !== selectedClass) return false;
+      }
+      // Section filter
+      if (selectedSection !== 'ALL') {
+        const sec = String(st.section || '').replace(/section\s*/i, '').trim();
+        if (selectedSection === 'None') {
+          if (sec && sec !== 'None') return false;
+        } else {
+          if (sec !== selectedSection) return false;
+        }
+      }
+      // Health Category filter
+      if (selectedHealthCategory !== 'ALL') {
+        const nut = String(st.nutrition_status || '').toLowerCase();
+        const cat = selectedHealthCategory.toLowerCase();
+        if (cat === 'normal' && !nut.includes('normal')) return false;
+        if (cat === 'severely wasted' && !nut.includes('severe')) return false;
+        if (cat === 'wasted' && (!nut.includes('wasted') && !nut.includes('thinness') || nut.includes('severe'))) return false;
+        if (cat === 'overweight' && !nut.includes('overweight')) return false;
+        if (cat === 'obesity' && (!nut.includes('obese') && !nut.includes('obesity'))) return false;
+      }
+      return true;
+    });
+  }, [liveStudents, selectedYear, selectedCluster, selectedSchool, selectedGender, selectedClass, selectedSection, selectedHealthCategory]);
+
+  // Compute schools data dynamically from real backend
   const activeSchoolsData = useMemo(() => {
-    if (liveSchools.length === 0) return MASTER_SCHOOLS_DATA;
+    let baseSchools = liveSchools;
+    if (baseSchools.length === 0) {
+      const distinctNames = Array.from(new Set(liveStudents.map(s => s.school_name).filter(Boolean)));
+      baseSchools = distinctNames.map(name => ({ id: name, name, cluster_name: 'Central District' }));
+    }
 
-    const COLORS = ['#0D9488', '#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EC4899', '#6366F1'];
+    const filtered = baseSchools.filter(s => {
+      const matchCluster = selectedCluster === 'ALL' || String(s.cluster_name || '').toLowerCase() === selectedCluster.toLowerCase();
+      const matchSchool = selectedSchool === 'ALL' || String(s.name || '').toLowerCase() === selectedSchool.toLowerCase();
+      return matchCluster && matchSchool;
+    });
 
-    return liveSchools.map((s, idx) => {
-      const schoolStudents = liveStudents.filter(st => st.school_id === s.id || st.school_name === s.name);
-      const total = schoolStudents.length || s.students_count || 0;
+    return filtered.map((s, idx) => {
+      const schoolStudents = filteredStudents.filter(st => 
+        String(st.school_id || '').toLowerCase() === String(s.id || '').toLowerCase() || 
+        String(st.school_name || '').toLowerCase() === String(s.name || '').toLowerCase()
+      );
+      const total = schoolStudents.length;
       const male = schoolStudents.filter(st => st.gender?.toLowerCase() === 'male').length;
       const female = schoolStudents.filter(st => st.gender?.toLowerCase() === 'female').length;
       const assessed = schoolStudents.filter(st => (st.assessments && st.assessments.length > 0) || st.latest_assessment_date).length;
@@ -418,23 +242,10 @@ export default function ReportsAnalyticsView() {
 
       // Nutrition breakdown
       const norm = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('normal')).length;
-      const wasted = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('wasted') || st.nutrition_status?.toLowerCase().includes('thinness')).length;
       const sevWasted = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('severe')).length;
+      const wasted = schoolStudents.filter(st => (st.nutrition_status?.toLowerCase().includes('wasted') || st.nutrition_status?.toLowerCase().includes('thinness')) && !st.nutrition_status?.toLowerCase().includes('severe')).length;
       const overwt = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('overweight')).length;
       const obesity = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('obese') || st.nutrition_status?.toLowerCase().includes('obesity')).length;
-
-      // Group by grades
-      const classes = {};
-      schoolStudents.forEach(st => {
-        const cls = st.class_name ? (st.class_name.startsWith('Grade') ? st.class_name : `Grade ${String(st.class_name).replace(/class\s*/i, '').trim()}`) : 'Grade 1';
-        if (!classes[cls]) {
-          classes[cls] = { total: 0, male: 0, female: 0, assessed: 0 };
-        }
-        classes[cls].total += 1;
-        if (st.gender?.toLowerCase() === 'male') classes[cls].male += 1;
-        if (st.gender?.toLowerCase() === 'female') classes[cls].female += 1;
-        if ((st.assessments && st.assessments.length > 0) || st.latest_assessment_date) classes[cls].assessed += 1;
-      });
 
       return {
         id: s.id,
@@ -442,49 +253,252 @@ export default function ReportsAnalyticsView() {
         cluster: s.cluster_name || 'Central District',
         totalStudents: total,
         sampleCount: total,
-        male: male,
-        female: female,
-        assessed: assessed,
-        pending: pending,
-        color: COLORS[idx % COLORS.length],
-        classes: Object.keys(classes).length > 0 ? classes : {
-          'Grade 1': { total, male, female, assessed }
-        },
+        male,
+        female,
+        assessed,
+        pending,
+        color: PALETTE_COLORS[idx % PALETTE_COLORS.length],
         nutrition: {
           normal: norm,
-          wasted: wasted,
+          wasted,
           severelyWasted: sevWasted,
           overweight: overwt,
-          obesity: obesity
+          obesity
         }
       };
     });
-  }, [liveSchools, liveStudents]);
+  }, [liveSchools, liveStudents, filteredStudents, selectedCluster, selectedSchool]);
 
-  // Filtered dataset
-  const filteredSchools = useMemo(() => {
-    return activeSchoolsData.filter((s) => {
-      const matchCluster = selectedCluster === 'ALL' || s.cluster === selectedCluster;
-      const matchSchool = selectedSchool === 'ALL' || s.name === selectedSchool;
-      return matchCluster && matchSchool;
+  // Aggregated dynamic metrics directly from filtered students
+  const totalStudents = filteredStudents.length;
+  const totalMale = useMemo(() => filteredStudents.filter(s => s.gender?.toLowerCase() === 'male').length, [filteredStudents]);
+  const totalFemale = useMemo(() => filteredStudents.filter(s => s.gender?.toLowerCase() === 'female').length, [filteredStudents]);
+  const malePercent = totalStudents > 0 ? ((totalMale / totalStudents) * 100).toFixed(1) : '0.0';
+  const femalePercent = totalStudents > 0 ? ((totalFemale / totalStudents) * 100).toFixed(1) : '0.0';
+
+  const totalSchoolsCount = activeSchoolsData.length;
+  const totalClustersCount = useMemo(() => {
+    if (selectedCluster !== 'ALL') return 1;
+    if (liveClusters.length > 0) return liveClusters.length;
+    return new Set(activeSchoolsData.map(s => s.cluster)).size || 1;
+  }, [selectedCluster, liveClusters, activeSchoolsData]);
+
+  const totalAssessmentsCount = useMemo(() => {
+    if (selectedYear === 'ALL' && selectedCluster === 'ALL' && selectedSchool === 'ALL' && selectedGender === 'ALL' && selectedClass === 'ALL' && selectedSection === 'ALL' && selectedHealthCategory === 'ALL' && liveMetrics?.total_assessments) {
+      return liveMetrics.total_assessments;
+    }
+    return filteredStudents.reduce((acc, st) => {
+      const count = Array.isArray(st.assessments) ? st.assessments.length : (st.latest_assessment_date ? 1 : 0);
+      return acc + count;
+    }, 0);
+  }, [filteredStudents, liveMetrics, selectedYear, selectedCluster, selectedSchool, selectedGender, selectedClass, selectedSection, selectedHealthCategory]);
+
+  // Health Category Statistics from real data
+  const healthStats = useMemo(() => {
+    let normal = 0;
+    let wasted = 0;
+    let severelyWasted = 0;
+    let overweight = 0;
+    let obesity = 0;
+
+    filteredStudents.forEach(st => {
+      const nut = String(st.nutrition_status || '').toLowerCase();
+      if (nut.includes('normal')) {
+        normal += 1;
+      } else if (nut.includes('severe')) {
+        severelyWasted += 1;
+      } else if (nut.includes('wasted') || nut.includes('thinness')) {
+        wasted += 1;
+      } else if (nut.includes('overweight')) {
+        overweight += 1;
+      } else if (nut.includes('obese') || nut.includes('obesity')) {
+        obesity += 1;
+      } else {
+        normal += 1;
+      }
     });
-  }, [activeSchoolsData, selectedCluster, selectedSchool]);
 
-  // Aggregated dynamic metrics directly from real data
-  const totalStudents = useMemo(() => {
-    return filteredSchools.reduce((acc, s) => acc + s.sampleCount, 0);
-  }, [filteredSchools]);
+    const total = filteredStudents.length;
+    const calcPct = (cnt) => total > 0 ? `${((cnt / total) * 100).toFixed(1)}%` : '0.0%';
 
-  const totalMale = useMemo(() => {
-    return filteredSchools.reduce((acc, s) => acc + s.male, 0);
-  }, [filteredSchools]);
+    return {
+      total,
+      normal: { count: normal, pct: calcPct(normal), color: '#22C55E' },
+      wasted: { count: wasted, pct: calcPct(wasted), color: '#F59E0B' },
+      severelyWasted: { count: severelyWasted, pct: calcPct(severelyWasted), color: '#F97316' },
+      overweight: { count: overweight, pct: calcPct(overweight), color: '#EF4444' },
+      obesity: { count: obesity, pct: calcPct(obesity), color: '#991B1B' }
+    };
+  }, [filteredStudents]);
 
-  const totalFemale = useMemo(() => {
-    return filteredSchools.reduce((acc, s) => acc + s.female, 0);
-  }, [filteredSchools]);
+  // Donut Segments for Overview Health Donut (r=54, C=339)
+  const healthSegments = useMemo(() => {
+    const total = healthStats.total;
+    const C = 339;
+    if (total === 0) return [];
 
-  const malePercent = totalStudents > 0 ? ((totalMale / totalStudents) * 100).toFixed(1) : '50.0';
-  const femalePercent = totalStudents > 0 ? ((totalFemale / totalStudents) * 100).toFixed(1) : '50.0';
+    const items = [
+      { key: 'normal', ...healthStats.normal },
+      { key: 'wasted', ...healthStats.wasted },
+      { key: 'severelyWasted', ...healthStats.severelyWasted },
+      { key: 'overweight', ...healthStats.overweight },
+      { key: 'obesity', ...healthStats.obesity },
+    ];
+
+    let cumulativeOffset = 0;
+    return items.map((item) => {
+      const dashLength = (item.count / total) * C;
+      const offset = -cumulativeOffset;
+      cumulativeOffset += dashLength;
+      return {
+        ...item,
+        dashArray: `${dashLength.toFixed(1)} ${C}`,
+        dashOffset: offset.toFixed(1),
+        visible: item.count > 0
+      };
+    });
+  }, [healthStats]);
+
+  // Donut Segments for Detail Health Donut (r=72, C=452)
+  const healthSegmentsDetail = useMemo(() => {
+    const total = healthStats.total;
+    const C = 452;
+    if (total === 0) return [];
+
+    const items = [
+      { key: 'normal', ...healthStats.normal },
+      { key: 'wasted', ...healthStats.wasted },
+      { key: 'severelyWasted', ...healthStats.severelyWasted },
+      { key: 'overweight', ...healthStats.overweight },
+      { key: 'obesity', ...healthStats.obesity },
+    ];
+
+    let cumulativeOffset = 0;
+    return items.map((item) => {
+      const dashLength = (item.count / total) * C;
+      const offset = -cumulativeOffset;
+      cumulativeOffset += dashLength;
+      return {
+        ...item,
+        dashArray: `${dashLength.toFixed(1)} ${C}`,
+        dashOffset: offset.toFixed(1),
+        visible: item.count > 0
+      };
+    });
+  }, [healthStats]);
+
+  // Real Academic Year Trends computed dynamically from students
+  const realYearTrends = useMemo(() => {
+    const yearMap = new Map();
+    liveStudents.forEach(st => {
+      let yr = '2026';
+      if (st.academic_year) {
+        yr = String(st.academic_year).split('-')[0].trim();
+      } else if (st.created_at) {
+        yr = String(new Date(st.created_at).getFullYear());
+      }
+      if (!yearMap.has(yr)) {
+        yearMap.set(yr, { year: yr, students: 0, male: 0, female: 0, assessed: 0 });
+      }
+      const entry = yearMap.get(yr);
+      entry.students += 1;
+      if (st.gender?.toLowerCase() === 'male') entry.male += 1;
+      if (st.gender?.toLowerCase() === 'female') entry.female += 1;
+      if ((st.assessments && st.assessments.length > 0) || st.latest_assessment_date) entry.assessed += 1;
+    });
+
+    if (yearMap.size === 0) {
+      yearMap.set('2026', { year: '2026', students: 0, male: 0, female: 0, assessed: 0 });
+    }
+
+    const list = Array.from(yearMap.values()).sort((a, b) => String(a.year).localeCompare(String(b.year)));
+    return list.map(item => ({
+      ...item,
+      coverage: item.students > 0 ? `${((item.assessed / item.students) * 100).toFixed(1)}%` : '0%'
+    }));
+  }, [liveStudents]);
+
+  // Cluster-wise Health Statistics Table computed dynamically
+  const clusterHealthStats = useMemo(() => {
+    const map = new Map();
+    const clusterNames = new Set();
+    liveClusters.forEach(c => { if (c.name) clusterNames.add(c.name); });
+    liveSchools.forEach(s => { if (s.cluster_name) clusterNames.add(s.cluster_name); });
+    filteredStudents.forEach(st => { if (st.cluster_name) clusterNames.add(st.cluster_name); });
+
+    clusterNames.forEach(cName => {
+      if (selectedCluster === 'ALL' || selectedCluster.toLowerCase() === cName.toLowerCase()) {
+        map.set(cName, {
+          cluster: cName,
+          normal: 0,
+          wasted: 0,
+          severelyWasted: 0,
+          overweight: 0,
+          obesity: 0,
+          total: 0
+        });
+      }
+    });
+
+    filteredStudents.forEach(st => {
+      const cName = st.cluster_name || 'Central District';
+      if (!map.has(cName)) {
+        if (selectedCluster === 'ALL' || selectedCluster.toLowerCase() === cName.toLowerCase()) {
+          map.set(cName, {
+            cluster: cName,
+            normal: 0,
+            wasted: 0,
+            severelyWasted: 0,
+            overweight: 0,
+            obesity: 0,
+            total: 0
+          });
+        }
+      }
+      const entry = map.get(cName);
+      if (entry) {
+        entry.total += 1;
+        const nut = String(st.nutrition_status || '').toLowerCase();
+        if (nut.includes('normal')) entry.normal += 1;
+        else if (nut.includes('severe')) entry.severelyWasted += 1;
+        else if (nut.includes('wasted') || nut.includes('thinness')) entry.wasted += 1;
+        else if (nut.includes('overweight')) entry.overweight += 1;
+        else if (nut.includes('obese') || nut.includes('obesity')) entry.obesity += 1;
+        else entry.normal += 1;
+      }
+    });
+
+    return Array.from(map.values()).map(row => {
+      const tot = row.total || 1;
+      return {
+        cluster: row.cluster,
+        normal: `${row.normal} (${((row.normal / tot) * 100).toFixed(1)}%)`,
+        wasted: `${row.wasted} (${((row.wasted / tot) * 100).toFixed(1)}%)`,
+        severelyWasted: `${row.severelyWasted} (${((row.severelyWasted / tot) * 100).toFixed(1)}%)`,
+        overweight: `${row.overweight} (${((row.overweight / tot) * 100).toFixed(1)}%)`,
+        obesity: `${row.obesity} (${((row.obesity / tot) * 100).toFixed(1)}%)`,
+        total: row.total
+      };
+    });
+  }, [liveClusters, liveSchools, filteredStudents, selectedCluster]);
+
+  // Detailed School Reports computed dynamically from active schools
+  const detailedSchoolReports = useMemo(() => {
+    return activeSchoolsData.map((s, index) => ({
+      no: index + 1,
+      school: s.name,
+      total: s.totalStudents,
+      male: s.male,
+      female: s.female,
+      assessed: s.assessed,
+      pending: s.pending,
+      normal: s.nutrition.normal,
+      wasted: s.nutrition.wasted,
+      severelyWasted: s.nutrition.severelyWasted,
+      overweight: s.nutrition.overweight,
+      obesity: s.nutrition.obesity
+    }));
+  }, [activeSchoolsData]);
 
   // Download Handlers
   const handleDownloadExcel = () => {
@@ -696,12 +710,9 @@ export default function ReportsAnalyticsView() {
                   }}
                 >
                   <option value="ALL">All Clusters</option>
-                  <option value="Cluster A">Cluster A</option>
-                  <option value="Cluster B">Cluster B</option>
-                  <option value="Cluster C">Cluster C</option>
-                  <option value="Cluster D">Cluster D</option>
-                  <option value="Cluster E">Cluster E</option>
-                  <option value="Cluster F">Cluster F</option>
+                  {Array.from(new Set(activeSchoolsData.map(s => s.cluster).filter(Boolean))).map((cl) => (
+                    <option key={cl} value={cl}>{cl}</option>
+                  ))}
                 </select>
               </div>
 
@@ -725,11 +736,9 @@ export default function ReportsAnalyticsView() {
                   }}
                 >
                   <option value="ALL">All Schools</option>
-                  <option value="Greenwood Public School">Greenwood Public School</option>
-                  <option value="Oakridge Academy">Oakridge Academy</option>
-                  <option value="St. Jude High School">St. Jude High School</option>
-                  <option value="Riverside International">Riverside International</option>
-                  <option value="Sunrise Global School">Sunrise Global School</option>
+                  {activeSchoolsData.map((s) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -763,27 +772,33 @@ export default function ReportsAnalyticsView() {
                 <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
                   Class
                 </label>
-                <select
+                <SearchableDropdown
                   value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '7px 10px',
-                    borderRadius: '8px',
-                    border: '1px solid #E2E8F0',
-                    fontSize: '12.5px',
-                    backgroundColor: '#FFFFFF',
-                    outline: 'none',
-                    color: '#0F172A'
-                  }}
-                >
-                  <option value="ALL">All Classes</option>
-                  <option value="Grade 1">Grade 1</option>
-                  <option value="Grade 2">Grade 2</option>
-                  <option value="Grade 3">Grade 3</option>
-                  <option value="Grade 4">Grade 4</option>
-                  <option value="Grade 5">Grade 5</option>
-                </select>
+                  onChange={(val) => setSelectedClass(val)}
+                  options={reportClassOptions}
+                  allOptionLabel="All Classes"
+                  placeholder="All Classes"
+                  searchPlaceholder="Search class or group..."
+                  icon={Layers}
+                  minWidth="100%"
+                />
+              </div>
+
+              {/* Section */}
+              <div>
+                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#475569', marginBottom: '4px', display: 'block' }}>
+                  Section
+                </label>
+                <SearchableDropdown
+                  value={selectedSection}
+                  onChange={(val) => setSelectedSection(val)}
+                  options={reportSectionOptions}
+                  allOptionLabel="All Sections"
+                  placeholder="All Sections"
+                  searchPlaceholder="Search section or batch..."
+                  icon={Users}
+                  minWidth="100%"
+                />
               </div>
 
               {/* Health Category */}
@@ -1193,16 +1208,12 @@ export default function ReportsAnalyticsView() {
 
               {/* Horizontal Bars */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
-                {[
-                  { name: 'Greenwood Public School', count: 486 },
-                  { name: 'Oakridge Academy', count: 324 },
-                  { name: 'St. Jude High School', count: 214 },
-                  { name: 'Riverside International', count: 198 },
-                  { name: 'Sunrise Global School', count: 176 }
-                ].map((item) => {
-                  const widthPercent = (item.count / 600) * 100;
+                {activeSchoolsData.slice(0, 5).map((item) => {
+                  const maxCount = Math.max(...activeSchoolsData.map(s => s.totalStudents || 0), 1);
+                  const count = item.totalStudents || item.sampleCount || 0;
+                  const widthPercent = (count / maxCount) * 100;
                   return (
-                    <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div key={item.id || item.name} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span
                         style={{
                           width: '145px',
@@ -1231,14 +1242,14 @@ export default function ReportsAnalyticsView() {
                           style={{
                             width: `${widthPercent}%`,
                             height: '100%',
-                            backgroundColor: '#F97316',
+                            backgroundColor: item.color || '#F97316',
                             borderRadius: '4px',
                             transition: 'width 0.4s ease'
                           }}
                         />
                       </div>
-                      <span style={{ width: '32px', fontSize: '11.5px', fontWeight: 700, color: '#0F172A' }}>
-                        {item.count}
+                      <span style={{ width: '32px', fontSize: '11.5px', fontWeight: 700, color: '#0F172A', textAlign: 'right' }}>
+                        {count}
                       </span>
                     </div>
                   );
@@ -1720,9 +1731,9 @@ export default function ReportsAnalyticsView() {
                   }}
                 >
                   <option value="ALL">All Schools</option>
-                  <option value="Greenwood Public School">Greenwood Public School</option>
-                  <option value="Oakridge Academy">Oakridge Academy</option>
-                  <option value="St. Jude High School">St. Jude High School</option>
+                  {activeSchoolsData.map((s) => (
+                    <option key={s.id} value={s.name}>{s.name}</option>
+                  ))}
                 </select>
               </div>
 
@@ -2898,23 +2909,19 @@ export default function ReportsAnalyticsView() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '6px' }}>
-              {[
-                { name: 'Greenwood Public School', count: 938, color: '#0D9488' },
-                { name: 'Oakridge Academy', count: 622, color: '#3B82F6' },
-                { name: 'St. Jude High School', count: 420, color: '#8B5CF6' },
-                { name: 'Riverside International', count: 374, color: '#F97316' },
-                { name: 'Sunrise Global School', count: 132, color: '#F43F5E' }
-              ].map((item) => {
-                const widthPercent = (item.count / 1000) * 100;
+              {activeSchoolsData.map((item) => {
+                const maxStudentCount = Math.max(...activeSchoolsData.map(s => s.totalStudents || 0), 1);
+                const count = item.totalStudents || item.sampleCount || 0;
+                const widthPercent = (count / maxStudentCount) * 100;
                 return (
-                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div key={item.id || item.name} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span style={{ width: '160px', fontSize: '12px', fontWeight: 500, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.name}
                     </span>
                     <div style={{ flex: 1, height: '18px', backgroundColor: '#F1F5F9', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ width: `${widthPercent}%`, height: '100%', backgroundColor: item.color, borderRadius: '6px', transition: 'width 0.4s ease' }} />
+                      <div style={{ width: `${widthPercent}%`, height: '100%', backgroundColor: item.color || '#0D9488', borderRadius: '6px', transition: 'width 0.4s ease' }} />
                     </div>
-                    <span style={{ width: '40px', fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>{item.count}</span>
+                    <span style={{ width: '40px', fontSize: '12px', fontWeight: 700, color: '#0F172A', textAlign: 'right' }}>{count}</span>
                   </div>
                 );
               })}
