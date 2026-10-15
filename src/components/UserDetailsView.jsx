@@ -990,25 +990,6 @@ export default function UserDetailsView({
                 onToggle={viewOnly ? undefined : () => handleToggleModule('history')}
               />
 
-              <ModuleToggleRow
-                icon={PieChart}
-                iconColor="#64748B"
-                title="Reports"
-                description="Access reports and analytics"
-                enabled={moduleAccess.reports}
-                readOnly={viewOnly}
-                onToggle={viewOnly ? undefined : () => handleToggleModule('reports')}
-              />
-
-              <ModuleToggleRow
-                icon={Bell}
-                iconColor="#EA580C"
-                title="Notifications"
-                description="Manage and send notifications"
-                enabled={moduleAccess.notifications}
-                readOnly={viewOnly}
-                onToggle={viewOnly ? undefined : () => handleToggleModule('notifications')}
-              />
             </div>
           </div>
         </div>

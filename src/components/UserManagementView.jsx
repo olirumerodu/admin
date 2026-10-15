@@ -369,8 +369,6 @@ export default function UserManagementView() {
         'Student Assessment',
         'Monthly Tracking',
         'Health History',
-        'Reports',
-        'Notifications',
       ];
       const created = await api.createUser({
         name: newUser.name.trim(),
