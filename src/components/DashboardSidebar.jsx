@@ -18,11 +18,10 @@ export default function DashboardSidebar({ activeTab, onTabSelect, mobileOpen, o
 
   const navItems = [
     { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
-    { id: 'schools', label: 'Schools Management', icon: School },
     { id: 'students', label: 'Students Directory', icon: Users },
     { id: 'assessments', label: 'Health Assessments', icon: HeartPulse },
     { id: 'staff', label: 'Staff & Access', icon: UserCheck },
-    { id: 'reports', label: 'Analytics & Reports', icon: BarChart3 },
+    // { id: 'reports', label: 'Analytics & Reports', icon: BarChart3 },
   ];
 
   return (

@@ -33,7 +33,8 @@ import {
   GraduationCap,
   ArrowRightLeft,
   Layers,
-  Trash2
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { api } from '../services/api';
 import SearchableDropdown from './SearchableDropdown';
@@ -42,6 +43,8 @@ import SchoolGrowthChartModal from './SchoolGrowthChartModal';
 import AcademicPromotionModal from './AcademicPromotionModal';
 import StudentTransferModal from './StudentTransferModal';
 import StudentTcCertificateModal from './StudentTcCertificateModal';
+import EditClusterModal from './EditClusterModal';
+import EditSchoolModal from './EditSchoolModal';
 
 // Authoritative WHO Nutrition Status Styling Helpers
 export const getNutritionStatusColor = (status) => {
@@ -187,9 +190,11 @@ export default function StudentsManagementView() {
   // Growth Trend Chart metric toggle: 'Weight' | 'Height' | 'BMI'
   const [trendMetric, setTrendMetric] = useState('Weight');
 
-  // Deletion Modals State
+  // Deletion & Editing Modals State
   const [clusterToDelete, setClusterToDelete] = useState(null);
   const [schoolToDelete, setSchoolToDelete] = useState(null);
+  const [clusterToEdit, setClusterToEdit] = useState(null);
+  const [schoolToEdit, setSchoolToEdit] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
@@ -1091,6 +1096,36 @@ export default function StudentsManagementView() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
+                          setClusterToEdit(cluster);
+                        }}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          border: '1px solid #FED7AA',
+                          backgroundColor: '#FFF7ED',
+                          color: '#EA580C',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title={`Edit Cluster ${cluster.name}`}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#FFEDD5';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#FFF7ED';
+                        }}
+                      >
+                        <Edit2 size={15} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setClusterToDelete(cluster);
                         }}
                         style={{
@@ -1169,30 +1204,57 @@ export default function StudentsManagementView() {
                 Schools and student distribution ({activeCluster.schoolsCount} schools, {activeCluster.studentsCount} students)
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setClusterToDelete(activeCluster)}
-              style={{
-                backgroundColor: '#FFF5F5',
-                color: '#DC2626',
-                border: '1px solid #FEE2E2',
-                borderRadius: '8px',
-                padding: '8px 14px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                transition: 'all 0.15s ease'
-              }}
-              title={`Delete Cluster ${activeCluster.name}`}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF5F5'}
-            >
-              <Trash2 size={14} color="#DC2626" />
-              <span>Delete Cluster</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setClusterToEdit(activeCluster)}
+                style={{
+                  backgroundColor: '#FFF7ED',
+                  color: '#EA580C',
+                  border: '1px solid #FED7AA',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+                title={`Edit Cluster ${activeCluster.name}`}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FFEDD5'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF7ED'}
+              >
+                <Edit2 size={14} color="#EA580C" />
+                <span>Edit Cluster</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setClusterToDelete(activeCluster)}
+                style={{
+                  backgroundColor: '#FFF5F5',
+                  color: '#DC2626',
+                  border: '1px solid #FEE2E2',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+                title={`Delete Cluster ${activeCluster.name}`}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF5F5'}
+              >
+                <Trash2 size={14} color="#DC2626" />
+                <span>Delete Cluster</span>
+              </button>
+            </div>
           </div>
 
           {/* 2 Top Metric Cards */}
@@ -1448,6 +1510,38 @@ export default function StudentsManagementView() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              setSchoolToEdit(item);
+                            }}
+                            style={{
+                              backgroundColor: '#FFF7ED',
+                              color: '#EA580C',
+                              border: '1px solid #FED7AA',
+                              borderRadius: '6px',
+                              padding: '6px 11px',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s ease'
+                            }}
+                            title={`Edit School ${item.name}`}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#FFEDD5';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#FFF7ED';
+                            }}
+                          >
+                            <Edit2 size={13} color="#EA580C" />
+                            <span>Edit</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSchoolToDelete(item);
                             }}
                             style={{
@@ -1532,6 +1626,32 @@ export default function StudentsManagementView() {
               >
                 <FileText size={16} color="#38BDF8" />
                 <span>School Growth Report (PDF)</span>
+              </button>
+
+              {/* Edit School Button */}
+              <button
+                type="button"
+                onClick={() => setSchoolToEdit(activeSchool)}
+                style={{
+                  backgroundColor: '#FFF7ED',
+                  color: '#EA580C',
+                  border: '1px solid #FED7AA',
+                  borderRadius: '10px',
+                  padding: '11px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title={`Edit School ${activeSchool.name}`}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FFEDD5'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF7ED'}
+              >
+                <Edit2 size={15} color="#EA580C" />
+                <span>Edit School</span>
               </button>
 
               {/* Delete School Button */}
@@ -3575,6 +3695,30 @@ export default function StudentsManagementView() {
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* Edit Cluster Modal */}
+      <EditClusterModal
+        isOpen={Boolean(clusterToEdit)}
+        onClose={() => setClusterToEdit(null)}
+        cluster={clusterToEdit}
+        onSuccess={async (updatedCluster) => {
+          showToast(`Cluster "${updatedCluster.name}" updated successfully!`);
+          setClusterToEdit(null);
+          await loadLiveStudentsData();
+        }}
+      />
+
+      {/* Edit School Modal */}
+      <EditSchoolModal
+        isOpen={Boolean(schoolToEdit)}
+        onClose={() => setSchoolToEdit(null)}
+        school={schoolToEdit}
+        onSuccess={async (updatedSchool) => {
+          showToast(`School "${updatedSchool.name}" updated successfully!`);
+          setSchoolToEdit(null);
+          await loadLiveStudentsData();
+        }}
+      />
     </div>
   );
 }

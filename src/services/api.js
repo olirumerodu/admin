@@ -106,6 +106,22 @@ export const api = {
   },
 
   /**
+   * Update Cluster
+   */
+  async updateCluster(clusterId, clusterData) {
+    const res = await fetch(`${API_BASE}/clusters/${encodeURIComponent(clusterId)}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(clusterData),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to update cluster');
+    }
+    return await res.json();
+  },
+
+  /**
    * Fetch All Schools (optionally filtered by cluster)
    */
   async getSchools(clusterId = null) {

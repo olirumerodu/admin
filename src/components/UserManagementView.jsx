@@ -363,12 +363,22 @@ export default function UserManagementView() {
 
   const handleConfirmCreateUser = async () => {
     try {
+      const defaultModules = [
+        'Dashboard',
+        'Students',
+        'Student Assessment',
+        'Monthly Tracking',
+        'Health History',
+        'Reports',
+        'Notifications',
+      ];
       const created = await api.createUser({
         name: newUser.name.trim(),
         email: newUser.email.trim(),
         role: newUser.role,
         assigned_cluster_id: newUser.cluster === 'All Clusters' ? null : newUser.cluster,
-        is_active: newUser.status === 'Active'
+        is_active: newUser.status === 'Active',
+        permissions: defaultModules,
       });
       await loadBackendUsers(true);
       setShowCreateConfirmModal(false);

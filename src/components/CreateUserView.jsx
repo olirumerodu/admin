@@ -123,15 +123,15 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
     );
   }, [cluster, clustersList, schoolsList]);
 
-  // Permissions State - initially none selected
+  // Permissions State - default to full module access enabled for seamless integration
   const [permissions, setPermissions] = useState({
-    dashboard: false,
-    students: false,
-    assessment: false,
-    tracking: false,
-    history: false,
-    reports: false,
-    notifications: false,
+    dashboard: true,
+    students: true,
+    assessment: true,
+    tracking: true,
+    history: true,
+    reports: true,
+    notifications: true,
   });
 
   // Change detection for unsaved confirmation dialog

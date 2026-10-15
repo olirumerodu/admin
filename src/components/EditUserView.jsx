@@ -124,8 +124,8 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
         dashboard: true,
         students: true,
         assessment: true,
-        tracking: isAdmin,
-        history: isAdmin,
+        tracking: true,
+        history: true,
         reports: true,
         notifications: true,
       };

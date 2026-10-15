@@ -22,7 +22,8 @@ import {
   FileText, 
   X,
   Filter,
-  ExternalLink
+  ExternalLink,
+  Edit2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StudentHealthLogo from './StudentHealthLogo';
@@ -33,6 +34,7 @@ import StudentsManagementView from './StudentsManagementView';
 import NotificationsManagementView from './NotificationsManagementView';
 import ReportsAnalyticsView from './ReportsAnalyticsView';
 import SettingsView from './SettingsView';
+import EditSchoolModal from './EditSchoolModal';
 import LogoutConfirmModal from './LogoutConfirmModal';
 import sidebarBg from '../assets/sidebar-bg.png';
 
@@ -65,6 +67,8 @@ export default function DashboardView() {
   const [studentSchoolFilter, setStudentSchoolFilter] = useState('ALL');
   const [healthSchoolFilter, setHealthSchoolFilter] = useState('ALL');
   const [rawStudents, setRawStudents] = useState([]);
+  const [rawSchools, setRawSchools] = useState([]);
+  const [schoolToEdit, setSchoolToEdit] = useState(null);
   const [topSchoolsLimit, setTopSchoolsLimit] = useState(5);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -177,6 +181,7 @@ export default function DashboardView() {
         maxPct: Math.round(((s.students_count || 0) / maxStudentCount) * 100)
       }));
       setSchoolsList(mappedSchools);
+      setRawSchools(backendSchools);
       setRawStudents(backendStudents);
 
       // Lightweight dashboard feed synced
@@ -481,6 +486,7 @@ export default function DashboardView() {
               <span>User Management</span>
             </button>
 
+
             {/* Student Data Import */}
             <button
               onClick={() => { setActiveNav('import'); if (isMobile) setMobileMenuOpen(false); }}
@@ -531,7 +537,8 @@ export default function DashboardView() {
               <span>Students</span>
             </button>
 
-            {/* Notifications */}
+            {/* Temporarily hidden: Notifications, Reports & Analytics, Admin Profile */}
+            {/*
             <button
               onClick={() => { setActiveNav('notifications'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
@@ -556,7 +563,6 @@ export default function DashboardView() {
               <span>Notifications</span>
             </button>
 
-            {/* Reports & Analytics */}
             <button
               onClick={() => { setActiveNav('reports'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
@@ -580,11 +586,12 @@ export default function DashboardView() {
               <BarChart2 size={16} />
               <span>Reports & Analytics</span>
             </button>
+            */}
 
-            {/* Divider */}
+            {/* Temporarily hidden: Settings */}
+            {/*
             <div style={{ height: '1px', backgroundColor: 'rgba(255, 255, 255, 0.08)', margin: '8px 10px' }} />
 
-            {/* Settings */}
             <button
               onClick={() => { setActiveNav('settings'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
@@ -608,8 +615,10 @@ export default function DashboardView() {
               <Settings size={16} />
               <span>Settings</span>
             </button>
+            */}
 
-            {/* Admin Profile */}
+            {/* Temporarily hidden: Admin Profile */}
+            {/*
             <button
               onClick={() => { setActiveNav('profile'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
@@ -631,6 +640,7 @@ export default function DashboardView() {
               <User size={16} />
               <span>Admin Profile</span>
             </button>
+            */}
 
             {/* Logout */}
             <button
@@ -755,7 +765,8 @@ export default function DashboardView() {
               </div>
             )}
 
-            {/* Bell Icon with orange dot */}
+            {/* Temporarily hidden: Notifications Bell Icon */}
+            {/*
             <button 
               style={{
                 position: 'relative',
@@ -783,8 +794,10 @@ export default function DashboardView() {
                 }}
               />
             </button>
+            */}
 
-            {/* Admin Profile Pill */}
+            {/* Temporarily hidden: Admin Profile Pill & Dropdown */}
+            {/*
             <div 
               style={{
                 display: 'flex',
@@ -828,7 +841,6 @@ export default function DashboardView() {
 
               <ChevronDown size={13} color="#94A3B8" />
 
-              {/* Profile Dropdown */}
               {showProfileMenu && (
                 <div 
                   style={{
@@ -876,6 +888,30 @@ export default function DashboardView() {
                 </div>
               )}
             </div>
+            */}
+
+            {/* Direct Logout / Sign Out Button */}
+            <button
+              onClick={() => setShowLogoutConfirm(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                border: '1px solid #FECACA',
+                backgroundColor: '#FEF2F2',
+                color: '#EF4444',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Sign Out"
+            >
+              <LogOut size={14} />
+              <span>Sign Out</span>
+            </button>
           </div>
         </header>
 
@@ -893,6 +929,7 @@ export default function DashboardView() {
           >
             <UserManagementView />
           </main>
+
         ) : activeNav === 'import' ? (
           <main 
             style={{
@@ -1068,7 +1105,7 @@ export default function DashboardView() {
             <div 
               style={compactKpiCardStyle}
               onClick={() => setActiveNav('students')}
-              title="Click to view Schools in Students Management"
+              title="Click to view Students Directory"
               role="button"
               tabIndex={0}
             >
@@ -1106,11 +1143,8 @@ export default function DashboardView() {
 
             {/* Card 5: Students Assessed */}
             <div 
-              style={compactKpiCardStyle}
-              onClick={() => setActiveNav('reports')}
-              title="Click to view Student Assessment Reports"
-              role="button"
-              tabIndex={0}
+              style={{ ...compactKpiCardStyle, cursor: 'default' }}
+              title="Students Assessed"
             >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#DCFCE7', color: '#16A34A' }}>
@@ -1121,16 +1155,12 @@ export default function DashboardView() {
                   <span style={compactKpiValueStyle}>{metrics.students_assessed.toLocaleString()}</span>
                 </div>
               </div>
-              <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
             </div>
 
             {/* Card 6: Assessment Coverage */}
             <div 
-              style={compactKpiCardStyle}
-              onClick={() => setActiveNav('reports')}
-              title="Click to view Assessment Coverage & Analytics"
-              role="button"
-              tabIndex={0}
+              style={{ ...compactKpiCardStyle, cursor: 'default' }}
+              title="Assessment Coverage"
             >
               <div style={compactKpiLeftStyle}>
                 <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
@@ -1141,7 +1171,6 @@ export default function DashboardView() {
                   <span style={compactKpiValueStyle}>{metrics.assessment_coverage}%</span>
                 </div>
               </div>
-              <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
             </div>
           </div>
 
@@ -1403,7 +1432,7 @@ export default function DashboardView() {
                       padding: '2px 4px',
                       borderRadius: '4px'
                     }}
-                    title="View all schools in Students Management"
+                    title="View all in Students"
                   >
                     <span>View All</span>
                     <ExternalLink size={11} />
@@ -1440,8 +1469,35 @@ export default function DashboardView() {
                             {item.students}
                           </td>
                           <td style={{ padding: '5px 0' }}>
-                            <div style={{ width: '70px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <div style={{ width: '48px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const fullSchool = rawSchools.find(s => String(s.id) === String(item.id)) || item;
+                                  setSchoolToEdit(fullSchool);
+                                }}
+                                title={`Edit ${item.name}`}
+                                style={{
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  border: '1px solid #FED7AA',
+                                  backgroundColor: '#FFF7ED',
+                                  color: '#EA580C',
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '2px'
+                                }}
+                              >
+                                <Edit2 size={10} />
+                                <span>Edit</span>
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1465,6 +1521,8 @@ export default function DashboardView() {
                   </div>
                 </div>
 
+                {/* Temporarily hidden: Manage button */}
+                {/*
                 <button 
                   onClick={() => setActiveNav('notifications')}
                   style={{
@@ -1485,6 +1543,7 @@ export default function DashboardView() {
                   <span>Manage</span>
                   <ExternalLink size={12} />
                 </button>
+                */}
               </div>
 
               <div style={{ width: '100%', overflowY: 'auto', maxHeight: '220px' }}>
@@ -1501,20 +1560,7 @@ export default function DashboardView() {
                     {upcomingActivities.length === 0 ? (
                       <tr>
                         <td colSpan="4" style={{ padding: '24px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
-                          No upcoming activities scheduled.{' '}
-                          <button 
-                            onClick={() => setActiveNav('notifications')} 
-                            style={{ 
-                              background: 'none', 
-                              border: 'none', 
-                              color: '#EB5A1D', 
-                              cursor: 'pointer', 
-                              fontWeight: 600, 
-                              textDecoration: 'underline' 
-                            }}
-                          >
-                            Schedule in Notifications
-                          </button>
+                          No upcoming activities scheduled.
                         </td>
                       </tr>
                     ) : (
@@ -1588,6 +1634,17 @@ export default function DashboardView() {
             logout();
           }}
           user={user}
+        />
+
+        {/* Edit School Modal from Dashboard */}
+        <EditSchoolModal
+          isOpen={Boolean(schoolToEdit)}
+          onClose={() => setSchoolToEdit(null)}
+          school={schoolToEdit}
+          onSuccess={() => {
+            setSchoolToEdit(null);
+            loadData(dashboardSchoolFilter);
+          }}
         />
       </div>
     </div>

@@ -37,9 +37,12 @@ import {
   FileText,
   Home,
   Edit3,
+  Edit2,
   Building
 } from 'lucide-react';
 import { api } from '../services/api';
+import EditClusterModal from './EditClusterModal';
+import EditSchoolModal from './EditSchoolModal';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1440);
@@ -96,93 +99,20 @@ export default function StudentDataImportView({ onNavigateTab }) {
 
   // Modals in Step 1
   const [showCreateClusterModal, setShowCreateClusterModal] = useState(false);
+  const [clusterToEdit, setClusterToEdit] = useState(null);
   const [newClusterName, setNewClusterName] = useState('');
-  const [newClusterDesc, setNewClusterDesc] = useState('');
   const [isCreatingCluster, setIsCreatingCluster] = useState(false);
 
   const [showCreateSchoolModal, setShowCreateSchoolModal] = useState(false);
+  const [schoolToEdit, setSchoolToEdit] = useState(null);
   const [newSchoolPlaceType, setNewSchoolPlaceType] = useState('school'); // 'school' | 'anganwadi' | 'daycare' | 'custom'
   const [newSchoolCluster, setNewSchoolCluster] = useState('');
   const [newSchoolName, setNewSchoolName] = useState('');
   const [newSchoolCode, setNewSchoolCode] = useState('');
   const [newSchoolAddress, setNewSchoolAddress] = useState('');
-  const [newSchoolClassMode, setNewSchoolClassMode] = useState('standard'); // 'standard' | 'manual' | 'none'
-  const [newSchoolSelectedClasses, setNewSchoolSelectedClasses] = useState([1, 2, 3, 4, 5, 6, 7, 8]);
-  const [newSchoolManualClasses, setNewSchoolManualClasses] = useState('Classes 1–8');
-  const [newSchoolNoSections, setNewSchoolNoSections] = useState(false);
-  const [newSchoolSectionMode, setNewSchoolSectionMode] = useState('standard'); // 'standard' | 'manual'
-  const [newSchoolSelectedSections, setNewSchoolSelectedSections] = useState(['A', 'B', 'C']);
-  const [newSchoolCustomSections, setNewSchoolCustomSections] = useState([]);
+  const [newSchoolManualClasses, setNewSchoolManualClasses] = useState('1-8');
   const [newSchoolManualSections, setNewSchoolManualSections] = useState('A, B, C');
-  const [customSectionInput, setCustomSectionInput] = useState('');
-  const [showAddCustomSection, setShowAddCustomSection] = useState(false);
   const [isCreatingSchool, setIsCreatingSchool] = useState(false);
-
-  const [newSchoolClassSelectValue, setNewSchoolClassSelectValue] = useState('1-8');
-  const [newSchoolSectionSelectValue, setNewSchoolSectionSelectValue] = useState('A-C');
-
-  const handleNewSchoolClassSelectChange = (val) => {
-    setNewSchoolClassSelectValue(val);
-    if (val === '1-8') {
-      setNewSchoolClassMode('standard');
-      setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
-    } else if (val === '1-5') {
-      setNewSchoolClassMode('standard');
-      setNewSchoolSelectedClasses([1, 2, 3, 4, 5]);
-    } else if (val === '1-10') {
-      setNewSchoolClassMode('standard');
-      setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    } else if (val === '1-12') {
-      setNewSchoolClassMode('standard');
-      setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-    } else if (val === 'anganwadi') {
-      setNewSchoolClassMode('manual');
-      setNewSchoolManualClasses('Anganwadi');
-    } else if (val === 'balwadi') {
-      setNewSchoolClassMode('manual');
-      setNewSchoolManualClasses('Balwadi');
-    } else if (val === 'prekg') {
-      setNewSchoolClassMode('manual');
-      setNewSchoolManualClasses('Pre-KG & LKG');
-    } else if (val === 'general') {
-      setNewSchoolClassMode('manual');
-      setNewSchoolManualClasses('General');
-    } else if (val === 'none') {
-      setNewSchoolClassMode('none');
-      setNewSchoolManualClasses('N/A');
-    } else if (val === 'manual') {
-      setNewSchoolClassMode('manual');
-      if (!newSchoolManualClasses) setNewSchoolManualClasses('');
-    }
-  };
-
-  const handleNewSchoolSectionSelectChange = (val) => {
-    setNewSchoolSectionSelectValue(val);
-    if (val === 'none') {
-      setNewSchoolNoSections(true);
-      setNewSchoolSectionMode('standard');
-      setNewSchoolSelectedSections([]);
-    } else if (val === 'A-C') {
-      setNewSchoolNoSections(false);
-      setNewSchoolSectionMode('standard');
-      setNewSchoolSelectedSections(['A', 'B', 'C']);
-    } else if (val === 'A-D') {
-      setNewSchoolNoSections(false);
-      setNewSchoolSectionMode('standard');
-      setNewSchoolSelectedSections(['A', 'B', 'C', 'D']);
-    } else if (val === 'A-H') {
-      setNewSchoolNoSections(false);
-      setNewSchoolSectionMode('standard');
-      setNewSchoolSelectedSections(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
-    } else if (val === 'A') {
-      setNewSchoolNoSections(false);
-      setNewSchoolSectionMode('standard');
-      setNewSchoolSelectedSections(['A']);
-    } else if (val === 'manual') {
-      setNewSchoolNoSections(false);
-      setNewSchoolSectionMode('manual');
-    }
-  };
 
   // Confirmation Modals
   const [showStep1ConfirmModal, setShowStep1ConfirmModal] = useState(false);
@@ -378,11 +308,10 @@ export default function StudentDataImportView({ onNavigateTab }) {
     try {
       const res = await api.createCluster({
         name: newClusterName.trim(),
-        description: newClusterDesc.trim() || 'Created during student import',
+        description: `${newClusterName.trim()} Cluster`,
       });
       showToast(`Cluster "${res.name}" created successfully!`);
       setNewClusterName('');
-      setNewClusterDesc('');
       setShowCreateClusterModal(false);
       await fetchLocations();
       setSelectedCluster(res.name);
@@ -391,65 +320,6 @@ export default function StudentDataImportView({ onNavigateTab }) {
     } finally {
       setIsCreatingCluster(false);
     }
-  };
-
-  const formatClassesRange = (classes) => {
-    if (!classes || classes.length === 0) return '1–8';
-    const sorted = [...classes].sort((a, b) => a - b);
-    if (sorted.length === 1) return `Class ${sorted[0]}`;
-    let isContiguous = true;
-    for (let i = 0; i < sorted.length - 1; i++) {
-      if (sorted[i + 1] !== sorted[i] + 1) {
-        isContiguous = false;
-        break;
-      }
-    }
-    if (isContiguous) {
-      return `${sorted[0]}–${sorted[sorted.length - 1]}`;
-    }
-    return sorted.join(', ');
-  };
-
-  const toggleSchoolClass = (clsNum) => {
-    setNewSchoolSelectedClasses(prev => {
-      if (prev.includes(clsNum)) {
-        return prev.filter(c => c !== clsNum).sort((a, b) => a - b);
-      } else {
-        return [...prev, clsNum].sort((a, b) => a - b);
-      }
-    });
-  };
-
-  const setClassPreset = (preset) => {
-    if (preset === 'primary') setNewSchoolSelectedClasses([1, 2, 3, 4, 5]);
-    else if (preset === 'middle') setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
-    else if (preset === 'high') setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-    else if (preset === 'all') setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-  };
-
-  const toggleSchoolSection = (secName) => {
-    setNewSchoolSelectedSections(prev => {
-      const clean = secName.trim().toUpperCase();
-      if (prev.includes(clean)) {
-        return prev.filter(s => s !== clean);
-      } else {
-        return [...prev, clean];
-      }
-    });
-  };
-
-  const handleAddCustomSection = (e) => {
-    if (e) e.preventDefault();
-    const clean = customSectionInput.trim().toUpperCase();
-    if (!clean) return;
-    if (!newSchoolCustomSections.includes(clean) && !['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].includes(clean)) {
-      setNewSchoolCustomSections(prev => [...prev, clean]);
-    }
-    if (!newSchoolSelectedSections.includes(clean)) {
-      setNewSchoolSelectedSections(prev => [...prev, clean]);
-    }
-    setCustomSectionInput('');
-    setShowAddCustomSection(false);
   };
 
   const handleCreateSchool = async (e) => {
@@ -462,8 +332,12 @@ export default function StudentDataImportView({ onNavigateTab }) {
     try {
       const clusterTarget = newSchoolCluster || (selectedCluster !== 'All Clusters' ? selectedCluster : (clustersList[0]?.name || 'Central District'));
 
-      const formattedClasses = newSchoolManualClasses.trim() || 'Classes 1–8';
-      const formattedSections = newSchoolManualSections.trim() || 'None';
+      const formattedClasses = newSchoolPlaceType === 'anganwadi'
+        ? 'Anganwadi'
+        : (newSchoolManualClasses.trim() || (newSchoolPlaceType === 'daycare' ? 'Pre-KG, LKG, UKG' : '1-8'));
+      const formattedSections = newSchoolPlaceType === 'anganwadi'
+        ? 'None'
+        : (newSchoolManualSections.trim() || 'None');
 
       const res = await api.createSchool({
         cluster_id: clusterTarget,
@@ -478,16 +352,8 @@ export default function StudentDataImportView({ onNavigateTab }) {
       setNewSchoolCode('');
       setNewSchoolAddress('');
       setNewSchoolPlaceType('school');
-      setNewSchoolClassMode('standard');
-      setNewSchoolManualClasses('Classes 1–8');
-      setNewSchoolNoSections(false);
-      setNewSchoolSectionMode('standard');
+      setNewSchoolManualClasses('1-8');
       setNewSchoolManualSections('A, B, C');
-      setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
-      setNewSchoolSelectedSections(['A', 'B', 'C']);
-      setNewSchoolCustomSections([]);
-      setShowAddCustomSection(false);
-      setCustomSectionInput('');
       setShowCreateSchoolModal(false);
       await fetchLocations();
       setSelectedSchool(res.name);
@@ -1094,176 +960,126 @@ export default function StudentDataImportView({ onNavigateTab }) {
             </div>
           </div>
 
-          {/* 2-Column Form & Preview */}
-          <div style={{ display: 'grid', gridTemplateColumns: isStacked ? '1fr' : 'minmax(0, 1.4fr) minmax(0, 1fr)', gap: '24px' }}>
-            {/* Left Column: Location Selection + Create Functions */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-              
-              {/* Cluster Dropdown with Create Button */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B' }}>
-                    Select Cluster <span style={{ color: '#EF4444' }}>*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateClusterModal(true)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#EA580C',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: 0
-                    }}
-                  >
-                    <Plus size={13} strokeWidth={3} />
-                    <span>Create Cluster</span>
-                  </button>
-                </div>
-
-                <div style={{ height: '42px', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#FFFFFF' }}>
-                  <Network size={16} color="#64748B" />
-                  <select
-                    value={selectedCluster}
-                    onChange={(e) => {
-                      const newC = e.target.value;
-                      setSelectedCluster(newC);
-                      const matching = allSchoolsList.filter(
-                        s => newC === 'All Clusters' || s.cluster_name?.toLowerCase() === newC.toLowerCase() || s.cluster_id === newC
-                      );
-                      if (matching.length > 0) {
-                        setSelectedSchool(matching[0].name);
-                      }
-                    }}
-                    style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0F172A', cursor: 'pointer' }}
-                  >
-                    <option value="All Clusters">All Clusters</option>
-                    {clustersList.map(c => (
-                      <option key={c.id || c.name} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* School Dropdown with Create Button */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B' }}>
-                    Select School <span style={{ color: '#EF4444' }}>*</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewSchoolCluster(selectedCluster !== 'All Clusters' ? selectedCluster : (clustersList[0]?.name || ''));
-                      setShowCreateSchoolModal(true);
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#EA580C',
-                      fontSize: '12px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: 0
-                    }}
-                  >
-                    <Plus size={13} strokeWidth={3} />
-                    <span>Create School</span>
-                  </button>
-                </div>
-
-                <div style={{ height: '42px', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#FFFFFF' }}>
-                  <School size={16} color="#64748B" />
-                  <select
-                    value={selectedSchool}
-                    onChange={(e) => setSelectedSchool(e.target.value)}
-                    style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0F172A', cursor: 'pointer' }}
-                  >
-                    <option value="">-- Choose School --</option>
-                    {availableSchools.map(s => (
-                      <option key={s.id || s.name} value={s.name}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-                {availableSchools.length === 0 && (
-                  <span style={{ fontSize: '11px', color: '#DC2626', marginTop: '3px', display: 'block' }}>
-                    No schools registered in this cluster yet. Click "+ Create School" above to add one.
-                  </span>
-                )}
-              </div>
-
-              {/* Academic Year Selection */}
-              <div>
-                <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '6px' }}>
-                  Academic Session
+          {/* Location Selection Form */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '640px', width: '100%' }}>
+            
+            {/* Cluster Dropdown with Create Button */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B' }}>
+                  Select Cluster <span style={{ color: '#EF4444' }}>*</span>
                 </label>
-                <div style={{ height: '42px', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#FFFFFF' }}>
-                  <Calendar size={16} color="#64748B" />
-                  <select
-                    value={academicYear}
-                    onChange={(e) => setAcademicYear(e.target.value)}
-                    style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0F172A', cursor: 'pointer' }}
-                  >
-                    <option value="2026-2027">2026–2027 (Current Academic Year)</option>
-                    <option value="2027-2028">2027–2028</option>
-                    <option value="2025-2026">2025–2026 (Previous)</option>
-                  </select>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateClusterModal(true)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#EA580C',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: 0
+                  }}
+                >
+                  <Plus size={13} strokeWidth={3} />
+                  <span>Create Cluster</span>
+                </button>
+              </div>
+
+              <div style={{ height: '42px', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#FFFFFF' }}>
+                <Network size={16} color="#64748B" />
+                <select
+                  value={selectedCluster}
+                  onChange={(e) => {
+                    const newC = e.target.value;
+                    setSelectedCluster(newC);
+                    const matching = allSchoolsList.filter(
+                      s => newC === 'All Clusters' || s.cluster_name?.toLowerCase() === newC.toLowerCase() || s.cluster_id === newC
+                    );
+                    if (matching.length > 0) {
+                      setSelectedSchool(matching[0].name);
+                    }
+                  }}
+                  style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0F172A', cursor: 'pointer' }}
+                >
+                  <option value="All Clusters">All Clusters</option>
+                  {clustersList.map(c => (
+                    <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
-            {/* Right Column: Selected Destination Card */}
-            <div style={{ backgroundColor: '#FFF7ED', border: '1px solid #FFEDD5', borderRadius: '14px', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A' }}>
-                Selected Import Destination
+            {/* School Dropdown with Create Button */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B' }}>
+                  Select School <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewSchoolCluster(selectedCluster !== 'All Clusters' ? selectedCluster : (clustersList[0]?.name || ''));
+                    setShowCreateSchoolModal(true);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#EA580C',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: 0
+                  }}
+                >
+                  <Plus size={13} strokeWidth={3} />
+                  <span>Create School</span>
+                </button>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#FFFFFF', border: '1px solid #FED7AA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C' }}>
-                  <School size={18} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Destination School</div>
-                  <div style={{ fontSize: '14.5px', fontWeight: 800, color: '#0F172A' }}>
-                    {selectedSchool || 'No school selected'}
-                  </div>
-                </div>
+              <div style={{ height: '42px', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#FFFFFF' }}>
+                <School size={16} color="#64748B" />
+                <select
+                  value={selectedSchool}
+                  onChange={(e) => setSelectedSchool(e.target.value)}
+                  style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0F172A', cursor: 'pointer' }}
+                >
+                  <option value="">-- Choose School --</option>
+                  {availableSchools.map(s => (
+                    <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
               </div>
+              {availableSchools.length === 0 && (
+                <span style={{ fontSize: '11px', color: '#DC2626', marginTop: '3px', display: 'block' }}>
+                  No schools registered in this cluster yet. Click "+ Create School" above to add one.
+                </span>
+              )}
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#FFFFFF', border: '1px solid #FED7AA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C' }}>
-                  <Building2 size={18} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Cluster Assignment</div>
-                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#0F172A' }}>
-                    {selectedCluster}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '38px', height: '38px', borderRadius: '8px', backgroundColor: '#FFFFFF', border: '1px solid #FED7AA', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C' }}>
-                  <Users size={18} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Existing Registered Students</div>
-                  <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#0F172A' }}>
-                    {existingStudentsCount} students
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '8px', padding: '10px 12px', fontSize: '11.5px', color: '#9A3412', lineHeight: 1.4, border: '1px solid #FFEDD5' }}>
-                💡 <strong>Application Sync:</strong> Once imported, students will automatically synchronize with both the Flutter mobile application and the administrator portal with WHO nutritional calculations applied.
+            {/* Academic Year Selection */}
+            <div>
+              <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '6px' }}>
+                Academic Session
+              </label>
+              <div style={{ height: '42px', border: '1.5px solid #E2E8F0', borderRadius: '8px', padding: '0 12px', display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#FFFFFF' }}>
+                <Calendar size={16} color="#64748B" />
+                <select
+                  value={academicYear}
+                  onChange={(e) => setAcademicYear(e.target.value)}
+                  style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0F172A', cursor: 'pointer' }}
+                >
+                  <option value="2026-2027">2026–2027 (Current Academic Year)</option>
+                  <option value="2027-2028">2027–2028</option>
+                  <option value="2025-2026">2025–2026 (Previous)</option>
+                </select>
               </div>
             </div>
           </div>
@@ -1927,6 +1743,42 @@ export default function StudentDataImportView({ onNavigateTab }) {
 
             <button
               type="button"
+              onClick={() => {
+                const targetSchoolName = importSummary?.schoolName || selectedSchool;
+                const match = allSchoolsList.find(s => 
+                  s.name?.toLowerCase() === targetSchoolName?.toLowerCase() ||
+                  s.id === targetSchoolName
+                );
+                if (match) {
+                  setSchoolToEdit(match);
+                } else if (selectedSchoolObj) {
+                  setSchoolToEdit(selectedSchoolObj);
+                } else {
+                  setSchoolToEdit({ name: targetSchoolName, cluster_name: selectedCluster });
+                }
+              }}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '8px',
+                border: '1.5px solid #FED7AA',
+                backgroundColor: '#FFF7ED',
+                color: '#EA580C',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 6px rgba(234,88,12,0.1)'
+              }}
+              title="Edit details (name, code, cluster, place type, grades, address) for this school"
+            >
+              <Edit2 size={15} color="#EA580C" />
+              <span>Edit School Details</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => onNavigateTab ? onNavigateTab('students') : null}
               style={{ padding: '10px 22px', borderRadius: '8px', border: 'none', backgroundColor: '#EB5A1D', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(235,90,29,0.3)' }}
             >
@@ -2087,6 +1939,40 @@ export default function StudentDataImportView({ onNavigateTab }) {
                                 <Eye size={13} color={expandedBatchId === h.id ? '#2563EB' : '#64748B'} />
                                 <span>{expandedBatchId === h.id ? 'Hide' : `Students (${h.records})`}</span>
                                 {expandedBatchId === h.id ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                              </button>
+
+                              {/* Edit School button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const match = allSchoolsList.find(s => 
+                                    s.name?.toLowerCase() === h.school?.toLowerCase() ||
+                                    s.id === h.school_id ||
+                                    s.id === h.school
+                                  );
+                                  if (match) {
+                                    setSchoolToEdit(match);
+                                  } else {
+                                    setSchoolToEdit({ name: h.school, cluster_name: h.cluster });
+                                  }
+                                }}
+                                title={`Edit school details for ${h.school}`}
+                                style={{
+                                  padding: '5px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid #FED7AA',
+                                  backgroundColor: '#FFF7ED',
+                                  color: '#EA580C',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <Edit2 size={13} color="#EA580C" />
+                                <span>Edit School</span>
                               </button>
 
                               {/* Delete Uploaded Excel Sheet button */}
@@ -2263,9 +2149,9 @@ export default function StudentDataImportView({ onNavigateTab }) {
               <button type="button" onClick={() => setShowCreateClusterModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}><X size={17} /></button>
             </div>
 
-            <form onSubmit={handleCreateCluster} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <form onSubmit={handleCreateCluster} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '4px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '6px' }}>
                   Cluster Name <span style={{ color: '#EF4444' }}>*</span>
                 </label>
                 <input
@@ -2273,24 +2159,12 @@ export default function StudentDataImportView({ onNavigateTab }) {
                   placeholder="e.g. South Zone / District 2"
                   value={newClusterName}
                   onChange={e => setNewClusterName(e.target.value)}
-                  style={{ width: '100%', height: '38px', borderRadius: '7px', border: '1.5px solid #CBD5E1', padding: '0 10px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                  autoFocus
+                  style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1.5px solid #CBD5E1', padding: '0 12px', fontSize: '13.5px', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
 
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '4px' }}>
-                  Description (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Brief notes about cluster coverage"
-                  value={newClusterDesc}
-                  onChange={e => setNewClusterDesc(e.target.value)}
-                  style={{ width: '100%', borderRadius: '7px', border: '1.5px solid #CBD5E1', padding: '8px 10px', fontSize: '12.5px', outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '6px' }}>
                 <button type="button" onClick={() => setShowCreateClusterModal(false)} style={{ padding: '8px 16px', borderRadius: '7px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
                   Cancel
                 </button>
@@ -2348,7 +2222,7 @@ export default function StudentDataImportView({ onNavigateTab }) {
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                   {[
-                    { id: 'school', label: 'School', icon: School, desc: 'Class 1–12' },
+                    { id: 'school', label: 'School', icon: School, desc: 'Class 1–8' },
                     { id: 'anganwadi', label: 'Anganwadi', icon: Home, desc: 'Early Childhood' },
                     { id: 'daycare', label: 'Daycare / Pre-KG', icon: Building, desc: 'Pre-primary' },
                     { id: 'custom', label: 'Custom Place', icon: Edit3, desc: 'Manual Entry' },
@@ -2362,30 +2236,19 @@ export default function StudentDataImportView({ onNavigateTab }) {
                         onClick={() => {
                           setNewSchoolPlaceType(item.id);
                           if (item.id === 'anganwadi') {
-                            setNewSchoolClassMode('manual');
                             setNewSchoolManualClasses('Anganwadi');
                             setNewSchoolManualSections('None');
-                            setNewSchoolNoSections(true);
                             if (!newSchoolCode) setNewSchoolCode('ANG-');
                           } else if (item.id === 'daycare') {
-                            setNewSchoolClassMode('manual');
-                            setNewSchoolManualClasses('Pre-KG & LKG');
-                            setNewSchoolManualSections('None');
-                            setNewSchoolNoSections(true);
+                            setNewSchoolManualClasses('Pre-KG, LKG, UKG');
+                            setNewSchoolManualSections('A');
                             if (!newSchoolCode) setNewSchoolCode('DC-');
                           } else if (item.id === 'custom') {
-                            setNewSchoolClassMode('manual');
                             setNewSchoolManualClasses('');
                             setNewSchoolManualSections('None');
-                            setNewSchoolNoSections(true);
                           } else {
-                            setNewSchoolClassMode('standard');
-                            setNewSchoolManualClasses('Classes 1–8');
+                            setNewSchoolManualClasses('1-8');
                             setNewSchoolManualSections('A, B, C');
-                            setNewSchoolSelectedClasses([1, 2, 3, 4, 5, 6, 7, 8]);
-                            setNewSchoolNoSections(false);
-                            setNewSchoolSectionMode('standard');
-                            setNewSchoolSelectedSections(['A', 'B', 'C']);
                             if (newSchoolCode.startsWith('ANG-') || newSchoolCode.startsWith('DC-')) setNewSchoolCode('');
                           }
                         }}
@@ -2480,190 +2343,137 @@ export default function StudentDataImportView({ onNavigateTab }) {
                 </div>
               </div>
 
-              {/* SECTION 1: CLASSES COVERED MANUAL ENTRY & PRESETS */}
-              <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Layers size={15} color="#EA580C" />
-                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                      Classes / Groups Covered
-                    </span>
-                    <span style={{ fontSize: '10.5px', color: '#EA580C', backgroundColor: '#FFF7ED', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                      Manual Typing
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '11px', color: '#64748B' }}>
-                    Type directly or select preset
-                  </span>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    placeholder="Type classes manually (e.g. Classes 1–8, Anganwadi, Pre-KG)..."
-                    value={newSchoolManualClasses}
-                    onChange={e => setNewSchoolManualClasses(e.target.value)}
-                    style={{
-                      flex: 1,
-                      height: '38px',
-                      borderRadius: '8px',
-                      border: '1.5px solid #CBD5E1',
-                      padding: '0 12px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: '#0F172A',
-                      backgroundColor: '#FFFFFF',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <select
-                    value=""
-                    onChange={e => {
-                      if (e.target.value) setNewSchoolManualClasses(e.target.value);
-                    }}
-                    style={{
-                      width: '145px',
-                      height: '38px',
-                      borderRadius: '8px',
-                      border: '1.5px solid #CBD5E1',
-                      padding: '0 8px',
-                      fontSize: '12px',
-                      color: '#334155',
-                      backgroundColor: '#FFFFFF',
-                      outline: 'none',
-                      cursor: 'pointer',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="" disabled>⚡ Presets...</option>
-                    <option value="Classes 1–8">Classes 1–8 (Standard Elementary)</option>
-                    <option value="Classes 1–5">Classes 1–5 (Primary)</option>
-                    <option value="Classes 1–10">Classes 1–10 (Secondary)</option>
-                    <option value="Classes 1–12">Classes 1–12 (Higher Sec)</option>
-                    <option value="Anganwadi">Anganwadi (Early Childhood)</option>
-                    <option value="Balwadi">Balwadi (Pre-Primary)</option>
-                    <option value="Pre-KG & LKG">Pre-KG & LKG</option>
-                    <option value="General">General (Mixed Groups)</option>
-                    <option value="None">None / N/A</option>
-                  </select>
-                </div>
-
-                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: 600 }}>Quick insert:</span>
-                  {['Classes 1–8', 'Classes 1–5', 'Classes 1–10', 'Anganwadi', 'Balwadi', 'Pre-KG & LKG', 'General', 'None'].map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setNewSchoolManualClasses(tag)}
-                      style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        border: '1px solid #CBD5E1',
-                        backgroundColor: newSchoolManualClasses === tag ? '#FFF7ED' : '#FFFFFF',
-                        color: newSchoolManualClasses === tag ? '#EA580C' : '#475569',
-                        fontWeight: newSchoolManualClasses === tag ? 700 : 500,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* SECTION 2: SECTIONS OFFERED MANUAL ENTRY & PRESETS */}
-              <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Users size={15} color="#EA580C" />
-                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                      Sections / Batches Offered
-                    </span>
-                    <span style={{ fontSize: '10.5px', color: '#EA580C', backgroundColor: '#FFF7ED', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                      Manual Typing
+              {/* SECTION 1: CLASSES COVERED */}
+              {newSchoolPlaceType !== 'anganwadi' && (
+                <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Layers size={15} color="#EA580C" />
+                      <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                        Classes / Groups Covered
+                      </span>
+                      <span style={{ fontSize: '10.5px', color: '#EA580C', backgroundColor: '#FFF7ED', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        {newSchoolPlaceType === 'daycare' ? 'Preschool Levels' : 'Manual Entry'}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#64748B' }}>
+                      {newSchoolPlaceType === 'daycare' ? 'Select daycare / preschool level' : 'Enter classes manually (e.g. 1-8)'}
                     </span>
                   </div>
-                  <span style={{ fontSize: '11px', color: '#64748B' }}>
-                    Type directly or select preset
-                  </span>
-                </div>
 
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input
-                    type="text"
-                    placeholder="Type sections manually (e.g. A, B, C or Batch 1, Batch 2 or None)..."
-                    value={newSchoolManualSections}
-                    onChange={e => setNewSchoolManualSections(e.target.value)}
-                    style={{
-                      flex: 1,
-                      height: '38px',
-                      borderRadius: '8px',
-                      border: '1.5px solid #CBD5E1',
-                      padding: '0 12px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: '#0F172A',
-                      backgroundColor: '#FFFFFF',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <select
-                    value=""
-                    onChange={e => {
-                      if (e.target.value) setNewSchoolManualSections(e.target.value);
-                    }}
-                    style={{
-                      width: '145px',
-                      height: '38px',
-                      borderRadius: '8px',
-                      border: '1.5px solid #CBD5E1',
-                      padding: '0 8px',
-                      fontSize: '12px',
-                      color: '#334155',
-                      backgroundColor: '#FFFFFF',
-                      outline: 'none',
-                      cursor: 'pointer',
-                      boxSizing: 'border-box'
-                    }}
-                  >
-                    <option value="" disabled>⚡ Presets...</option>
-                    <option value="A, B, C">A, B, C</option>
-                    <option value="A, B, C, D">A, B, C, D</option>
-                    <option value="A, B">A, B</option>
-                    <option value="A">Section A only</option>
-                    <option value="A, B, C, D, E, F, G, H">A through H</option>
-                    <option value="Batch 1, Batch 2">Batch 1, Batch 2</option>
-                    <option value="Morning, Afternoon">Morning, Afternoon</option>
-                    <option value="None">None (No sections)</option>
-                  </select>
+                  <div>
+                    {newSchoolPlaceType === 'daycare' ? (
+                      <select
+                        value={newSchoolManualClasses}
+                        onChange={e => setNewSchoolManualClasses(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #CBD5E1',
+                          padding: '0 12px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#0F172A',
+                          backgroundColor: '#FFFFFF',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <option value="Pre-KG, LKG, UKG">Pre-KG, LKG, UKG (All Pre-primary)</option>
+                        <option value="Pre-KG">Pre-KG</option>
+                        <option value="LKG">LKG</option>
+                        <option value="UKG">UKG</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="Enter classes manually (e.g. 1-8)..."
+                        value={newSchoolManualClasses}
+                        onChange={e => setNewSchoolManualClasses(e.target.value)}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          borderRadius: '8px',
+                          border: '1.5px solid #CBD5E1',
+                          padding: '0 12px',
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#0F172A',
+                          backgroundColor: '#FFFFFF',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
+              )}
 
-                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <span style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: 600 }}>Quick insert:</span>
-                  {['A, B, C', 'A, B', 'A, B, C, D', 'Batch 1, Batch 2', 'None'].map(tag => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => setNewSchoolManualSections(tag)}
+              {/* SECTION 2: SECTIONS OFFERED */}
+              {newSchoolPlaceType !== 'anganwadi' && (
+                <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Users size={15} color="#EA580C" />
+                      <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
+                        Sections / Batches Offered
+                      </span>
+                      <span style={{ fontSize: '10.5px', color: '#EA580C', backgroundColor: '#FFF7ED', padding: '1px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                        Manual Typing
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#64748B' }}>
+                      {newSchoolPlaceType === 'daycare' ? 'Enter section (e.g. A, B or None)' : 'Enter sections manually (e.g. A, B, C)'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <input
+                      type="text"
+                      placeholder={newSchoolPlaceType === 'daycare' ? "Enter sections (e.g. A, B or None)..." : "Type sections manually (e.g. A, B, C or None)..."}
+                      value={newSchoolManualSections}
+                      onChange={e => setNewSchoolManualSections(e.target.value)}
                       style={{
-                        fontSize: '11px',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        border: '1px solid #CBD5E1',
-                        backgroundColor: newSchoolManualSections === tag ? '#FFF7ED' : '#FFFFFF',
-                        color: newSchoolManualSections === tag ? '#EA580C' : '#475569',
-                        fontWeight: newSchoolManualSections === tag ? 700 : 500,
-                        cursor: 'pointer'
+                        width: '100%',
+                        height: '38px',
+                        borderRadius: '8px',
+                        border: '1.5px solid #CBD5E1',
+                        padding: '0 12px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        backgroundColor: '#FFFFFF',
+                        outline: 'none',
+                        boxSizing: 'border-box'
                       }}
-                    >
-                      {tag}
-                    </button>
-                  ))}
+                    />
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: 600 }}>Quick insert:</span>
+                      {(newSchoolPlaceType === 'daycare' ? ['A', 'A, B', 'None'] : ['A, B, C', 'A, B', 'A, B, C, D', 'None']).map(tag => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => setNewSchoolManualSections(tag)}
+                          style={{
+                            fontSize: '11px',
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            border: '1px solid #CBD5E1',
+                            backgroundColor: newSchoolManualSections === tag ? '#FFF7ED' : '#FFFFFF',
+                            color: newSchoolManualSections === tag ? '#EA580C' : '#475569',
+                            fontWeight: newSchoolManualSections === tag ? 700 : 500,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Modal Actions */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '6px', borderTop: '1px solid #F1F5F9' }}>
@@ -2873,6 +2683,39 @@ export default function StudentDataImportView({ onNavigateTab }) {
           </div>
         </div>
       )}
+
+      {/* Edit Cluster Modal */}
+      <EditClusterModal
+        isOpen={Boolean(clusterToEdit)}
+        onClose={() => setClusterToEdit(null)}
+        cluster={clusterToEdit}
+        onSuccess={async (updatedCluster) => {
+          showToast(`Cluster "${updatedCluster.name}" updated successfully!`);
+          setClusterToEdit(null);
+          await fetchLocations();
+          if (updatedCluster && updatedCluster.name) {
+            setSelectedCluster(updatedCluster.name);
+          }
+        }}
+      />
+
+      {/* Edit School Modal */}
+      <EditSchoolModal
+        isOpen={Boolean(schoolToEdit)}
+        onClose={() => setSchoolToEdit(null)}
+        school={schoolToEdit}
+        onSuccess={async (updatedSchool) => {
+          showToast(`School "${updatedSchool.name}" updated successfully!`);
+          setSchoolToEdit(null);
+          await fetchLocations();
+          if (updatedSchool && updatedSchool.name) {
+            setSelectedSchool(updatedSchool.name);
+            if (updatedSchool.cluster_name || updatedSchool.cluster_id) {
+              setSelectedCluster(updatedSchool.cluster_name || updatedSchool.cluster_id);
+            }
+          }
+        }}
+      />
 
     </div>
   );

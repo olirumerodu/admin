@@ -89,7 +89,8 @@ export default function DashboardTopbar({
           <RefreshCw size={17} className={isRefreshing ? 'animate-spin' : ''} />
         </button>
 
-        {/* Notifications Popover */}
+        {/* Temporarily hidden: Notifications Popover */}
+        {/*
         <div style={{ position: 'relative' }}>
           <button 
             className="icon-action-btn" 
@@ -132,6 +133,7 @@ export default function DashboardTopbar({
             </div>
           )}
         </div>
+        */}
 
         {/* Logout */}
         <button 
