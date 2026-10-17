@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, API_BASE } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
   // Verify active status on initial load to ensure deleted or deactivated admins/users cannot remain logged in
   useEffect(() => {
     if (user && user.id && !user.id.startsWith('admin_demo')) {
-      fetch(`/api/v1/auth/me?user_id=${encodeURIComponent(user.id)}`)
+      fetch(`${API_BASE}/auth/me?user_id=${encodeURIComponent(user.id)}`)
         .then(async (res) => {
           if (!res.ok) {
             logout();
