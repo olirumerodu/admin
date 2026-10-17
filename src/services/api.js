@@ -1,10 +1,11 @@
 /**
  * API Service for Student Health Admin Portal
- * Connects directly to backend on localhost:8000 via Vite proxy or direct URL
+ * Connects to backend via Vite proxy or direct backend URL from environment
  * Provides real-time synchronization between User Application and Admin Panel
  */
 
-const API_BASE = '/api/v1';
+export const API_BASE = import.meta.env.VITE_API_BASE_URL 
+  || (import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '')}/api/v1` : '/api/v1');
 
 // Helper to get auth token
 const getAuthHeaders = () => {
