@@ -4,12 +4,7 @@
  * Provides real-time synchronization between User Application and Admin Panel
  */
 
-const RAW_URL = import.meta.env.VITE_API_BASE_URL;
-const BACKEND_URL = RAW_URL && RAW_URL.trim()
-  ? RAW_URL.trim()
-  : (import.meta.env.DEV ? '' : 'https://app-backend-crjp.onrender.com');
-
-export const API_BASE = `${BACKEND_URL.replace(/\/+$/, '')}/api/v1`;
+const API_BASE = '/api/v1';
 
 // Helper to get auth token
 const getAuthHeaders = () => {
