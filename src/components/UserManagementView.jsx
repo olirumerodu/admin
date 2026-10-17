@@ -365,6 +365,7 @@ export default function UserManagementView() {
     try {
       const defaultModules = [
         'Dashboard',
+        'Schools',
         'Students',
         'Student Assessment',
         'Monthly Tracking',

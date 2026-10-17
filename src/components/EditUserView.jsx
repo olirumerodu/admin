@@ -111,6 +111,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       const norm = rawPerms.map(p => String(p).toLowerCase().trim());
       initialPerms = {
         dashboard: norm.some(p => p.includes("dashboard")),
+        schools: norm.some(p => p.includes("school") || p.includes("cluster")),
         students: norm.some(p => p.includes("student") && !p.includes("assessment")),
         assessment: norm.some(p => p.includes("assessment")),
         tracking: norm.some(p => p.includes("tracking")),
@@ -122,6 +123,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       const isAdmin = rawRole === "Super Admin";
       initialPerms = {
         dashboard: true,
+        schools: true,
         students: true,
         assessment: true,
         tracking: true,
@@ -374,6 +376,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     const next = !allSelected;
     setPermissions({
       dashboard: next,
+      schools: next,
       students: next,
       assessment: next,
       tracking: next,
@@ -385,6 +388,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
 
   const selectedModulesList = [
     permissions.dashboard && "Dashboard",
+    permissions.schools && "Schools",
     permissions.students && "Students",
     permissions.assessment && "Student Assessment",
     permissions.tracking && "Monthly Tracking",
@@ -395,6 +399,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
 
   const moduleList = [
     { key: "dashboard", label: "Dashboard", icon: <LayoutGrid size={15}/>, color: "#3B82F6" },
+    { key: "schools", label: "Schools & Clusters", icon: <School size={15}/>, color: "#EA580C" },
     { key: "students", label: "Students", icon: <Users size={15}/>, color: "#8B5CF6" },
     { key: "assessment", label: "Student Assessment", icon: <ClipboardCheck size={15}/>, color: "#10B981" },
     { key: "tracking", label: "Monthly Tracking", icon: <BarChart2 size={15}/>, color: "#F59E0B" },
@@ -650,7 +655,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
               <div style={iconBox("#FFEDD5", "#EA580C")}><User size={18}/></div>
               <div>
                 <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A", margin: 0 }}>01. Account Information</h3>
-                <p style={{ fontSize: "11.5px", color: "#94A3B8", margin: "1px 0 0 0" }}>Update user account details, role, and permissions.</p>
+                <p style={{ fontSize: "11.5px", color: "#94A3B8", margin: "1px 0 0 0" }}>Update user account details and permissions.</p>
               </div>
             </div>
 
@@ -735,43 +740,27 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                 </div>
               </div>
 
-              {/* Row 2.5: Login Username (auto-filled from email) & Role */}
-              <div style={grid2}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <label style={{ ...lbl, marginBottom: 0 }}>Login Username <span style={{ color: "#EF4444" }}>*</span></label>
-                    <span style={{ fontSize: "10.5px", color: "#059669", backgroundColor: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 7px", borderRadius: "99px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "3px" }}>
-                      <ShieldCheck size={11}/> Auto-filled from Email
-                    </span>
-                  </div>
-                  <div style={{ height: "38px", border: "1.5px solid #10B981", borderRadius: "8px", display: "flex", alignItems: "center", padding: "0 10px", gap: "8px", backgroundColor: "#F0FDF4" }}>
-                    <Mail size={16} color="#10B981"/>
-                    <input
-                      type="text"
-                      value={loginUsername}
-                      readOnly
-                      style={{ ...inp, color: "#065F46", fontWeight: 600, cursor: "default" }}
-                    />
-                    <Check size={14} color="#10B981" strokeWidth={2.5}/>
-                  </div>
-                  <span style={{ fontSize: "11px", color: "#059669", marginTop: "3px", display: "block", fontWeight: 500 }}>
-                    Login username dynamically syncs with the Email field
+              {/* Row 2.5: Login Username (auto-filled from email) */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                  <label style={{ ...lbl, marginBottom: 0 }}>Login Username <span style={{ color: "#EF4444" }}>*</span></label>
+                  <span style={{ fontSize: "10.5px", color: "#059669", backgroundColor: "#ECFDF5", border: "1px solid #A7F3D0", padding: "1px 7px", borderRadius: "99px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "3px" }}>
+                    <ShieldCheck size={11}/> Auto-filled from Email
                   </span>
                 </div>
-
-                <div>
-                  <label style={lbl}>Role <span style={{ color: "#EF4444" }}>*</span></label>
-                  <div style={{ height: "38px", border: "1.5px solid #E2E8F0", borderRadius: "8px", display: "flex", alignItems: "center", padding: "0 10px", gap: "8px", backgroundColor: "#FFFFFF" }}>
-                    <User size={16} color="#94A3B8"/>
-                    <select value={role} onChange={e => handleFieldChange("role", e.target.value)} style={sel}>
-                      <option value="Super Admin">Super Admin</option>
-                      <option value="School Staff">School Staff</option>
-                    </select>
-                  </div>
-                  <span style={{ fontSize: "11px", color: "#64748B", marginTop: "3px", display: "block" }}>
-                    Controls administrative privileges
-                  </span>
+                <div style={{ height: "38px", border: "1.5px solid #10B981", borderRadius: "8px", display: "flex", alignItems: "center", padding: "0 10px", gap: "8px", backgroundColor: "#F0FDF4" }}>
+                  <Mail size={16} color="#10B981"/>
+                  <input
+                    type="text"
+                    value={loginUsername}
+                    readOnly
+                    style={{ ...inp, color: "#065F46", fontWeight: 600, cursor: "default" }}
+                  />
+                  <Check size={14} color="#10B981" strokeWidth={2.5}/>
                 </div>
+                <span style={{ fontSize: "11px", color: "#059669", marginTop: "3px", display: "block", fontWeight: 500 }}>
+                  Login username dynamically syncs with the Email field
+                </span>
               </div>
 
               {/* Row 2.6: Security Credentials / Password Editing */}
@@ -787,7 +776,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                     <Lock size={16} color={touched.password && fieldErrors.password ? "#EF4444" : touched.password && password && !fieldErrors.password ? "#10B981" : "#94A3B8"}/>
                     <input
                       type={showPassword ? "text" : "password"}
-                      placeholder="Enter new password (optional)"
+                      placeholder="Enter new password"
                       value={password}
                       maxLength={32}
                       onChange={e => handleFieldChange("password", e.target.value)}
@@ -1166,7 +1155,6 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
             <div style={{ backgroundColor: "#F8FAFC", borderRadius: "8px", padding: "10px 12px", marginBottom: "18px", fontSize: "12px", color: "#475569", display: "flex", flexDirection: "column", gap: "4px" }}>
               <div>• <strong>User ID:</strong> {userId}</div>
               <div>• <strong>Login Username:</strong> {loginUsername}</div>
-              <div>• <strong>Role:</strong> {role}</div>
               <div>• <strong>Cluster:</strong> {cluster || "—"}</div>
               <div>• <strong>Modules:</strong> {selectedModulesList.length} enabled</div>
               {password && password.trim() ? (

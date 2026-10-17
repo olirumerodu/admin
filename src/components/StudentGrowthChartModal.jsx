@@ -10,8 +10,7 @@ import {
   TrendingUp, 
   User, 
   School, 
-  Award,
-  CheckCircle2
+  Award
 } from 'lucide-react';
 import StudentHealthLogo from './StudentHealthLogo';
 
@@ -360,58 +359,6 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
               </div>
             </div>
 
-            {/* OBSERVATIONAL CLINICAL STATUS & DIAGNOSTIC BANNER */}
-            <div
-              style={{
-                backgroundColor: isSeverelyWasted ? '#FEF2F2' : isWasted ? '#FFF7ED' : '#F0FDF4',
-                border: `1.5px solid ${isSeverelyWasted ? '#F87171' : isWasted ? '#FDBA74' : '#86EFAC'}`,
-                borderRadius: '8px',
-                padding: '12px 16px',
-                marginBottom: '16px'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 800, color: isSeverelyWasted ? '#991B1B' : isWasted ? '#9A3412' : '#166534', textTransform: 'uppercase' }}>
-                  {isSeverelyWasted || isWasted ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
-                  <span>Clinical Assessment & Nutritional Finding</span>
-                </div>
-                <div style={{
-                  padding: '3px 10px',
-                  borderRadius: '12px',
-                  fontWeight: 800,
-                  fontSize: '11px',
-                  backgroundColor: isSeverelyWasted ? '#DC2626' : isWasted ? '#EA580C' : '#16A34A',
-                  color: '#FFFFFF'
-                }}>
-                  {student.currentStatus || (isSeverelyWasted ? 'Severely Wasted' : isWasted ? 'Wasted' : 'Normal Weight')}
-                </div>
-              </div>
-
-              <div style={{ fontSize: '12px', color: '#1E293B', lineHeight: 1.5, marginTop: '4px' }}>
-                {isSeverelyWasted ? (
-                  <span>
-                    <strong>Observation:</strong> Child exhibits <strong>Severe Acute Malnutrition (SAM)</strong> with a BMI-for-Age Z-Score below -3.0 SD. Requires immediate pediatrician review, iron & folic acid supplementation, and prioritized high-protein dietary intake under mid-day meal scheme.
-                  </span>
-                ) : isWasted ? (
-                  <span>
-                    <strong>Observation:</strong> Child exhibits <strong>Moderate Acute Malnutrition (MAM)</strong> with a BMI-for-Age Z-Score below -2.0 SD. Supplementary dietary counseling, daily boiled egg/protein rations, and mandatory 30-day weight tracking required.
-                  </span>
-                ) : (
-                  <span>
-                    <strong>Observation:</strong> Child’s height, weight, and BMI parameters are within the <strong>Healthy WHO Growth Median (Normal)</strong>. Growth trajectory is progressive and consistent with age percentiles. Maintain current balanced nutrition.
-                  </span>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '8px', marginTop: '8px', fontSize: '11px' }}>
-                <span style={{ color: '#64748B' }}>
-                  Latest Measurement: <strong>Height: {student.height || latestAssessment?.height_cm || '—'} cm</strong> • <strong>Weight: {student.weight || latestAssessment?.weight_kg || '—'} kg</strong> • <strong>BMI: {student.bmi || latestAssessment?.bmi || '—'} kg/m²</strong>
-                </span>
-                <span style={{ fontWeight: 700, color: isSeverelyWasted ? '#DC2626' : isWasted ? '#EA580C' : '#15803D' }}>
-                  Next Follow-up Due: {nextDueFormatted}
-                </span>
-              </div>
-            </div>
 
             {/* WHO Z-Score Indicators Grid */}
             <div style={{ marginBottom: '18px' }}>

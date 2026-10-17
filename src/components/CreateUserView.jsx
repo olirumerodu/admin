@@ -126,6 +126,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
   // Permissions State - default to full module access enabled for seamless integration
   const [permissions, setPermissions] = useState({
     dashboard: true,
+    schools: true,
     students: true,
     assessment: true,
     tracking: true,
@@ -408,6 +409,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
     const nextVal = !allSelected;
     setPermissions({
       dashboard: nextVal,
+      schools: nextVal,
       students: nextVal,
       assessment: nextVal,
       tracking: nextVal,
@@ -426,6 +428,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
   // Selected module names for live preview
   const selectedModulesList = [
     permissions.dashboard && 'Dashboard',
+    permissions.schools && 'Schools',
     permissions.students && 'Students',
     permissions.assessment && 'Student Assessment',
     permissions.tracking && 'Monthly Tracking',
@@ -788,78 +791,45 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 </div>
               </div>
 
-              {/* Row 2.5: Login Username (auto-filled from email, readonly) & Role */}
-              <div style={twoColInputGrid}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <label style={{ ...inputLabelStyle, marginBottom: 0 }}>
-                      Login Username <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <span 
-                      style={{ 
-                        fontSize: '10.5px', 
-                        color: '#059669', 
-                        backgroundColor: '#ECFDF5', 
-                        border: '1px solid #A7F3D0',
-                        padding: '1px 7px', 
-                        borderRadius: '99px', 
-                        fontWeight: 600,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px'
-                      }}
-                    >
-                      <Check size={11} strokeWidth={3} /> Auto-filled from Email
-                    </span>
-                  </div>
-                  <div style={{ ...getInputContainerStyle('username'), border: username && !fieldErrors.username ? '1.5px solid #10B981' : '1.5px solid #E2E8F0', backgroundColor: '#F0FDF4' }}>
-                    <Mail size={16} color={username && !fieldErrors.username ? '#10B981' : '#94A3B8'} />
-                    <input
-                      type="text"
-                      placeholder="Auto-filled from Email field above"
-                      value={username}
-                      readOnly
-                      style={{ ...cleanInputStyle, color: '#065F46', cursor: 'default' }}
-                    />
-                    {username && !fieldErrors.username && (
-                      <Check size={14} color="#10B981" strokeWidth={2.5} />
-                    )}
-                  </div>
-                  <span style={{ fontSize: '11px', color: '#059669', marginTop: '3px', display: 'block', fontWeight: 500 }}>
-                    Login username is the Email ID entered above.
-                  </span>
-                </div>
-
-                <div>
-                  <label style={inputLabelStyle}>
-                    Role <span style={{ color: '#EF4444' }}>*</span>
+              {/* Row 2.5: Login Username (auto-filled from email, readonly) */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ ...inputLabelStyle, marginBottom: 0 }}>
+                    Login Username <span style={{ color: '#EF4444' }}>*</span>
                   </label>
-                  <div style={{ ...getInputContainerStyle('role'), backgroundColor: '#FFFFFF' }}>
-                    <ShieldCheck size={16} color="#64748B" />
-                    <select
-                      value={role}
-                      onChange={(e) => setRole(e.target.value)}
-                      style={{
-                        flex: 1,
-                        border: 'none',
-                        outline: 'none',
-                        fontSize: '13px',
-                        color: '#0F172A',
-                        backgroundColor: 'transparent',
-                        width: '100%',
-                        cursor: 'pointer',
-                        appearance: 'none',
-                      }}
-                    >
-                      <option value="School Staff">School Staff</option>
-                      <option value="Super Admin">Super Admin</option>
-                    </select>
-                    <ChevronDown size={14} color="#64748B" />
-                  </div>
-                  <span style={{ fontSize: '11px', color: '#94A3B8', marginTop: '3px', display: 'block' }}>
-                    Determines role privileges and system access
+                  <span 
+                    style={{ 
+                      fontSize: '10.5px', 
+                      color: '#059669', 
+                      backgroundColor: '#ECFDF5', 
+                      border: '1px solid #A7F3D0',
+                      padding: '1px 7px', 
+                      borderRadius: '99px', 
+                      fontWeight: 600,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                  >
+                    <Check size={11} strokeWidth={3} /> Auto-filled from Email
                   </span>
                 </div>
+                <div style={{ ...getInputContainerStyle('username'), border: username && !fieldErrors.username ? '1.5px solid #10B981' : '1.5px solid #E2E8F0', backgroundColor: '#F0FDF4' }}>
+                  <Mail size={16} color={username && !fieldErrors.username ? '#10B981' : '#94A3B8'} />
+                  <input
+                    type="text"
+                    placeholder="Auto-filled from Email field above"
+                    value={username}
+                    readOnly
+                    style={{ ...cleanInputStyle, color: '#065F46', cursor: 'default' }}
+                  />
+                  {username && !fieldErrors.username && (
+                    <Check size={14} color="#10B981" strokeWidth={2.5} />
+                  )}
+                </div>
+                <span style={{ fontSize: '11px', color: '#059669', marginTop: '3px', display: 'block', fontWeight: 500 }}>
+                  Login username is the Email ID entered above.
+                </span>
               </div>
 
               {/* Row 3: Password & Confirm Password */}
@@ -1190,6 +1160,12 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                   label="Dashboard"
                   checked={permissions.dashboard}
                   onChange={() => handleTogglePermission('dashboard')}
+                />
+                <PermissionCheckboxRow
+                  icon={School}
+                  label="Schools & Clusters"
+                  checked={permissions.schools}
+                  onChange={() => handleTogglePermission('schools')}
                 />
                 <PermissionCheckboxRow
                   icon={Users}
@@ -1542,12 +1518,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                     <strong style={{ color: '#0F172A' }}>{phone}</strong>
                   </div>
                 )}
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#64748B' }}>Assigned Role:</span>
-                  <span style={{ backgroundColor: '#FFEDD5', color: '#EA580C', padding: '1px 8px', borderRadius: '4px', fontWeight: 700, fontSize: '11px' }}>
-                    {role}
-                  </span>
-                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748B' }}>Assigned Scope:</span>
                   <strong style={{ color: '#0F172A', textAlign: 'right' }}>{cluster || 'All Clusters'} ({school || 'All Schools'})</strong>
@@ -1718,10 +1689,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 <span style={{ color: '#64748B' }}>Email:</span>
                 <span style={{ color: '#334155' }}>{createdUserData.email}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#64748B' }}>Role:</span>
-                <span style={{ color: '#334155', fontWeight: 600 }}>{createdUserData.role}</span>
-              </div>
+
             </div>
 
             <div 

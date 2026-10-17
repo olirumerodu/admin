@@ -1,25 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  LayoutGrid, 
-  Users, 
-  Upload, 
-  GraduationCap, 
-  Bell, 
-  BarChart2, 
-  Settings, 
-  User, 
-  LogOut, 
-  Menu, 
-  Search, 
-  Calendar, 
-  ChevronDown, 
-  ArrowRight, 
-  Network, 
-  School, 
-  ClipboardCheck, 
-  Clock, 
-  Activity, 
-  FileText, 
+import {
+  LayoutGrid,
+  Users,
+  Upload,
+  GraduationCap,
+  Bell,
+  BarChart2,
+  Settings,
+  User,
+  LogOut,
+  Menu,
+  Search,
+  Calendar,
+  ChevronDown,
+  ArrowRight,
+  Network,
+  School,
+  ClipboardCheck,
+  Clock,
+  Activity,
+  FileText,
   X,
   Filter,
   ExternalLink,
@@ -54,7 +54,7 @@ function useWindowWidth() {
 export default function DashboardView() {
   const { user, logout } = useAuth();
   const windowWidth = useWindowWidth();
-  
+
   const isMobile = windowWidth < 768;
   const isTablet = windowWidth >= 768 && windowWidth < 1080;
   const isCompactDesktop = windowWidth >= 1080 && windowWidth < 1366;
@@ -129,11 +129,11 @@ export default function DashboardView() {
       const studentsAssessed = dm.assessed_students ?? 0;
       const cov = dm.overall_coverage_percentage ?? (totalStudents > 0 ? Math.round((studentsAssessed / totalStudents) * 100) : 0);
 
-      const maleCount = dm.count_male ?? (backendStudents.length > 0 
-        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'male').length 
+      const maleCount = dm.count_male ?? (backendStudents.length > 0
+        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'male').length
         : 0);
-      const femaleCount = dm.count_female ?? (backendStudents.length > 0 
-        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'female').length 
+      const femaleCount = dm.count_female ?? (backendStudents.length > 0
+        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'female').length
         : 0);
 
       const malePct = totalStudents > 0 ? Number(((maleCount / totalStudents) * 100).toFixed(1)) : 0;
@@ -223,8 +223,8 @@ export default function DashboardView() {
   };
 
   const filteredSchools = schoolsList
-    .filter(s => 
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    .filter(s =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.cluster.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .slice(0, topSchoolsLimit);
@@ -234,7 +234,7 @@ export default function DashboardView() {
     let list = rawStudents.filter(s => !s.enrollment_status || s.enrollment_status === 'Active');
     const isFiltered = studentSchoolFilter && studentSchoolFilter !== 'ALL';
     if (isFiltered) {
-      list = list.filter(s => 
+      list = list.filter(s =>
         String(s.school_id || '').trim().toLowerCase() === String(studentSchoolFilter).trim().toLowerCase() ||
         String(s.school_name || '').trim().toLowerCase() === String(studentSchoolFilter).trim().toLowerCase()
       );
@@ -267,7 +267,7 @@ export default function DashboardView() {
     let list = rawStudents.filter(s => !s.enrollment_status || s.enrollment_status === 'Active');
     const isFiltered = healthSchoolFilter && healthSchoolFilter !== 'ALL';
     if (isFiltered) {
-      list = list.filter(s => 
+      list = list.filter(s =>
         String(s.school_id || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase() ||
         String(s.school_name || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase()
       );
@@ -357,20 +357,20 @@ export default function DashboardView() {
   const femaleStrokeDash = (studentOverviewData.femalePct / 100) * circumference;
 
   // Compact responsive columns
-  const kpiGridColumns = isLargeDesktop 
-    ? 'repeat(6, minmax(0, 1fr))' 
-    : isCompactDesktop 
-      ? 'repeat(3, minmax(0, 1fr))' 
-      : isTablet 
-        ? 'repeat(2, minmax(0, 1fr))' 
+  const kpiGridColumns = isLargeDesktop
+    ? 'repeat(6, minmax(0, 1fr))'
+    : isCompactDesktop
+      ? 'repeat(3, minmax(0, 1fr))'
+      : isTablet
+        ? 'repeat(2, minmax(0, 1fr))'
         : '1fr';
 
-  const twoColGridColumns = windowWidth > 1024 
-    ? 'repeat(2, minmax(0, 1fr))' 
+  const twoColGridColumns = windowWidth > 1024
+    ? 'repeat(2, minmax(0, 1fr))'
     : '1fr';
 
   return (
-    <div 
+    <div
       style={{
         display: 'flex',
         height: '100vh',
@@ -385,7 +385,7 @@ export default function DashboardView() {
     >
       {/* Mobile Drawer Backdrop */}
       {isMobile && mobileMenuOpen && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             inset: 0,
@@ -397,7 +397,7 @@ export default function DashboardView() {
       )}
 
       {/* ================= LEFT SIDEBAR ================= */}
-      <aside 
+      <aside
         style={{
           width: '235px',
           backgroundColor: '#0D1527',
@@ -425,7 +425,7 @@ export default function DashboardView() {
           <div style={{ padding: '16px 18px 12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <StudentHealthLogo size={36} showText={true} isWhite={true} />
             {isMobile && (
-              <button 
+              <button
                 onClick={() => setMobileMenuOpen(false)}
                 style={{ background: 'none', border: 'none', color: '#FFFFFF', cursor: 'pointer' }}
               >
@@ -642,7 +642,10 @@ export default function DashboardView() {
             </button>
             */}
 
-            {/* Logout */}
+          </nav>
+
+          {/* Bottom Sidebar Footer / Logout */}
+          <div style={{ padding: '14px 12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)', marginTop: 'auto' }}>
             <button
               onClick={() => {
                 setShowLogoutConfirm(true);
@@ -652,28 +655,36 @@ export default function DashboardView() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '12px',
-                padding: '9px 14px',
+                padding: '10px 14px',
                 borderRadius: '8px',
                 fontSize: '13px',
                 fontWeight: 500,
                 color: '#F87171',
-                background: 'transparent',
-                border: 'none',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
                 cursor: 'pointer',
                 textAlign: 'left',
                 width: '100%',
-                marginTop: '4px'
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.16)';
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
               }}
             >
               <LogOut size={16} />
               <span>Logout</span>
             </button>
-          </nav>
+          </div>
         </div>
       </aside>
 
       {/* ================= MAIN DASHBOARD CONTAINER ================= */}
-      <div 
+      <div
         style={{
           flex: 1,
           display: 'flex',
@@ -687,7 +698,7 @@ export default function DashboardView() {
         }}
       >
         {/* Compact Topbar (52px height) */}
-        <header 
+        <header
           style={{
             height: '52px',
             backgroundColor: '#FFFFFF',
@@ -722,7 +733,7 @@ export default function DashboardView() {
             )}
 
             {/* Search Box */}
-            <div 
+            <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -796,127 +807,158 @@ export default function DashboardView() {
             </button>
             */}
 
-            {/* Temporarily hidden: Admin Profile Pill & Dropdown */}
-            {/*
-            <div 
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                cursor: 'pointer',
-                padding: '2px 4px',
-                borderRadius: '6px',
-                position: 'relative'
-              }}
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
-            >
-              <div 
+            {/* Admin Profile Pill & Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <div
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  backgroundColor: '#111C38',
-                  color: '#FFFFFF',
-                  fontWeight: 700,
-                  fontSize: '13px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
+                  gap: '10px',
+                  cursor: 'pointer',
+                  padding: isMobile ? '3px 8px 3px 4px' : '4px 12px 4px 6px',
+                  borderRadius: '24px',
+                  backgroundColor: showProfileMenu ? '#EEF2F6' : '#F8FAFC',
+                  border: showProfileMenu ? '1px solid #CBD5E1' : '1px solid #E2E8F0',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  transition: 'all 0.15s ease',
+                  userSelect: 'none'
                 }}
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
               >
-                {(user?.name || 'Karthikeyan').charAt(0).toUpperCase()}
+                {/* Avatar with gradient */}
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #F05A24 0%, #D94814 100%)',
+                    color: '#FFFFFF',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    boxShadow: '0 2px 6px rgba(240, 90, 36, 0.28)'
+                  }}
+                >
+                  {(user?.name || user?.username || 'Admin').charAt(0).toUpperCase()}
+                </div>
+
+                {!isMobile && (
+                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>
+                      {user?.name || user?.username || 'Administrator'}
+                    </span>
+                    <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 600 }}>
+                      {(user?.role || 'Super Admin').replace(/_/g, ' ').toUpperCase()}
+                    </span>
+                  </div>
+                )}
+
+                <ChevronDown
+                  size={14}
+                  color="#64748B"
+                  style={{
+                    transform: showProfileMenu ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s ease',
+                    marginLeft: '2px'
+                  }}
+                />
               </div>
 
-              {!isMobile && (
-                <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-                  <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
-                    {user?.name || 'Karthikeyan'}
-                  </span>
-                  <span style={{ fontSize: '10.5px', color: '#94A3B8', fontWeight: 500 }}>
-                    {user?.role || 'Administrator'}
-                  </span>
-                </div>
+              {/* Click-outside backdrop */}
+              {showProfileMenu && (
+                <div
+                  style={{
+                    position: 'fixed',
+                    inset: 0,
+                    zIndex: 90
+                  }}
+                  onClick={() => setShowProfileMenu(false)}
+                />
               )}
 
-              <ChevronDown size={13} color="#94A3B8" />
-
+              {/* Dropdown Menu */}
               {showProfileMenu && (
-                <div 
+                <div
                   style={{
                     position: 'absolute',
-                    top: '42px',
+                    top: 'calc(100% + 8px)',
                     right: 0,
-                    width: '180px',
+                    width: '210px',
                     background: '#FFFFFF',
-                    borderRadius: '10px',
-                    boxShadow: '0 8px 20px rgba(0,0,0,0.12)',
-                    border: '1px solid #ECEEF2',
-                    padding: '6px',
-                    zIndex: 100
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 28px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06)',
+                    border: '1px solid #E2E8F0',
+                    padding: '8px',
+                    zIndex: 100,
+                    animation: 'logoutSlideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div style={{ padding: '6px 8px', borderBottom: '1px solid #F1F5F9', fontSize: '12px' }}>
-                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{user?.name || 'Karthikeyan'}</div>
-                    <div style={{ color: '#64748B', fontSize: '11px' }}>{user?.email || 'admin@gmail.com'}</div>
+                  {/* User Profile Header in Dropdown */}
+                  <div style={{ padding: '8px 10px 10px 10px', borderBottom: '1px solid #F1F5F9' }}>
+                    <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '13px' }}>
+                      {user?.name || user?.username || 'Administrator'}
+                    </div>
+                    <div style={{ color: '#64748B', fontSize: '11px', marginTop: '2px' }}>
+                      {user?.email || 'admin@wattasattam.org'}
+                    </div>
+                    <div style={{ marginTop: '6px' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          color: '#F05A24',
+                          background: 'rgba(240, 90, 36, 0.1)',
+                          padding: '2px 8px',
+                          borderRadius: '12px'
+                        }}
+                      >
+                        {(user?.role || 'Super Admin').replace(/_/g, ' ').toUpperCase()}
+                      </span>
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => {
-                      setShowProfileMenu(false);
-                      setShowLogoutConfirm(true);
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '7px 8px',
-                      background: 'none',
-                      border: 'none',
-                      color: '#EF4444',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      borderRadius: '6px',
-                      marginTop: '2px'
-                    }}
-                  >
-                    <LogOut size={14} />
-                    <span>Sign Out</span>
-                  </button>
+
+                  {/* Sign Out Option */}
+                  <div style={{ paddingTop: '6px' }}>
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setShowLogoutConfirm(true);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        width: '100%',
+                        padding: '8px 10px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#EF4444',
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        borderRadius: '8px',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#FEF2F2'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <LogOut size={15} />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-            */}
-
-            {/* Direct Logout / Sign Out Button */}
-            <button
-              onClick={() => setShowLogoutConfirm(true)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                border: '1px solid #FECACA',
-                backgroundColor: '#FEF2F2',
-                color: '#EF4444',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              title="Sign Out"
-            >
-              <LogOut size={14} />
-              <span>Sign Out</span>
-            </button>
           </div>
         </header>
 
         {activeNav === 'users' ? (
-          <main 
+          <main
             style={{
               padding: isMobile ? '12px 14px' : '14px 20px',
               flex: 1,
@@ -931,7 +973,7 @@ export default function DashboardView() {
           </main>
 
         ) : activeNav === 'import' ? (
-          <main 
+          <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
               flex: 1,
@@ -945,7 +987,7 @@ export default function DashboardView() {
             <StudentDataImportView onNavigateTab={(tab) => setActiveNav(tab)} />
           </main>
         ) : activeNav === 'students' ? (
-          <main 
+          <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
               flex: 1,
@@ -959,7 +1001,7 @@ export default function DashboardView() {
             <StudentsManagementView />
           </main>
         ) : activeNav === 'notifications' ? (
-          <main 
+          <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
               flex: 1,
@@ -973,7 +1015,7 @@ export default function DashboardView() {
             <NotificationsManagementView />
           </main>
         ) : activeNav === 'reports' ? (
-          <main 
+          <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
               flex: 1,
@@ -987,7 +1029,7 @@ export default function DashboardView() {
             <ReportsAnalyticsView />
           </main>
         ) : activeNav === 'settings' ? (
-          <main 
+          <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
               flex: 1,
@@ -1002,7 +1044,7 @@ export default function DashboardView() {
           </main>
         ) : (
           /* Clean, Maintainable Dashboard Main Screen */
-          <main 
+          <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
               display: 'flex',
@@ -1016,188 +1058,31 @@ export default function DashboardView() {
               boxSizing: 'border-box'
             }}
           >
-          {/* Header Row: Title & Subtitle inline, and Live Database School Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2 }}>
-                Dashboard
-              </h1>
-              <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: 450 }}>
-                System overview & real-time database analytics
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <School size={14} color="#EA580C" />
-                <span>Filter School:</span>
-              </span>
-              <select 
-                style={{
-                  ...compactSelectStyle,
-                  borderColor: dashboardSchoolFilter !== 'ALL' ? '#EA580C' : '#E2E8F0',
-                  backgroundColor: dashboardSchoolFilter !== 'ALL' ? '#FFF7ED' : '#FFFFFF',
-                  fontWeight: 600
-                }}
-                value={dashboardSchoolFilter}
-                onChange={(e) => handleDashboardSchoolFilterChange(e.target.value)}
-              >
-                <option value="ALL">All Schools ({schoolsList.length})</option>
-                {schoolsList.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* ================= ROW 1: 6 KPI CARDS ================= */}
-          <div 
-            style={{
-              display: 'grid',
-              gridTemplateColumns: kpiGridColumns,
-              gap: '10px',
-              width: '100%',
-              flexShrink: 0,
-              boxSizing: 'border-box'
-            }}
-          >
-            {/* Card 1: Total Users */}
-            <div 
-              style={compactKpiCardStyle}
-              onClick={() => setActiveNav('users')}
-              title="Click to view User Management"
-              role="button"
-              tabIndex={0}
-            >
-              <div style={compactKpiLeftStyle}>
-                <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
-                  <Users size={16} />
-                </div>
-                <div style={compactKpiInfoStyle}>
-                  <span style={compactKpiLabelStyle}>Total Users</span>
-                  <span style={compactKpiValueStyle}>{metrics.total_users}</span>
-                </div>
+            {/* Header Row: Title & Subtitle inline, and Live Database School Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, gap: '12px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2 }}>
+                  Dashboard
+                </h1>
+                <span style={{ fontSize: '12.5px', color: '#64748B', fontWeight: 450 }}>
+                  System overview & real-time database analytics
+                </span>
               </div>
-              <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
-            </div>
 
-            {/* Card 2: Total Clusters */}
-            <div 
-              style={compactKpiCardStyle}
-              onClick={() => setActiveNav('students')}
-              title="Click to view Clusters & Schools"
-              role="button"
-              tabIndex={0}
-            >
-              <div style={compactKpiLeftStyle}>
-                <div style={{ ...compactKpiIconBoxStyle, background: '#CCFBF1', color: '#0D9488' }}>
-                  <Network size={16} />
-                </div>
-                <div style={compactKpiInfoStyle}>
-                  <span style={compactKpiLabelStyle}>Total Clusters</span>
-                  <span style={compactKpiValueStyle}>{metrics.total_clusters}</span>
-                </div>
-              </div>
-              <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
-            </div>
-
-            {/* Card 3: Total Schools */}
-            <div 
-              style={compactKpiCardStyle}
-              onClick={() => setActiveNav('students')}
-              title="Click to view Students Directory"
-              role="button"
-              tabIndex={0}
-            >
-              <div style={compactKpiLeftStyle}>
-                <div style={{ ...compactKpiIconBoxStyle, background: '#FEF3C7', color: '#D97706' }}>
-                  <School size={16} />
-                </div>
-                <div style={compactKpiInfoStyle}>
-                  <span style={compactKpiLabelStyle}>Total Schools</span>
-                  <span style={compactKpiValueStyle}>{metrics.total_schools}</span>
-                </div>
-              </div>
-              <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
-            </div>
-
-            {/* Card 4: Total Students */}
-            <div 
-              style={compactKpiCardStyle}
-              onClick={() => setActiveNav('students')}
-              title="Click to view Students Directory"
-              role="button"
-              tabIndex={0}
-            >
-              <div style={compactKpiLeftStyle}>
-                <div style={{ ...compactKpiIconBoxStyle, background: '#DBEAFE', color: '#2563EB' }}>
-                  <Users size={16} />
-                </div>
-                <div style={compactKpiInfoStyle}>
-                  <span style={compactKpiLabelStyle}>Total Students</span>
-                  <span style={compactKpiValueStyle}>{metrics.total_students.toLocaleString()}</span>
-                </div>
-              </div>
-              <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
-            </div>
-
-            {/* Card 5: Students Assessed */}
-            <div 
-              style={{ ...compactKpiCardStyle, cursor: 'default' }}
-              title="Students Assessed"
-            >
-              <div style={compactKpiLeftStyle}>
-                <div style={{ ...compactKpiIconBoxStyle, background: '#DCFCE7', color: '#16A34A' }}>
-                  <ClipboardCheck size={16} />
-                </div>
-                <div style={compactKpiInfoStyle}>
-                  <span style={compactKpiLabelStyle}>Students Assessed</span>
-                  <span style={compactKpiValueStyle}>{metrics.students_assessed.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 6: Assessment Coverage */}
-            <div 
-              style={{ ...compactKpiCardStyle, cursor: 'default' }}
-              title="Assessment Coverage"
-            >
-              <div style={compactKpiLeftStyle}>
-                <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
-                  <Clock size={16} />
-                </div>
-                <div style={compactKpiInfoStyle}>
-                  <span style={compactKpiLabelStyle}>Assessment Coverage</span>
-                  <span style={compactKpiValueStyle}>{metrics.assessment_coverage}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ================= ROW 2: STUDENT OVERVIEW & HEALTH OVERVIEW ================= */}
-          <div 
-            style={{
-              display: 'grid',
-              gridTemplateColumns: twoColGridColumns,
-              gap: '10px',
-              width: '100%',
-              flex: '1 1 0',
-              minHeight: 0,
-              boxSizing: 'border-box'
-            }}
-          >
-            {/* Student Overview Donut Card */}
-            <div style={compactCardStyle}>
-              <div style={compactCardHeaderStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Users size={15} color="#EA580C" />
-                  <h3 style={compactCardTitleStyle}>Student Overview</h3>
-                </div>
-
-                <select 
-                  style={compactSelectStyle}
-                  value={studentSchoolFilter}
-                  onChange={(e) => setStudentSchoolFilter(e.target.value)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <School size={14} color="#EA580C" />
+                  <span>Filter School:</span>
+                </span>
+                <select
+                  style={{
+                    ...compactSelectStyle,
+                    borderColor: dashboardSchoolFilter !== 'ALL' ? '#EA580C' : '#E2E8F0',
+                    backgroundColor: dashboardSchoolFilter !== 'ALL' ? '#FFF7ED' : '#FFFFFF',
+                    fontWeight: 600
+                  }}
+                  value={dashboardSchoolFilter}
+                  onChange={(e) => handleDashboardSchoolFilterChange(e.target.value)}
                 >
                   <option value="ALL">All Schools ({schoolsList.length})</option>
                   {schoolsList.map(s => (
@@ -1205,423 +1090,468 @@ export default function DashboardView() {
                   ))}
                 </select>
               </div>
+            </div>
 
-              <div 
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 1fr)',
-                  alignItems: 'center',
-                  gap: '12px',
-                  width: '100%',
-                  flex: 1
-                }}
+            {/* ================= ROW 1: 6 KPI CARDS ================= */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: kpiGridColumns,
+                gap: '10px',
+                width: '100%',
+                flexShrink: 0,
+                boxSizing: 'border-box'
+              }}
+            >
+              {/* Card 1: Total Users */}
+              <div
+                style={compactKpiCardStyle}
+                onClick={() => setActiveNav('users')}
+                title="Click to view User Management"
+                role="button"
+                tabIndex={0}
               >
-                {/* SVG Donut Ring */}
-                <div 
+                <div style={compactKpiLeftStyle}>
+                  <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
+                    <Users size={16} />
+                  </div>
+                  <div style={compactKpiInfoStyle}>
+                    <span style={compactKpiLabelStyle}>Total Users</span>
+                    <span style={compactKpiValueStyle}>{metrics.total_users}</span>
+                  </div>
+                </div>
+                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
+              </div>
+
+              {/* Card 2: Total Clusters */}
+              <div
+                style={compactKpiCardStyle}
+                onClick={() => setActiveNav('students')}
+                title="Click to view Clusters & Schools"
+                role="button"
+                tabIndex={0}
+              >
+                <div style={compactKpiLeftStyle}>
+                  <div style={{ ...compactKpiIconBoxStyle, background: '#CCFBF1', color: '#0D9488' }}>
+                    <Network size={16} />
+                  </div>
+                  <div style={compactKpiInfoStyle}>
+                    <span style={compactKpiLabelStyle}>Total Clusters</span>
+                    <span style={compactKpiValueStyle}>{metrics.total_clusters}</span>
+                  </div>
+                </div>
+                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
+              </div>
+
+              {/* Card 3: Total Schools */}
+              <div
+                style={compactKpiCardStyle}
+                onClick={() => setActiveNav('students')}
+                title="Click to view Students Directory"
+                role="button"
+                tabIndex={0}
+              >
+                <div style={compactKpiLeftStyle}>
+                  <div style={{ ...compactKpiIconBoxStyle, background: '#FEF3C7', color: '#D97706' }}>
+                    <School size={16} />
+                  </div>
+                  <div style={compactKpiInfoStyle}>
+                    <span style={compactKpiLabelStyle}>Total Schools</span>
+                    <span style={compactKpiValueStyle}>{metrics.total_schools}</span>
+                  </div>
+                </div>
+                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
+              </div>
+
+              {/* Card 4: Total Students */}
+              <div
+                style={compactKpiCardStyle}
+                onClick={() => setActiveNav('students')}
+                title="Click to view Students Directory"
+                role="button"
+                tabIndex={0}
+              >
+                <div style={compactKpiLeftStyle}>
+                  <div style={{ ...compactKpiIconBoxStyle, background: '#DBEAFE', color: '#2563EB' }}>
+                    <Users size={16} />
+                  </div>
+                  <div style={compactKpiInfoStyle}>
+                    <span style={compactKpiLabelStyle}>Total Students</span>
+                    <span style={compactKpiValueStyle}>{metrics.total_students.toLocaleString()}</span>
+                  </div>
+                </div>
+                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
+              </div>
+
+              {/* Card 5: Students Assessed */}
+              <div
+                style={{ ...compactKpiCardStyle, cursor: 'default' }}
+                title="Students Assessed"
+              >
+                <div style={compactKpiLeftStyle}>
+                  <div style={{ ...compactKpiIconBoxStyle, background: '#DCFCE7', color: '#16A34A' }}>
+                    <ClipboardCheck size={16} />
+                  </div>
+                  <div style={compactKpiInfoStyle}>
+                    <span style={compactKpiLabelStyle}>Students Assessed</span>
+                    <span style={compactKpiValueStyle}>{metrics.students_assessed.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 6: Assessment Coverage */}
+              <div
+                style={{ ...compactKpiCardStyle, cursor: 'default' }}
+                title="Assessment Coverage"
+              >
+                <div style={compactKpiLeftStyle}>
+                  <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
+                    <Clock size={16} />
+                  </div>
+                  <div style={compactKpiInfoStyle}>
+                    <span style={compactKpiLabelStyle}>Assessment Coverage</span>
+                    <span style={compactKpiValueStyle}>{metrics.assessment_coverage}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ================= ROW 2: STUDENT OVERVIEW & HEALTH OVERVIEW ================= */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: twoColGridColumns,
+                gap: '10px',
+                width: '100%',
+                flex: '1 1 0',
+                minHeight: 0,
+                boxSizing: 'border-box'
+              }}
+            >
+              {/* Student Overview Donut Card */}
+              <div style={compactCardStyle}>
+                <div style={compactCardHeaderStyle}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Users size={15} color="#EA580C" />
+                    <h3 style={compactCardTitleStyle}>Student Overview</h3>
+                  </div>
+
+                  <select
+                    style={compactSelectStyle}
+                    value={studentSchoolFilter}
+                    onChange={(e) => setStudentSchoolFilter(e.target.value)}
+                  >
+                    <option value="ALL">All Schools ({schoolsList.length})</option>
+                    {schoolsList.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div
                   style={{
-                    position: 'relative',
-                    width: '115px',
-                    height: '115px',
-                    margin: '0 auto',
-                    display: 'flex',
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 1fr)',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
+                    gap: '12px',
+                    width: '100%',
+                    flex: 1
                   }}
                 >
-                  <svg style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }} viewBox="0 0 120 120">
-                    <circle cx="60" cy="60" r={radius} fill="none" stroke="#F1F5F9" strokeWidth="13" />
-                    {/* Teal Arc (Male Students) */}
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r={radius}
-                      fill="none"
-                      stroke="#14B8A6"
-                      strokeWidth="13"
-                      strokeDasharray={`${maleStrokeDash} ${circumference}`}
-                      strokeDashoffset="0"
-                      strokeLinecap="round"
-                    />
-                    {/* Orange Arc (Female Students) */}
-                    <circle
-                      cx="60"
-                      cy="60"
-                      r={radius}
-                      fill="none"
-                      stroke="#F05A24"
-                      strokeWidth="13"
-                      strokeDasharray={`${femaleStrokeDash} ${circumference}`}
-                      strokeDashoffset={`-${maleStrokeDash}`}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-
-                  {/* Centered Number */}
-                  <div 
+                  {/* SVG Donut Ring */}
+                  <div
                     style={{
-                      position: 'absolute',
+                      position: 'relative',
+                      width: '115px',
+                      height: '115px',
+                      margin: '0 auto',
                       display: 'flex',
-                      flexDirection: 'column',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      pointerEvents: 'none'
+                      flexShrink: 0
                     }}
                   >
-                    <span style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
-                      {studentOverviewData.total.toLocaleString()}
-                    </span>
-                    <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 500 }}>
-                      Total Students
-                    </span>
-                  </div>
-                </div>
+                    <svg style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }} viewBox="0 0 120 120">
+                      <circle cx="60" cy="60" r={radius} fill="none" stroke="#F1F5F9" strokeWidth="13" />
+                      {/* Teal Arc (Male Students) */}
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r={radius}
+                        fill="none"
+                        stroke="#14B8A6"
+                        strokeWidth="13"
+                        strokeDasharray={`${maleStrokeDash} ${circumference}`}
+                        strokeDashoffset="0"
+                        strokeLinecap="round"
+                      />
+                      {/* Orange Arc (Female Students) */}
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r={radius}
+                        fill="none"
+                        stroke="#F05A24"
+                        strokeWidth="13"
+                        strokeDasharray={`${femaleStrokeDash} ${circumference}`}
+                        strokeDashoffset={`-${maleStrokeDash}`}
+                        strokeLinecap="round"
+                      />
+                    </svg>
 
-                {/* Donut Legend */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#475569', fontWeight: 500 }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#14B8A6', display: 'inline-block' }} />
-                      <span>Male Students</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', paddingLeft: '13px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                        {studentOverviewData.male.toLocaleString()}
+                    {/* Centered Number */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        pointerEvents: 'none'
+                      }}
+                    >
+                      <span style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
+                        {studentOverviewData.total.toLocaleString()}
                       </span>
-                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
-                        {studentOverviewData.malePct}%
+                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 500 }}>
+                        Total Students
                       </span>
                     </div>
                   </div>
 
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#475569', fontWeight: 500 }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#F05A24', display: 'inline-block' }} />
-                      <span>Female Students</span>
+                  {/* Donut Legend */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#475569', fontWeight: 500 }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#14B8A6', display: 'inline-block' }} />
+                        <span>Male Students</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', paddingLeft: '13px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
+                          {studentOverviewData.male.toLocaleString()}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
+                          {studentOverviewData.malePct}%
+                        </span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', paddingLeft: '13px' }}>
-                      <span style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
-                        {studentOverviewData.female.toLocaleString()}
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
-                        {studentOverviewData.femalePct}%
-                      </span>
+
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#475569', fontWeight: 500 }}>
+                        <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: '#F05A24', display: 'inline-block' }} />
+                        <span>Female Students</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', paddingLeft: '13px' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A' }}>
+                          {studentOverviewData.female.toLocaleString()}
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>
+                          {studentOverviewData.femalePct}%
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Health Overview Progress Bars */}
-            <div style={compactCardStyle}>
-              <div style={compactCardHeaderStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Activity size={15} color="#EA580C" />
-                  <h3 style={compactCardTitleStyle}>Health Overview</h3>
-                </div>
-
-                <select 
-                  style={compactSelectStyle}
-                  value={healthSchoolFilter}
-                  onChange={(e) => setHealthSchoolFilter(e.target.value)}
-                >
-                  <option value="ALL">All Schools ({schoolsList.length})</option>
-                  {schoolsList.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* 5 Compact Bars */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', width: '100%', flex: 1, justifyContent: 'center' }}>
-                {/* Normal */}
-                <div style={compactHealthBarRow}>
-                  <span style={compactHealthLabel}>Normal</span>
-                  <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${healthOverviewData.normalPct}%`, backgroundColor: '#10B981' }} />
+              {/* Health Overview Progress Bars */}
+              <div style={compactCardStyle}>
+                <div style={compactCardHeaderStyle}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Activity size={15} color="#EA580C" />
+                    <h3 style={compactCardTitleStyle}>Health Overview</h3>
                   </div>
-                  <span style={compactHealthCount}>{healthOverviewData.normal.toLocaleString()}</span>
-                  <span style={compactHealthPct}>{healthOverviewData.normalPct}%</span>
-                </div>
 
-                {/* Wasted */}
-                <div style={compactHealthBarRow}>
-                  <span style={compactHealthLabel}>Wasted</span>
-                  <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.wastedPct * 2)}%`, backgroundColor: '#F59E0B' }} />
-                  </div>
-                  <span style={compactHealthCount}>{healthOverviewData.wasted}</span>
-                  <span style={compactHealthPct}>{healthOverviewData.wastedPct}%</span>
-                </div>
-
-                {/* Severely Wasted */}
-                <div style={compactHealthBarRow}>
-                  <span style={compactHealthLabel}>Severely Wasted</span>
-                  <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.sevWastedPct * 2)}%`, backgroundColor: '#EF4444' }} />
-                  </div>
-                  <span style={compactHealthCount}>{healthOverviewData.sevWasted}</span>
-                  <span style={compactHealthPct}>{healthOverviewData.sevWastedPct}%</span>
-                </div>
-
-                {/* Overweight */}
-                <div style={compactHealthBarRow}>
-                  <span style={compactHealthLabel}>Overweight</span>
-                  <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.overweightPct * 2)}%`, backgroundColor: '#14B8A6' }} />
-                  </div>
-                  <span style={compactHealthCount}>{healthOverviewData.overweight}</span>
-                  <span style={compactHealthPct}>{healthOverviewData.overweightPct}%</span>
-                </div>
-
-                {/* Obesity */}
-                <div style={compactHealthBarRow}>
-                  <span style={compactHealthLabel}>Obesity</span>
-                  <div style={compactHealthTrack}>
-                    <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.obesityPct * 2)}%`, backgroundColor: '#EA580C' }} />
-                  </div>
-                  <span style={compactHealthCount}>{healthOverviewData.obesity}</span>
-                  <span style={compactHealthPct}>{healthOverviewData.obesityPct}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ================= ROW 3: SCHOOL DISTRIBUTION & RECENT ACTIVITY ================= */}
-          <div 
-            style={{
-              display: 'grid',
-              gridTemplateColumns: twoColGridColumns,
-              gap: '10px',
-              width: '100%',
-              flex: '1 1 0',
-              minHeight: 0,
-              boxSizing: 'border-box'
-            }}
-          >
-            {/* School-wise Student Distribution */}
-            <div style={compactCardStyle}>
-              <div style={compactCardHeaderStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <School size={15} color="#EA580C" />
-                  <h3 style={compactCardTitleStyle}>School-wise Student Distribution</h3>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <select 
+                  <select
                     style={compactSelectStyle}
-                    value={topSchoolsLimit}
-                    onChange={(e) => setTopSchoolsLimit(Number(e.target.value))}
+                    value={healthSchoolFilter}
+                    onChange={(e) => setHealthSchoolFilter(e.target.value)}
                   >
-                    <option value={5}>Top 5</option>
-                    <option value={10}>Top 10</option>
-                    <option value={1000}>All ({schoolsList.length})</option>
+                    <option value="ALL">All Schools ({schoolsList.length})</option>
+                    {schoolsList.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
                   </select>
-                  <button 
-                    onClick={() => setActiveNav('students')}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#EB5A1D',
-                      fontWeight: 600,
-                      fontSize: '11.5px',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                      padding: '2px 4px',
-                      borderRadius: '4px'
-                    }}
-                    title="View all in Students"
-                  >
-                    <span>View All</span>
-                    <ExternalLink size={11} />
-                  </button>
                 </div>
-              </div>
 
-              {/* Table */}
-              <div style={{ width: '100%', overflowY: topSchoolsLimit > 5 ? 'auto' : 'hidden', maxHeight: '150px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8', width: '24px' }}>#</th>
-                      <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>School Name</th>
-                      <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Cluster</th>
-                      <th style={{ padding: '0 8px 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8', textAlign: 'right' }}>Students</th>
-                      <th style={{ padding: '0 0 4px 0', width: '80px' }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSchools.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" style={{ padding: '12px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
-                          No school records found.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredSchools.map((item, idx) => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                          <td style={{ padding: '5px 0', color: '#94A3B8', fontSize: '11.5px', fontWeight: 600 }}>{idx + 1}</td>
-                          <td style={{ padding: '5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 600 }}>{item.name}</td>
-                          <td style={{ padding: '5px 0', color: '#64748B', fontSize: '11.5px' }}>{item.cluster}</td>
-                          <td style={{ padding: '5px 8px 5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>
-                            {item.students}
-                          </td>
-                          <td style={{ padding: '5px 0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <div style={{ width: '48px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const fullSchool = rawSchools.find(s => String(s.id) === String(item.id)) || item;
-                                  setSchoolToEdit(fullSchool);
-                                }}
-                                title={`Edit ${item.name}`}
-                                style={{
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  border: '1px solid #FED7AA',
-                                  backgroundColor: '#FFF7ED',
-                                  color: '#EA580C',
-                                  fontSize: '10.5px',
-                                  fontWeight: 700,
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '2px'
-                                }}
-                              >
-                                <Edit2 size={10} />
-                                <span>Edit</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                {/* 5 Compact Bars */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', width: '100%', flex: 1, justifyContent: 'center' }}>
+                  {/* Normal */}
+                  <div style={compactHealthBarRow}>
+                    <span style={compactHealthLabel}>Normal</span>
+                    <div style={compactHealthTrack}>
+                      <div style={{ ...compactHealthFill, width: `${healthOverviewData.normalPct}%`, backgroundColor: '#10B981' }} />
+                    </div>
+                    <span style={compactHealthCount}>{healthOverviewData.normal.toLocaleString()}</span>
+                    <span style={compactHealthPct}>{healthOverviewData.normalPct}%</span>
+                  </div>
+
+                  {/* Wasted */}
+                  <div style={compactHealthBarRow}>
+                    <span style={compactHealthLabel}>Wasted</span>
+                    <div style={compactHealthTrack}>
+                      <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.wastedPct * 2)}%`, backgroundColor: '#F59E0B' }} />
+                    </div>
+                    <span style={compactHealthCount}>{healthOverviewData.wasted}</span>
+                    <span style={compactHealthPct}>{healthOverviewData.wastedPct}%</span>
+                  </div>
+
+                  {/* Severely Wasted */}
+                  <div style={compactHealthBarRow}>
+                    <span style={compactHealthLabel}>Severely Wasted</span>
+                    <div style={compactHealthTrack}>
+                      <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.sevWastedPct * 2)}%`, backgroundColor: '#EF4444' }} />
+                    </div>
+                    <span style={compactHealthCount}>{healthOverviewData.sevWasted}</span>
+                    <span style={compactHealthPct}>{healthOverviewData.sevWastedPct}%</span>
+                  </div>
+
+                  {/* Overweight */}
+                  <div style={compactHealthBarRow}>
+                    <span style={compactHealthLabel}>Overweight</span>
+                    <div style={compactHealthTrack}>
+                      <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.overweightPct * 2)}%`, backgroundColor: '#14B8A6' }} />
+                    </div>
+                    <span style={compactHealthCount}>{healthOverviewData.overweight}</span>
+                    <span style={compactHealthPct}>{healthOverviewData.overweightPct}%</span>
+                  </div>
+
+                  {/* Obesity */}
+                  <div style={compactHealthBarRow}>
+                    <span style={compactHealthLabel}>Obesity</span>
+                    <div style={compactHealthTrack}>
+                      <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.obesityPct * 2)}%`, backgroundColor: '#EA580C' }} />
+                    </div>
+                    <span style={compactHealthCount}>{healthOverviewData.obesity}</span>
+                    <span style={compactHealthPct}>{healthOverviewData.obesityPct}%</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Upcoming Activity & Schedules */}
-            <div style={compactCardStyle}>
-              <div style={compactCardHeaderStyle}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: '#FFEDD5', color: '#EA580C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Calendar size={15} />
+            {/* ================= ROW 3: SCHOOL-WISE STUDENT DISTRIBUTION ================= */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr',
+                gap: '10px',
+                width: '100%',
+                flex: '1 1 0',
+                minHeight: 0,
+                boxSizing: 'border-box'
+              }}
+            >
+              {/* School-wise Student Distribution */}
+              <div style={compactCardStyle}>
+                <div style={compactCardHeaderStyle}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <School size={15} color="#EA580C" />
+                    <h3 style={compactCardTitleStyle}>School-wise Student Distribution</h3>
                   </div>
-                  <div>
-                    <h3 style={compactCardTitleStyle}>Upcoming Activity & Schedules</h3>
-                    <p style={{ margin: 0, fontSize: '11px', color: '#64748B' }}>Screening drives & events</p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <select
+                      style={compactSelectStyle}
+                      value={topSchoolsLimit}
+                      onChange={(e) => setTopSchoolsLimit(Number(e.target.value))}
+                    >
+
+                      <option value={1000}>All ({schoolsList.length})</option>
+                    </select>
+                    <button
+                      onClick={() => setActiveNav('students')}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#EB5A1D',
+                        fontWeight: 600,
+                        fontSize: '11.5px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '2px 4px',
+                        borderRadius: '4px'
+                      }}
+                      title="View all in Students"
+                    >
+                      <span>View All</span>
+                      <ExternalLink size={11} />
+                    </button>
                   </div>
                 </div>
 
-                {/* Temporarily hidden: Manage button */}
-                {/*
-                <button 
-                  onClick={() => setActiveNav('notifications')}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#EB5A1D',
-                    fontWeight: 600,
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: '3px 6px',
-                    borderRadius: '4px'
-                  }}
-                  title="View all notifications and scheduled assessments"
-                >
-                  <span>Manage</span>
-                  <ExternalLink size={12} />
-                </button>
-                */}
-              </div>
-
-              <div style={{ width: '100%', overflowY: 'auto', maxHeight: '220px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
-                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Activity</th>
-                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Target School</th>
-                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Date</th>
-                      <th style={{ padding: '0 0 6px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {upcomingActivities.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" style={{ padding: '24px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
-                          No upcoming activities scheduled.
-                        </td>
+                {/* Table */}
+                <div style={{ width: '100%', overflowY: topSchoolsLimit > 5 ? 'auto' : 'hidden', maxHeight: '220px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #F1F5F9' }}>
+                        <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8', width: '24px' }}>#</th>
+                        <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>School Name</th>
+                        <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Cluster</th>
+                        <th style={{ padding: '0 8px 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8', textAlign: 'right' }}>Students</th>
+                        <th style={{ padding: '0 0 4px 0', width: '80px' }}></th>
                       </tr>
-                    ) : (
-                      upcomingActivities.slice(0, 5).map((item) => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
-                          <td style={{ padding: '7px 0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <div 
-                                style={{
-                                  width: '24px',
-                                  height: '24px',
-                                  borderRadius: '5px',
-                                  backgroundColor: '#FFEDD5',
-                                  color: '#EA580C',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  flexShrink: 0
-                                }}
-                              >
-                                <FileText size={12} />
-                              </div>
-                              <span style={{ fontWeight: 600, fontSize: '12px', color: '#0F172A' }}>
-                                {item.activity}
-                              </span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '7px 0', color: '#475569', fontSize: '12px' }}>
-                            {item.school}
-                          </td>
-                          <td style={{ padding: '7px 0' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#475569', fontSize: '12px' }}>
-                              <Calendar size={12} color="#94A3B8" />
-                              <span>{item.date}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '7px 0' }}>
-                            <span 
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                padding: '2px 8px',
-                                backgroundColor: item.status === 'Scheduled' ? '#DCFCE7' : '#EFF6FF',
-                                color: item.status === 'Scheduled' ? '#15803D' : '#1D4ED8',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                borderRadius: '99px'
-                              }}
-                            >
-                              {item.status}
-                            </span>
+                    </thead>
+                    <tbody>
+                      {filteredSchools.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" style={{ padding: '12px 0', textAlign: 'center', color: '#94A3B8', fontSize: '12px' }}>
+                            No school records found.
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredSchools.map((item, idx) => (
+                          <tr key={item.id} style={{ borderBottom: '1px solid #F8FAFC' }}>
+                            <td style={{ padding: '5px 0', color: '#94A3B8', fontSize: '11.5px', fontWeight: 600 }}>{idx + 1}</td>
+                            <td style={{ padding: '5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 600 }}>{item.name}</td>
+                            <td style={{ padding: '5px 0', color: '#64748B', fontSize: '11.5px' }}>{item.cluster}</td>
+                            <td style={{ padding: '5px 8px 5px 0', color: '#0F172A', fontSize: '12px', fontWeight: 700, textAlign: 'right' }}>
+                              {item.students}
+                            </td>
+                            <td style={{ padding: '5px 0' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '48px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
+                                  <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const fullSchool = rawSchools.find(s => String(s.id) === String(item.id)) || item;
+                                    setSchoolToEdit(fullSchool);
+                                  }}
+                                  title={`Edit ${item.name}`}
+                                  style={{
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #FED7AA',
+                                    backgroundColor: '#FFF7ED',
+                                    color: '#EA580C',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '2px'
+                                  }}
+                                >
+                                  <Edit2 size={10} />
+                                  <span>Edit</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
+
+              {/* Upcoming Activity & Schedules box hidden as requested */}
             </div>
-          </div>
-        </main>
+          </main>
         )}
 
 

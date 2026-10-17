@@ -108,6 +108,7 @@ export default function UserDetailsView({
       const norm = rawPerms.map(p => String(p).toLowerCase().trim());
       return {
         dashboard: norm.some(p => p.includes("dashboard")),
+        schools: norm.some(p => p.includes("school") || p.includes("cluster")),
         students: norm.some(p => p.includes("student") && !p.includes("assessment")),
         assessment: norm.some(p => p.includes("assessment")),
         tracking: norm.some(p => p.includes("tracking")),
@@ -119,6 +120,7 @@ export default function UserDetailsView({
     const isAdmin = u.role === 'Super Admin' || u.role === 'Admin';
     return {
       dashboard: true,
+      schools: true,
       students: true,
       assessment: true,
       tracking: isAdmin,
@@ -184,6 +186,7 @@ export default function UserDetailsView({
   const getActivePermissionsList = (modules) => {
     return [
       modules.dashboard && 'Dashboard',
+      modules.schools && 'Schools',
       modules.students && 'Students',
       modules.assessment && 'Student Assessment',
       modules.tracking && 'Monthly Tracking',
@@ -948,6 +951,16 @@ export default function UserDetailsView({
                 enabled={moduleAccess.dashboard}
                 readOnly={viewOnly}
                 onToggle={viewOnly ? undefined : () => handleToggleModule('dashboard')}
+              />
+
+              <ModuleToggleRow
+                icon={School}
+                iconColor="#EA580C"
+                title="Schools & Clusters"
+                description="View school directory and cluster coverage"
+                enabled={moduleAccess.schools}
+                readOnly={viewOnly}
+                onToggle={viewOnly ? undefined : () => handleToggleModule('schools')}
               />
 
               <ModuleToggleRow
