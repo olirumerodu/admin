@@ -1121,11 +1121,8 @@ export default function DashboardView() {
 
               {/* Card 2: Total Clusters */}
               <div
-                style={compactKpiCardStyle}
-                onClick={() => setActiveNav('students')}
-                title="Click to view Clusters & Schools"
-                role="button"
-                tabIndex={0}
+                style={{ ...compactKpiCardStyle, cursor: 'default' }}
+                title="Total Clusters"
               >
                 <div style={compactKpiLeftStyle}>
                   <div style={{ ...compactKpiIconBoxStyle, background: '#CCFBF1', color: '#0D9488' }}>
@@ -1136,16 +1133,13 @@ export default function DashboardView() {
                     <span style={compactKpiValueStyle}>{metrics.total_clusters}</span>
                   </div>
                 </div>
-                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
+
               </div>
 
               {/* Card 3: Total Schools */}
               <div
-                style={compactKpiCardStyle}
-                onClick={() => setActiveNav('students')}
-                title="Click to view Students Directory"
-                role="button"
-                tabIndex={0}
+                style={{ ...compactKpiCardStyle, cursor: 'default' }}
+                title="Total Schools"
               >
                 <div style={compactKpiLeftStyle}>
                   <div style={{ ...compactKpiIconBoxStyle, background: '#FEF3C7', color: '#D97706' }}>
@@ -1156,16 +1150,13 @@ export default function DashboardView() {
                     <span style={compactKpiValueStyle}>{metrics.total_schools}</span>
                   </div>
                 </div>
-                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
+
               </div>
 
               {/* Card 4: Total Students */}
               <div
-                style={compactKpiCardStyle}
-                onClick={() => setActiveNav('students')}
-                title="Click to view Students Directory"
-                role="button"
-                tabIndex={0}
+                style={{ ...compactKpiCardStyle, cursor: 'default' }}
+                title="Total Students"
               >
                 <div style={compactKpiLeftStyle}>
                   <div style={{ ...compactKpiIconBoxStyle, background: '#DBEAFE', color: '#2563EB' }}>
@@ -1176,7 +1167,7 @@ export default function DashboardView() {
                     <span style={compactKpiValueStyle}>{metrics.total_students.toLocaleString()}</span>
                   </div>
                 </div>
-                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
+
               </div>
 
               {/* Card 5: Students Assessed */}
