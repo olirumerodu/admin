@@ -1105,11 +1105,8 @@ export default function DashboardView() {
             >
               {/* Card 1: Total Users */}
               <div
-                style={compactKpiCardStyle}
-                onClick={() => setActiveNav('users')}
-                title="Click to view User Management"
-                role="button"
-                tabIndex={0}
+                style={{ ...compactKpiCardStyle, cursor: 'default' }}
+                title="Total Users"
               >
                 <div style={compactKpiLeftStyle}>
                   <div style={{ ...compactKpiIconBoxStyle, background: '#FFEDD5', color: '#EA580C' }}>
@@ -1120,7 +1117,6 @@ export default function DashboardView() {
                     <span style={compactKpiValueStyle}>{metrics.total_users}</span>
                   </div>
                 </div>
-                <div style={compactKpiArrowStyle}><ArrowRight size={11} /></div>
               </div>
 
               {/* Card 2: Total Clusters */}

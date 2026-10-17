@@ -84,8 +84,8 @@ export default function StudentDataImportView({ onNavigateTab }) {
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
 
-  // View state: 'wizard' | 'history' | 'details'
-  const [importView, setImportView] = useState('wizard');
+  // View state: 'history' | 'details'
+  const [importView, setImportView] = useState('history');
 
   // Multi-step State - Always start from step 1
   const [currentStep, setCurrentStep] = useState(1);
@@ -736,51 +736,26 @@ export default function StudentDataImportView({ onNavigateTab }) {
           </p>
         </div>
 
-        {/* View Switcher: Import Wizard vs Import History */}
+        {/* Import History Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            onClick={() => { setImportView('wizard'); setCurrentStep(1); }}
+          <div
             style={{
               padding: '8px 16px',
               borderRadius: '8px',
-              border: importView === 'wizard' ? 'none' : '1px solid #CBD5E1',
-              backgroundColor: importView === 'wizard' ? '#EB5A1D' : '#FFFFFF',
-              color: importView === 'wizard' ? '#FFFFFF' : '#475569',
+              border: '1px solid #CBD5E1',
+              backgroundColor: '#0F172A',
+              color: '#FFFFFF',
               fontSize: '12.5px',
               fontWeight: 700,
-              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: importView === 'wizard' ? '0 2px 6px rgba(235, 90, 29, 0.3)' : 'none'
-            }}
-          >
-            <Upload size={14} />
-            <span>Import Wizard</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setImportView('history')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: importView === 'history' ? 'none' : '1px solid #CBD5E1',
-              backgroundColor: importView === 'history' ? '#0F172A' : '#FFFFFF',
-              color: importView === 'history' ? '#FFFFFF' : '#475569',
-              fontSize: '12.5px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: importView === 'history' ? '0 2px 6px rgba(15, 23, 42, 0.3)' : 'none'
+              boxShadow: '0 2px 6px rgba(15, 23, 42, 0.3)'
             }}
           >
             <Clock size={14} />
             <span>Import History</span>
-          </button>
+          </div>
         </div>
       </div>
 
@@ -1846,15 +1821,6 @@ export default function StudentDataImportView({ onNavigateTab }) {
                 <span>Refresh</span>
               </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => { setImportView('wizard'); setCurrentStep(1); }}
-              style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#EB5A1D', color: '#FFFFFF', fontSize: '12.5px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Plus size={14} />
-              <span>New Student Import</span>
-            </button>
           </div>
 
           {/* Import History Table */}
@@ -1889,7 +1855,7 @@ export default function StudentDataImportView({ onNavigateTab }) {
                         <FileSpreadsheet size={32} color="#CBD5E1" style={{ margin: '0 auto 8px', display: 'block' }} />
                         <strong>No student data imports found in database.</strong>
                         <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94A3B8' }}>
-                          Use the "New Student Import" wizard to upload an Excel file.
+                          Past imported student records will appear here.
                         </p>
                       </td>
                     </tr>
