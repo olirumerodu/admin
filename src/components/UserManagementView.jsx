@@ -168,7 +168,18 @@ export default function UserManagementView() {
                  email !== 'admin@gmail.com' &&
                  !id.startsWith('admin');
         });
-        const mapped = regularUsers.map((u, idx) => formatUser(u, idx, cMap));
+        const seenIds = new Set();
+        const uniqueRegularUsers = [];
+        regularUsers.forEach(u => {
+          const key = (u.id || u.email || '').toLowerCase();
+          if (key && !seenIds.has(key)) {
+            seenIds.add(key);
+            uniqueRegularUsers.push(u);
+          } else if (!key) {
+            uniqueRegularUsers.push(u);
+          }
+        });
+        const mapped = uniqueRegularUsers.map((u, idx) => formatUser(u, idx, cMap));
         setUsers(mapped);
       }
     } catch (err) {
@@ -304,10 +315,16 @@ export default function UserManagementView() {
     );
   };
 
-  // Filtered & Sorted Users
+  // Filtered & Sorted Users (with deduplication guard)
   const filteredUsers = React.useMemo(() => {
+    const seen = new Set();
     return users
       .filter(u => {
+        const key = (u.id || u.email || '').toLowerCase();
+        if (key) {
+          if (seen.has(key)) return false;
+          seen.add(key);
+        }
         const q = searchQuery.toLowerCase().trim();
         const matchesSearch = !q ||
           u.name.toLowerCase().includes(q) ||
@@ -473,10 +490,21 @@ export default function UserManagementView() {
   if (viewMode === 'create') {
     return (
       <CreateUserView 
-        onNavigateBack={() => setViewMode('list')}
-        onUserCreated={(created) => {
-          setUsers(prev => [created, ...prev]);
+        onNavigateBack={() => {
           setViewMode('list');
+          loadBackendUsers(true);
+        }}
+        onUserCreated={(created) => {
+          setViewMode('list');
+          setUsers(prev => {
+            const alreadyExists = prev.some(u => 
+              (created.id && u.id && u.id.toLowerCase() === created.id.toLowerCase()) ||
+              (created.email && u.email && u.email.toLowerCase() === created.email.toLowerCase())
+            );
+            if (alreadyExists) return prev;
+            return [created, ...prev];
+          });
+          loadBackendUsers(true);
           setSuccessToast(`User ${created.name} (${created.id}) created successfully.`);
           setTimeout(() => setSuccessToast(''), 5000);
         }}

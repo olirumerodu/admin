@@ -1714,8 +1714,11 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             <button
               type="button"
               onClick={() => {
-                if (onUserCreated) onUserCreated(createdUserData);
-                if (onNavigateBack) onNavigateBack();
+                if (onUserCreated) {
+                  onUserCreated(createdUserData);
+                } else if (onNavigateBack) {
+                  onNavigateBack();
+                }
               }}
               style={{
                 width: '100%',
