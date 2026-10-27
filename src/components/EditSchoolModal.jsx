@@ -317,8 +317,8 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
 
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ fontSize: '12px', fontWeight: 700, marginBottom: '4px', display: 'block', color: '#334155' }}>
-                {placeType === 'anganwadi' ? 'Unique Center Code' : 'Unique School Code'}{' '}
-                <span style={{ fontSize: '11px', color: '#EA580C', fontWeight: 600 }}>(Unique identifier)</span>
+                {placeType === 'anganwadi' ? 'Center Code / ID (Student ID Prefix)' : 'School Code / ID (Student ID Prefix)'}{' '}
+                <span style={{ fontSize: '11px', color: '#EA580C', fontWeight: 600 }}>(Student ID Prefix)</span>
               </label>
               <div className="input-container" style={{ height: '42px' }}>
                 <span className="input-icon">
@@ -327,12 +327,18 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
                 <input
                   type="text"
                   className="form-input"
-                  placeholder={placeType === 'anganwadi' ? 'e.g. ANG01' : 'e.g. GHS01, PUM01'}
+                  placeholder={placeType === 'anganwadi' ? 'e.g. ANG01' : 'e.g. GHS01, KMH01'}
                   value={code}
                   onChange={(e) => setCode(e.target.value.toUpperCase())}
                   style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}
                 />
               </div>
+              <span style={{ fontSize: '11px', color: '#64748B', display: 'block', marginTop: '4px' }}>
+                Student IDs will update to:{' '}
+                <strong style={{ color: '#EA580C' }}>
+                  {(code.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 10).toUpperCase() || (name.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 5).toUpperCase() || 'SCH'))}-001, -002...
+                </strong>
+              </span>
             </div>
           </div>
 
