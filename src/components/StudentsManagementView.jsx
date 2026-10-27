@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Home,
   Users,
@@ -13,6 +13,8 @@ import {
   Calendar,
   Activity,
   TrendingUp,
+  TrendingDown,
+  ClipboardCheck,
   BarChart2,
   BookOpen,
   ShieldCheck,
@@ -34,17 +36,25 @@ import {
   ArrowRightLeft,
   Layers,
   Trash2,
-  Edit2
+  Edit2,
+  MoreVertical,
+  UserCheck,
+  FileSpreadsheet,
+  Mail,
+  X
 } from 'lucide-react';
 import { api } from '../services/api';
 import SearchableDropdown from './SearchableDropdown';
 import StudentGrowthChartModal from './StudentGrowthChartModal';
 import SchoolGrowthChartModal from './SchoolGrowthChartModal';
+import ClusterGrowthChartModal from './ClusterGrowthChartModal';
 import AcademicPromotionModal from './AcademicPromotionModal';
 import StudentTransferModal from './StudentTransferModal';
 import StudentTcCertificateModal from './StudentTcCertificateModal';
+import TCStudentIntakeModal from './TCStudentIntakeModal';
 import EditClusterModal from './EditClusterModal';
 import EditSchoolModal from './EditSchoolModal';
+import EditStudentModal from './EditStudentModal';
 
 // Authoritative WHO Nutrition Status Styling Helpers
 export const getNutritionStatusColor = (status) => {
@@ -52,8 +62,11 @@ export const getNutritionStatusColor = (status) => {
     case 'Severely Wasted': return '#DC2626';
     case 'Wasted': return '#EA580C';
     case 'Overweight': return '#D97706';
-    case 'Obesity': return '#9333EA';
+    case 'Obesity': return '#D97706';
     case 'Normal': return '#16A34A';
+    case 'Absent': return '#D97706';
+    case 'TC Issued': return '#DC2626';
+    case 'Graduated': return '#7C3AED';
     default: return '#64748B';
   }
 };
@@ -63,8 +76,11 @@ export const getNutritionStatusBg = (status) => {
     case 'Severely Wasted': return '#FEE2E2';
     case 'Wasted': return '#FFEDD5';
     case 'Overweight': return '#FEF3C7';
-    case 'Obesity': return '#F3E8FF';
+    case 'Obesity': return '#FEF3C7';
     case 'Normal': return '#DCFCE7';
+    case 'Absent': return '#FEF3C7';
+    case 'TC Issued': return '#FEF2F2';
+    case 'Graduated': return '#F5F3FF';
     default: return '#F1F5F9';
   }
 };
@@ -74,8 +90,11 @@ export const getNutritionStatusBorder = (status) => {
     case 'Severely Wasted': return '#FCA5A5';
     case 'Wasted': return '#FDBA74';
     case 'Overweight': return '#FCD34D';
-    case 'Obesity': return '#D8B4FE';
+    case 'Obesity': return '#FCD34D';
     case 'Normal': return '#86EFAC';
+    case 'Absent': return '#FCD34D';
+    case 'TC Issued': return '#FECACA';
+    case 'Graduated': return '#DDD6FE';
     default: return '#CBD5E1';
   }
 };
@@ -140,7 +159,7 @@ function StudentAvatar({ size = 72 }) {
   );
 }
 
-export default function StudentsManagementView() {
+export default function StudentsManagementView({ initialSearch = '' }) {
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
@@ -152,6 +171,7 @@ export default function StudentsManagementView() {
   const [rawClusters, setRawClusters] = useState([]);
   const [rawSchools, setRawSchools] = useState([]);
   const [rawStudents, setRawStudents] = useState([]);
+  const [rawUsers, setRawUsers] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
 
   // Active selections
@@ -162,30 +182,94 @@ export default function StudentsManagementView() {
   // Search & Filter States
   const [clusterSearch, setClusterSearch] = useState('');
   const [schoolSearch, setSchoolSearch] = useState('');
+  const [searchResultView, setSearchResultView] = useState('students');
   const [studentSearch, setStudentSearch] = useState('');
+  const [dobFilter, setDobFilter] = useState('');
   const [classFilter, setClassFilter] = useState('All Classes');
   const [sectionFilter, setSectionFilter] = useState('All Sections');
   const [genderFilter, setGenderFilter] = useState('All Genders');
   const [statusFilter, setStatusFilter] = useState('All Status');
+  const [academicYearFilter, setAcademicYearFilter] = useState('All Years');
+  const [assessedByFilter, setAssessedByFilter] = useState('ALL'); // 'ALL' | 'EXCEL_IMPORT' | staff name/id
   const [studentPage, setStudentPage] = useState(1);
+  const [sortField, setSortField] = useState('id');
+  const [sortAsc, setSortAsc] = useState(true);
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortAsc(prev => !prev);
+    } else {
+      setSortField(field);
+      setSortAsc(true);
+    }
+  };
+
+  const prevInitialSearchRef = useRef(initialSearch);
+  useEffect(() => {
+    if (prevInitialSearchRef.current !== initialSearch) {
+      prevInitialSearchRef.current = initialSearch;
+      if (initialSearch !== undefined) {
+        setSchoolSearch(initialSearch || '');
+        setStudentSearch(initialSearch || '');
+        setClusterSearch(initialSearch || '');
+      }
+    }
+  }, [initialSearch]);
 
   // Sub-tab for School Students View: 'all' | 'priority'
   const [studentViewTab, setStudentViewTab] = useState('all');
+  // Sub-tab for Cluster Schools View: 'schools' | 'progress'
+  const [clusterViewTab, setClusterViewTab] = useState('schools');
   // Priority Follow-Up Filters
   const [priorityCategoryFilter, setPriorityCategoryFilter] = useState('ALL'); // 'ALL' | 'SEVERELY_WASTED' | 'WASTED'
   const [upcomingMonthFilter, setUpcomingMonthFilter] = useState('ALL'); // 'ALL' | 'THIS_MONTH' | 'NEXT_MONTH' | 'OVERDUE'
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState('All Months');
+
+  // Monthly Progress Report State (Cluster-wise & School-wise tracking)
+  // Lazy initializer: computed once at mount — current month in YYYY-MM (e.g. "2026-10")
+  const [progressMonthFilter, setProgressMonthFilter] = useState(() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [progressClusterFilter, setProgressClusterFilter] = useState('All Clusters');
+  const [progressSchoolFilter, setProgressSchoolFilter] = useState('All Schools');
+  const [progressViewType, setProgressViewType] = useState('cluster'); // 'cluster' | 'school' | 'students'
+  const [progressReportData, setProgressReportData] = useState(null);
+  const [loadingProgressReport, setLoadingProgressReport] = useState(false);
+  const [progressModal, setProgressModal] = useState({
+    isOpen: false,
+    title: '',
+    category: 'all', // 'all' | 'not_normal' | 'deteriorated' | 'improved'
+    clusterId: null,
+    schoolId: null,
+    clusterName: null,
+    schoolName: null
+  });
+  const [progressModalSearch, setProgressModalSearch] = useState('');
+  const [progressModalCategoryFilter, setProgressModalCategoryFilter] = useState('all');
+
+  // Real-time Dynamic Month Labels (strictly calculated from system clock)
+  const currentDate = new Date();
+  const currentMonthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const nextMonthObj = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+  const nextMonthLabel = nextMonthObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   // Modals for PDF Growth Chart
   const [showStudentGrowthModal, setShowStudentGrowthModal] = useState(false);
   const [modalStudent, setModalStudent] = useState(null);
   const [showSchoolGrowthModal, setShowSchoolGrowthModal] = useState(false);
   const [modalSchool, setModalSchool] = useState(null);
+  const [showClusterGrowthModal, setShowClusterGrowthModal] = useState(false);
+  const [modalCluster, setModalCluster] = useState(null);
 
   // Promotion, TC and Transfer States
-  const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState('Active'); // 'Active' | 'TC Issued' | 'Graduated' | 'All'
+  const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState('All'); // 'All' | 'Active' | 'TC Issued' | 'Graduated'
   const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [showTcIntakeModal, setShowTcIntakeModal] = useState(false);
   const [transferModalStudent, setTransferModalStudent] = useState(null);
   const [tcCertModalStudent, setTcCertModalStudent] = useState(null);
+  const [editModalStudent, setEditModalStudent] = useState(null);
+  const [activeActionMenuId, setActiveActionMenuId] = useState(null);
 
   // Growth Trend Chart metric toggle: 'Weight' | 'Height' | 'BMI'
   const [trendMetric, setTrendMetric] = useState('Weight');
@@ -197,10 +281,28 @@ export default function StudentsManagementView() {
   const [schoolToEdit, setSchoolToEdit] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [isSendingReminders, setIsSendingReminders] = useState(false);
 
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 4000);
+  };
+
+  const handleSendUpcomingReminders = async () => {
+    setIsSendingReminders(true);
+    try {
+      const scheduleRes = await api.checkSchoolVisitSchedules(selectedSchoolId || null);
+      const reminderRes = await api.sendUpcomingReminders(selectedSchoolId || null);
+      const count = scheduleRes?.dispatched_count ?? reminderRes?.count ?? 0;
+      showToast(
+        scheduleRes?.message ||
+        `Assessment reminders successfully sent to assigned cluster officers and administrators (${count} items processed).`
+      );
+    } catch (err) {
+      showToast(`Failed to send reminders: ${err.message}`);
+    } finally {
+      setIsSendingReminders(false);
+    }
   };
 
   const handleConfirmDeleteCluster = async () => {
@@ -250,14 +352,36 @@ export default function StudentsManagementView() {
     { themeColor: '#D97706', bgColor: '#FFFBEB', accentColor: '#FEF3C7', waveColor: 'rgba(217, 119, 6, 0.08)' },
   ];
 
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(() => new Date());
+
+  const handleClearStudentFilters = useCallback(() => {
+    setStudentSearch('');
+    setDobFilter('');
+    setClassFilter('All Classes');
+    setSectionFilter('All Sections');
+    setGenderFilter('All Genders');
+    setStatusFilter('All Status');
+    setAcademicYearFilter('All Years');
+    setEnrollmentStatusFilter('All');
+    setAssessedByFilter('ALL');
+    setPriorityCategoryFilter('ALL');
+    setUpcomingMonthFilter('ALL');
+    setSelectedMonthFilter('All Months');
+    setStudentPage(1);
+    setSelectedStudentId('');
+    setStudentViewTab('all');
+  }, []);
+
   // Fetch all backend data and poll every 5s for real-time sync with mobile app
   const loadLiveStudentsData = async (silent = false) => {
     try {
       if (!silent) setLoadingData(true);
-      const [clustersRes, schoolsRes, studentsRes] = await Promise.all([
+      const [clustersRes, schoolsRes, studentsRes, usersRes] = await Promise.all([
         api.getClusters(),
         api.getSchools(),
         api.getStudents(),
+        api.getUsers().catch(() => []),
       ]);
 
       if (Array.isArray(clustersRes)) {
@@ -272,10 +396,24 @@ export default function StudentsManagementView() {
         setRawStudents(studentsRes);
         setSelectedStudentId(prev => prev || (studentsRes.length > 0 ? studentsRes[0].id : ''));
       }
+      if (Array.isArray(usersRes)) {
+        setRawUsers(usersRes);
+      }
+      setLastRefreshedAt(new Date());
     } catch (err) {
       console.warn('Real-time Students Sync notice:', err);
     } finally {
       if (!silent) setLoadingData(false);
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    setIsManualRefreshing(true);
+    try {
+      await loadLiveStudentsData(false);
+      showToast('Live student data successfully refreshed!');
+    } finally {
+      setIsManualRefreshing(false);
     }
   };
 
@@ -286,6 +424,80 @@ export default function StudentsManagementView() {
     }, 5000);
     return () => clearInterval(timer);
   }, []);
+
+  // AUTO-REFRESH & FILTER RESET ON SCHOOL SWITCH
+  const prevSchoolIdRef = useRef(selectedSchoolId);
+  useEffect(() => {
+    if (prevSchoolIdRef.current && prevSchoolIdRef.current !== selectedSchoolId) {
+      handleClearStudentFilters();
+      loadLiveStudentsData(true);
+    }
+    prevSchoolIdRef.current = selectedSchoolId;
+  }, [selectedSchoolId, handleClearStudentFilters]);
+
+  // AUTO-REFRESH & FILTER RESET ON CLUSTER SWITCH
+  const prevClusterIdRef = useRef(selectedClusterId);
+  useEffect(() => {
+    if (prevClusterIdRef.current && prevClusterIdRef.current !== selectedClusterId) {
+      setSchoolSearch('');
+      setClusterViewTab('schools');
+      handleClearStudentFilters();
+      loadLiveStudentsData(true);
+    }
+    prevClusterIdRef.current = selectedClusterId;
+  }, [selectedClusterId, handleClearStudentFilters]);
+
+  // AUTO-REFRESH ON LEVEL CHANGE
+  const prevViewLevelRef = useRef(viewLevel);
+  useEffect(() => {
+    if (prevViewLevelRef.current !== viewLevel) {
+      if (viewLevel === 'clusters' || viewLevel === 'schools') {
+        setSelectedStudentId('');
+        handleClearStudentFilters();
+        loadLiveStudentsData(true);
+      }
+    }
+    prevViewLevelRef.current = viewLevel;
+  }, [viewLevel, handleClearStudentFilters]);
+
+  // Load Monthly Progress Report Data (Cluster-wise & School-wise)
+  const loadProgressReportData = async () => {
+    try {
+      setLoadingProgressReport(true);
+      const res = await api.getMonthlyProgressReport({
+        month: progressMonthFilter,
+        clusterId: progressClusterFilter,
+        schoolId: progressSchoolFilter
+      });
+      if (res) {
+        setProgressReportData(res);
+      } else {
+        // API returned null — backend error. Clear data so stale data doesn't remain.
+        console.error('[Progress Report] Backend returned null for month=', progressMonthFilter, '— check server logs');
+        setProgressReportData(null);
+      }
+    } catch (err) {
+      console.error('[Progress Report] Fetch error:', err);
+      setProgressReportData(null);
+    } finally {
+      setLoadingProgressReport(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProgressReportData();
+  }, [progressMonthFilter, progressClusterFilter, progressSchoolFilter]);
+
+  // Close Action three-dots menu when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (activeActionMenuId && !e.target.closest('.student-action-dots-btn') && !e.target.closest('.student-action-dropdown-menu')) {
+        setActiveActionMenuId(null);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [activeActionMenuId]);
 
   // Formatted Clusters
   const clustersData = useMemo(() => {
@@ -308,9 +520,17 @@ export default function StudentsManagementView() {
   // Selected Entities
   const activeCluster = clustersData.find(c => c.id === selectedClusterId) || clustersData[0] || { name: 'Cluster', id: '' };
 
+  // Sync cluster filter for monthly progress report when inside a cluster view
+  useEffect(() => {
+    if (viewLevel === 'schools' && activeCluster?.name && activeCluster.name !== 'Cluster') {
+      setProgressClusterFilter(activeCluster.name);
+      setProgressSchoolFilter('All Schools');
+    }
+  }, [viewLevel, selectedClusterId, activeCluster?.name]);
+
   // Schools mapping by cluster
   const schoolsList = useMemo(() => {
-    const clusterSchools = rawSchools.filter(s => 
+    const clusterSchools = rawSchools.filter(s =>
       selectedClusterId ? (s.cluster_id === selectedClusterId || s.cluster_name?.toLowerCase() === activeCluster?.name?.toLowerCase()) : true
     );
     return clusterSchools.map((s, idx) => {
@@ -321,6 +541,7 @@ export default function StudentsManagementView() {
       return {
         id: s.id,
         name: s.name,
+        code: s.code || '',
         classes_range: s.classes_range,
         sections: s.sections,
         students: studentCount,
@@ -334,51 +555,91 @@ export default function StudentsManagementView() {
     });
   }, [rawSchools, rawStudents, selectedClusterId, activeCluster]);
 
-  const activeSchool = schoolsList.find(s => s.id === selectedSchoolId) || schoolsList[0] || { name: 'School', id: '' };
+  const activeSchool = schoolsList.find(s => s.id === selectedSchoolId) || schoolsList[0] || { name: 'School', id: '', code: '' };
+
+  // Registered Staff Names lookup map/set for attributing assessments
+  const registeredUserNames = useMemo(() => {
+    const set = new Set();
+    set.add('admin');
+    rawUsers.forEach(u => {
+      if (u.name) set.add(u.name.trim().toLowerCase());
+      if (u.username) set.add(u.username.trim().toLowerCase());
+    });
+    return set;
+  }, [rawUsers]);
 
   // Students Data for selected school
   const studentsData = useMemo(() => {
-    const filtered = rawStudents.filter(s => 
-      selectedSchoolId ? (s.school_id === selectedSchoolId || s.school_name === activeSchool?.name) : true
+    const filtered = rawStudents.filter(s =>
+      selectedSchoolId ? (String(s.school_id) === String(selectedSchoolId) || (s.school_name && activeSchool?.name && s.school_name.toLowerCase() === activeSchool.name.toLowerCase())) : true
     );
+    filtered.sort((a, b) => String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true, sensitivity: 'base' }));
     return filtered.map((s, idx) => {
       const hasAssessments = Array.isArray(s.assessments) && s.assessments.length > 0;
       const latestA = hasAssessments ? s.assessments[0] : null;
       const assessDate = s.latest_assessment_date || latestA?.assessment_date || 'Pending';
+
+      // Assessor and Import Attribution
+      const rawExaminer = (s.latest_examiner_name || latestA?.examiner_name || '').trim();
+      const rawImportId = s.latest_import_id || latestA?.import_id || s.import_id || null;
+      const isTcIntake = Boolean(
+        s.previous_school_name ||
+        s.previous_school_id ||
+        (s.notes && s.notes.toLowerCase().includes('tc')) ||
+        (latestA?.notes && latestA.notes.toLowerCase().includes('tc')) ||
+        rawExaminer.toLowerCase() === 'admin'
+      );
+      const isExplicitImport = !isTcIntake && Boolean(
+        rawImportId ||
+        rawExaminer.toLowerCase().includes('excel') ||
+        rawExaminer.toLowerCase().includes('import') ||
+        rawExaminer.toLowerCase() === 'mobile who engine'
+      );
+      const matchedStaffUser = rawExaminer ? rawUsers.find(u => (u.name && u.name.trim().toLowerCase() === rawExaminer.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === rawExaminer.toLowerCase())) : null;
+      const isKnownStaff = !isExplicitImport && rawExaminer ? (registeredUserNames.has(rawExaminer.toLowerCase()) || rawExaminer.toLowerCase() === 'admin' || Boolean(matchedStaffUser) || (rawExaminer.toLowerCase() !== 'health officer' && rawExaminer.length > 0)) : false;
+      const isExcelImport = !isTcIntake && (isExplicitImport || (!rawExaminer && !hasAssessments));
+      const finalStaffName = isTcIntake
+        ? (rawExaminer && rawExaminer.toLowerCase() !== 'health officer' ? rawExaminer : 'Admin')
+        : (matchedStaffUser ? matchedStaffUser.name : (rawExaminer && !isExplicitImport ? rawExaminer : null));
       // Authoritative WHO classification strictly from assessment data and database
       const rawStatus = s.nutrition_status || latestA?.nutrition_status || null;
       const rawClassification = s.latest_bmi_for_age_classification || latestA?.bmi_for_age_classification || null;
-      const rawZ = typeof s.latest_bmi_for_age_zscore === 'number' 
-        ? s.latest_bmi_for_age_zscore 
+      const rawZ = typeof s.latest_bmi_for_age_zscore === 'number'
+        ? s.latest_bmi_for_age_zscore
         : (typeof latestA?.bmi_for_age_zscore === 'number' ? latestA.bmi_for_age_zscore : null);
 
+      const isAbsentRecord = (s.latest_attendance_status && s.latest_attendance_status.toLowerCase() === 'absent') ||
+        (latestA?.attendance_status && latestA.attendance_status.toLowerCase() === 'absent') ||
+        (rawStatus && rawStatus.toLowerCase() === 'absent');
+
       let authoritativeStatus = 'Pending Assessment';
-      const statusCandidate = rawClassification || rawStatus;
-      
-      if (statusCandidate && statusCandidate !== 'Pending Calculation' && statusCandidate !== 'Pending Assessment') {
-        const scLower = statusCandidate.toLowerCase().trim();
-        if (scLower.includes('severely wasted') || scLower.includes('severe thinness')) {
-          authoritativeStatus = 'Severely Wasted';
-        } else if (scLower.includes('wasted') || scLower.includes('thinness')) {
-          authoritativeStatus = 'Wasted';
-        } else if (scLower.includes('obesity') || scLower.includes('obese')) {
-          authoritativeStatus = 'Obesity';
-        } else if (scLower.includes('overweight')) {
-          authoritativeStatus = 'Overweight';
-        } else if (scLower.includes('normal') || scLower.includes('healthy')) {
+      if (isAbsentRecord) {
+        authoritativeStatus = 'Absent';
+      } else {
+        const statusCandidate = rawClassification || rawStatus;
+
+        if (statusCandidate && statusCandidate !== 'Pending Calculation' && statusCandidate !== 'Pending Assessment') {
+          const scLower = statusCandidate.toLowerCase().trim();
+          if (scLower.includes('severely wasted') || scLower.includes('severe thinness')) {
+            authoritativeStatus = 'Severely Wasted';
+          } else if (scLower.includes('wasted') || scLower.includes('thinness')) {
+            authoritativeStatus = 'Wasted';
+          } else if (scLower.includes('obesity') || scLower.includes('obese') || scLower.includes('overweight')) {
+            authoritativeStatus = 'Overweight';
+          } else if (scLower.includes('normal') || scLower.includes('healthy')) {
+            authoritativeStatus = 'Normal';
+          }
+        }
+
+        // If status candidate didn't resolve to a standard category or we have a z-score
+        if (typeof rawZ === 'number' && !isNaN(rawZ)) {
+          if (rawZ < -3.0) authoritativeStatus = 'Severely Wasted';
+          else if (rawZ < -2.0) authoritativeStatus = 'Wasted';
+          else if (rawZ <= 1.0) authoritativeStatus = 'Normal';
+          else authoritativeStatus = 'Overweight';
+        } else if (authoritativeStatus === 'Pending Assessment' && (hasAssessments || (assessDate && assessDate !== 'Pending' && assessDate !== 'None'))) {
           authoritativeStatus = 'Normal';
         }
-      }
-
-      // If status candidate didn't resolve to a standard category or we have a z-score
-      if (typeof rawZ === 'number' && !isNaN(rawZ)) {
-        if (rawZ < -3.0) authoritativeStatus = 'Severely Wasted';
-        else if (rawZ < -2.0) authoritativeStatus = 'Wasted';
-        else if (rawZ <= 1.0) authoritativeStatus = 'Normal';
-        else if (rawZ <= 2.0) authoritativeStatus = 'Overweight';
-        else authoritativeStatus = 'Obesity';
-      } else if (authoritativeStatus === 'Pending Assessment' && (hasAssessments || (assessDate && assessDate !== 'Pending' && assessDate !== 'None'))) {
-        authoritativeStatus = 'Normal';
       }
 
       const currentStatus = authoritativeStatus;
@@ -396,6 +657,8 @@ export default function StudentsManagementView() {
 
       // Real-time Upcoming Monthly Assessment Schedule (based strictly on real last assessment date)
       let nextDueFormatted = 'Pending Assessment';
+      let nextDueYearMonth = null;
+      let nextDueMonthLabel = null;
       let dueStatus = 'Pending Screening';
       let dueBadgeColor = '#64748B';
       let dueBadgeBg = '#F1F5F9';
@@ -405,7 +668,9 @@ export default function StudentsManagementView() {
         const nextDueDate = new Date(validLastDate);
         nextDueDate.setDate(nextDueDate.getDate() + 30); // Monthly follow-up 30 days after last screening
         nextDueFormatted = nextDueDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-        
+        nextDueYearMonth = `${nextDueDate.getFullYear()}-${String(nextDueDate.getMonth() + 1).padStart(2, '0')}`;
+        nextDueMonthLabel = nextDueDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
         const today = new Date();
         const diffMs = nextDueDate.getTime() - today.getTime();
         const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -440,12 +705,16 @@ export default function StudentsManagementView() {
         dob: s.dob || '2019-01-01',
         dobFormatted: s.dob ? new Date(s.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-',
         latestAssessment: assessDate,
-        healthStatus: healthStatus,
-        currentStatus: currentStatus,
+        healthStatus: (s.enrollment_status && s.enrollment_status !== 'Active') ? s.enrollment_status : healthStatus,
+        nutritionStatus: (s.enrollment_status && s.enrollment_status !== 'Active') ? s.enrollment_status : currentStatus,
+        currentStatus: (s.enrollment_status && s.enrollment_status !== 'Active') ? s.enrollment_status : currentStatus,
+        rawHealthStatus: healthStatus,
         isSeverelyWasted: isSeverelyWasted,
         isWasted: isWasted,
         isCritical: isCritical,
         nextDueDateFormatted: nextDueFormatted,
+        nextDueYearMonth: nextDueYearMonth,
+        nextDueMonthLabel: nextDueMonthLabel,
         dueStatus: dueStatus,
         dueBadgeColor: dueBadgeColor,
         dueBadgeBg: dueBadgeBg,
@@ -457,15 +726,132 @@ export default function StudentsManagementView() {
         weightZScore: weightZ,
         ageDisplay: s.age_string || s.latest_age_display || '',
         enrollmentStatus: s.enrollment_status || 'Active',
-        academicYear: s.academic_year || '2026-2027',
+        academicYear: s.academic_year || `${currentDate.getFullYear()}-${currentDate.getFullYear() + 1}`,
         tcDate: s.tc_date || null,
         tcReason: s.tc_reason || null,
         previousSchoolName: s.previous_school_name || null,
         previousStudentId: s.previous_student_id || null,
+        examinerName: finalStaffName,
+        isExcelImport: isExcelImport,
+        rawExaminer: rawExaminer,
+        importId: rawImportId,
+        progressStatus: s.progress_status || null,
+        weightDelta: s.weight_delta !== undefined ? s.weight_delta : null,
+        bmiDelta: (s.assessments && s.assessments.length >= 2 && s.assessments[0]?.bmi && s.assessments[1]?.bmi)
+          ? Number((Number(s.assessments[0].bmi) - Number(s.assessments[1].bmi)).toFixed(2))
+          : (s.bmi_delta !== undefined ? s.bmi_delta : null),
+        progressAlert: s.progress_alert || null,
         raw: s
       };
     });
-  }, [rawStudents, selectedSchoolId, activeSchool]);
+  }, [rawStudents, selectedSchoolId, activeSchool, rawUsers, registeredUserNames]);
+
+  // Open Student Growth Report with complete historical screening records & fallback
+  const handleOpenStudentGrowthReport = async (st) => {
+    if (!st) return;
+    const studentId = st.student_id || st.id;
+
+    // 1. Check if student already exists in rawStudents or studentsData
+    const matched = rawStudents.find(s => String(s.id) === String(studentId)) ||
+                    (studentsData && studentsData.find(s => String(s.id) === String(studentId)));
+
+    // 2. Build full fallback student object so report displays immediately without blank state
+    const studentObj = {
+      id: studentId,
+      idCode: studentId,
+      name: st.name || matched?.name || 'Student',
+      gender: st.gender || matched?.gender || 'Unknown',
+      classVal: st.class_name ? String(st.class_name).replace(/class\s*/i, '').trim() : (matched?.classVal || '1'),
+      section: st.section || matched?.section || 'A',
+      dob: st.dob || matched?.dob || '2019-01-01',
+      dobFormatted: st.dobFormatted || (st.dob ? new Date(st.dob).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : (matched?.dobFormatted || '—')),
+      latestAssessment: st.assessment_date || matched?.latestAssessment || new Date().toISOString().split('T')[0],
+      height: Number(st.height_cm || st.height || matched?.height || 0),
+      height_cm: Number(st.height_cm || st.height || matched?.height || 0),
+      weight: Number(st.weight_kg || st.weight || matched?.weight || 0),
+      weight_kg: Number(st.weight_kg || st.weight || matched?.weight || 0),
+      bmi: Number(st.bmi || matched?.bmi || 0),
+      bmiZScore: st.bmi_zscore ?? matched?.bmiZScore ?? (st.nutrition_status === 'Severely Wasted' ? -3.4 : st.nutrition_status === 'Wasted' ? -2.3 : 0),
+      currentStatus: st.nutrition_status || matched?.currentStatus || 'Normal',
+      nutritionStatus: st.nutrition_status || matched?.nutritionStatus || 'Normal',
+      healthStatus: st.nutrition_status || matched?.healthStatus || 'Normal',
+      isSeverelyWasted: st.nutrition_status === 'Severely Wasted' || matched?.isSeverelyWasted,
+      isWasted: st.nutrition_status === 'Wasted' || matched?.isWasted,
+      school_id: st.school_id || matched?.school_id,
+      school_name: st.school_name || matched?.school_name || activeSchool?.name,
+      cluster_name: st.cluster_name || matched?.cluster_name || activeCluster?.name,
+      schoolName: st.school_name || matched?.school_name || activeSchool?.name,
+      clusterName: st.cluster_name || matched?.cluster_name || activeCluster?.name,
+      ageDisplay: st.age_display || matched?.ageDisplay || '',
+      examinerName: st.examiner_name || matched?.examinerName || 'Staff Health Officer',
+      raw: matched?.raw || {
+        assessments: [
+          ...(st.assessment_date ? [{
+            assessment_date: st.assessment_date,
+            height_cm: Number(st.height_cm || st.height || 0),
+            weight_kg: Number(st.weight_kg || st.weight || 0),
+            bmi: Number(st.bmi || 0),
+            bmi_for_age_zscore: st.bmi_zscore || (st.nutrition_status === 'Severely Wasted' ? -3.4 : -2.3),
+            nutrition_status: st.nutrition_status,
+            examiner_name: st.examiner_name || 'Staff Health Officer'
+          }] : []),
+          ...(st.prev_date ? [{
+            assessment_date: st.prev_date,
+            height_cm: Number(st.prev_height_cm || st.height_cm || st.height || 0),
+            weight_kg: Number(st.prev_weight_kg || 0),
+            bmi: Number(st.prev_bmi || 0),
+            bmi_for_age_zscore: st.prev_status === 'Severely Wasted' ? -3.4 : -2.3,
+            nutrition_status: st.prev_status,
+            examiner_name: 'Staff Health Officer'
+          }] : [])
+        ]
+      }
+    };
+
+    if (matched) {
+      setModalStudent({
+        ...matched,
+        ...studentObj,
+        schoolName: st.school_name || matched.school_name || activeSchool?.name,
+        clusterName: st.cluster_name || matched.cluster_name || activeCluster?.name,
+        raw: matched.raw || {
+          ...matched,
+          assessments: matched.assessments || studentObj.raw?.assessments || []
+        }
+      });
+    } else {
+      setModalStudent(studentObj);
+    }
+
+    setSelectedStudentId(studentId);
+    setShowStudentGrowthModal(true);
+
+    // 3. Fetch comprehensive live record with all longitudinal screenings from backend in background
+    try {
+      const fullRes = await api.getStudentById(studentId);
+      if (fullRes) {
+        setModalStudent(prev => {
+          if (!prev || String(prev.id) !== String(studentId)) return prev;
+          return {
+            ...prev,
+            ...fullRes,
+            schoolName: fullRes.sch_name || fullRes.school_name || prev.schoolName,
+            clusterName: fullRes.c_name || fullRes.cluster_name || prev.clusterName,
+            height: fullRes.height_cm || prev.height,
+            weight: fullRes.weight_kg || prev.weight,
+            bmi: fullRes.bmi || prev.bmi,
+            currentStatus: fullRes.nutrition_status || prev.currentStatus,
+            isSeverelyWasted: fullRes.nutrition_status === 'Severely Wasted',
+            isWasted: fullRes.nutrition_status === 'Wasted',
+            raw: fullRes
+          };
+        });
+      }
+    } catch (err) {
+      // Non-blocking: studentObj is already fully displayed
+      console.info('Live full student fetch note:', err);
+    }
+  };
 
   // Helpers for robust class & section filter matching
   const normalizeClassFilter = (val) => {
@@ -611,17 +997,185 @@ export default function StudentsManagementView() {
     });
   }, [studentsData, activeSchool]);
 
-  // Critical follow-up students (Severely Wasted & Wasted)
-  const criticalStudents = useMemo(() => {
-    return studentsData.filter(s => s.isCritical);
+  // Available Academic Years for filter
+  const availableAcademicYears = useMemo(() => {
+    const set = new Set();
+    studentsData.forEach(s => {
+      if (s.academicYear) set.add(s.academicYear);
+    });
+    return Array.from(set).sort();
   }, [studentsData]);
 
-  // Filtered Critical Students for Priority Tracking Tab
+  // Critical follow-up students (Severely Wasted & Wasted) - only active enrolled students
+  const criticalStudents = useMemo(() => {
+    return studentsData.filter(s => s.isCritical && (s.enrollmentStatus || 'Active') === 'Active');
+  }, [studentsData]);
+
+  // Available Months for Monthly Tracking Filter (covering calendar / academic cycle)
+  // Dynamically rolling: automatically adapts to the system clock and all recorded student assessment & due dates.
+  // Rolls forward every year (e.g. 2026, 2027, 2028, 2029...) completely automatically without requiring any manual changes!
+  const availableAssessmentMonths = useMemo(() => {
+    const list = [];
+    const currentYear = new Date().getFullYear();
+
+    // Collect all years from existing student assessments and scheduled follow-ups
+    const dataYears = [];
+    studentsData.forEach(s => {
+      if (s.latestAssessment && typeof s.latestAssessment === 'string' && s.latestAssessment.length >= 4) {
+        const y = parseInt(s.latestAssessment.substring(0, 4), 10);
+        if (!isNaN(y) && y > 2000 && y < 2100) dataYears.push(y);
+      }
+      if (s.nextDueYearMonth && typeof s.nextDueYearMonth === 'string' && s.nextDueYearMonth.length >= 4) {
+        const y = parseInt(s.nextDueYearMonth.substring(0, 4), 10);
+        if (!isNaN(y) && y > 2000 && y < 2100) dataYears.push(y);
+      }
+    });
+
+    const validYears = dataYears.filter(y => y > 2000 && y < 2100);
+    // Start year: earlier of 2025, (currentYear - 1), or earliest assessment in data
+    const startYear = Math.min(2025, currentYear - 1, ...(validYears.length > 0 ? validYears : [currentYear]));
+    // End year: further of (currentYear + 2) or latest due/assessment date in data
+    const endYear = Math.max(currentYear + 2, ...(validYears.length > 0 ? validYears : [currentYear + 2]));
+
+    for (let y = startYear; y <= endYear; y++) {
+      for (let m = 0; m < 12; m++) {
+        const d = new Date(y, m, 1);
+        const ym = `${y}-${String(m + 1).padStart(2, '0')}`;
+        const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        list.push({ value: ym, label, year: y, monthIndex: m });
+      }
+    }
+    return list;
+  }, [studentsData]);
+
+  // Compute student count per upcoming assessment month
+  const monthlyCriticalCounts = useMemo(() => {
+    const counts = {};
+    criticalStudents.forEach(s => {
+      if (s.nextDueYearMonth) {
+        counts[s.nextDueYearMonth] = (counts[s.nextDueYearMonth] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [criticalStudents]);
+
+  // Dedicated options list for SearchableDropdown Month selector (Monthly Tracking tab — shows upcoming due counts)
+  const monthDropdownOptions = useMemo(() => {
+    return availableAssessmentMonths.map((m) => {
+      const count = monthlyCriticalCounts[m.value] || 0;
+      const isCurrent = m.label === currentMonthLabel;
+      return {
+        value: m.value,
+        label: m.label,
+        count: count > 0 ? count : null,
+        sublabel: count > 0 ? `${count} due` : (isCurrent ? 'Current Month' : null),
+      };
+    });
+  }, [availableAssessmentMonths, monthlyCriticalCounts, currentMonthLabel]);
+
+  // Separate clean options list for Monthly Progress Report dropdown — shows only "Current Month" label, NO upcoming due counts
+  const progressMonthDropdownOptions = useMemo(() => {
+    return availableAssessmentMonths.map((m) => {
+      const isCurrent = m.label === currentMonthLabel;
+      return {
+        value: m.value,
+        label: m.label,
+        count: null,   // no counts — assessed counts are shown in KPI cards, not here
+        sublabel: isCurrent ? 'Current Month' : null,
+      };
+    });
+  }, [availableAssessmentMonths, currentMonthLabel]);
+
+  // Progress Report Cluster Filter Options for SearchableDropdown
+  const progressClusterOptions = useMemo(() => {
+    return rawClusters.map(c => ({
+      value: c.id,
+      label: c.name,
+      count: c.schools_count || null
+    }));
+  }, [rawClusters]);
+
+  // Progress Report School Filter Options for SearchableDropdown
+  const progressSchoolOptions = useMemo(() => {
+    let list = rawSchools;
+    if (progressClusterFilter && progressClusterFilter !== 'All Clusters' && progressClusterFilter !== 'ALL') {
+      list = list.filter(s => s.cluster_id === progressClusterFilter || s.cluster_name?.toLowerCase() === progressClusterFilter.toLowerCase());
+    }
+    return list.map(s => ({
+      value: s.id,
+      label: s.name,
+      sublabel: s.cluster_name || null,
+      count: s.students_count || null
+    }));
+  }, [rawSchools, progressClusterFilter]);
+
+  // Filtered Students for Progress Report Drilldown Modal (strictly Severely Wasted & Wasted)
+  const modalScopeStudents = useMemo(() => {
+    if (!progressReportData || !progressReportData.students) return [];
+    let list = progressReportData.students.filter(s =>
+      s.is_severely_wasted ||
+      s.is_wasted ||
+      s.nutrition_status === 'Severely Wasted' ||
+      s.nutrition_status === 'Wasted' ||
+      (s.nutrition_status === 'Normal' && (s.prev_status === 'Severely Wasted' || s.prev_status === 'Wasted'))
+    );
+
+    if (progressModal.clusterId) {
+      list = list.filter(s => String(s.cluster_id) === String(progressModal.clusterId) || (s.cluster_name && progressModal.clusterName && s.cluster_name.toLowerCase() === progressModal.clusterName.toLowerCase()));
+    }
+    if (progressModal.schoolId) {
+      list = list.filter(s => String(s.school_id) === String(progressModal.schoolId) || (s.school_name && progressModal.schoolName && s.school_name.toLowerCase() === progressModal.schoolName.toLowerCase()));
+    }
+
+    // Deduplicate: one row per student_id (keep first = latest since backend sorts by date DESC)
+    const seen = new Set();
+    list = list.filter(s => {
+      if (seen.has(s.student_id)) return false;
+      seen.add(s.student_id);
+      return true;
+    });
+
+    return list;
+  }, [progressReportData, progressModal.clusterId, progressModal.schoolId, progressModal.clusterName, progressModal.schoolName]);
+
+  const modalStudents = useMemo(() => {
+    let list = modalScopeStudents;
+
+    const cat = progressModalCategoryFilter;
+    if (cat === 'severely_wasted') {
+      list = list.filter(s => s.is_severely_wasted || s.nutrition_status === 'Severely Wasted');
+    } else if (cat === 'wasted') {
+      list = list.filter(s => s.is_wasted || s.nutrition_status === 'Wasted');
+    } else if (cat === 'not_normal') {
+      list = list.filter(s => s.is_not_normal);
+    } else if (cat === 'deteriorated') {
+      list = list.filter(s => s.is_deteriorated || s.progress_status === 'deteriorated');
+    } else if (cat === 'improved') {
+      list = list.filter(s => s.progress_status === 'improved');
+    } else if (cat === 'stagnant') {
+      list = list.filter(s => s.progress_status === 'stagnant');
+    }
+
+    if (progressModalSearch.trim()) {
+      const q = progressModalSearch.toLowerCase().trim();
+      list = list.filter(s =>
+        (s.name && s.name.toLowerCase().includes(q)) ||
+        (s.student_id && s.student_id.toLowerCase().includes(q)) ||
+        (s.class_name && s.class_name.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [modalScopeStudents, progressModalCategoryFilter, progressModalSearch]);
+
+  // Filtered Critical Students for Monthly Tracking Tab
   const filteredCriticalStudents = useMemo(() => {
     return criticalStudents.filter(s => {
       if (studentSearch) {
-        const q = studentSearch.toLowerCase();
-        const match = s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
+        const q = studentSearch.toLowerCase().trim();
+        const match = s.name.toLowerCase().includes(q) ||
+                      s.id.toLowerCase().includes(q) ||
+                      (s.dob && s.dob.toLowerCase().includes(q)) ||
+                      (s.dobFormatted && s.dobFormatted.toLowerCase().includes(q));
         if (!match) return false;
       }
       if (classFilter !== 'All Classes') {
@@ -639,15 +1193,44 @@ export default function StudentsManagementView() {
       if (priorityCategoryFilter === 'SEVERELY_WASTED' && !s.isSeverelyWasted) return false;
       if (priorityCategoryFilter === 'WASTED' && !s.isWasted) return false;
 
-      if (upcomingMonthFilter === 'THIS_MONTH' && !s.dueStatus?.toLowerCase().includes('this month') && !s.dueStatus?.toLowerCase().includes('days')) return false;
-      if (upcomingMonthFilter === 'NEXT_MONTH' && !s.dueStatus?.toLowerCase().includes('next month')) return false;
-      if (upcomingMonthFilter === 'OVERDUE' && !s.dueStatus?.toLowerCase().includes('overdue')) return false;
+      if (upcomingMonthFilter !== 'ALL') {
+        if (upcomingMonthFilter === 'THIS_MONTH') {
+          if (!s.dueStatus?.toLowerCase().includes('this month') && !s.dueStatus?.toLowerCase().includes('days')) return false;
+        } else if (upcomingMonthFilter === 'NEXT_MONTH') {
+          if (!s.dueStatus?.toLowerCase().includes('next month')) return false;
+        } else if (upcomingMonthFilter === 'OVERDUE') {
+          if (!s.dueStatus?.toLowerCase().includes('overdue')) return false;
+        } else {
+          // Specific Year-Month match (e.g., '2026-09', '2026-10', '2026-11')
+          const matchesDueYearMonth = s.nextDueYearMonth === upcomingMonthFilter;
+          const matchesAssessMonth = s.latestAssessment && s.latestAssessment !== 'Pending' && s.latestAssessment.startsWith(upcomingMonthFilter);
+          if (!matchesDueYearMonth && !matchesAssessMonth) return false;
+        }
+      }
+
+      if (selectedMonthFilter && selectedMonthFilter !== 'All Months' && selectedMonthFilter !== 'ALL') {
+        const matchesDueYearMonth = s.nextDueYearMonth === selectedMonthFilter;
+        const matchesAssessMonth = s.latestAssessment && s.latestAssessment !== 'Pending' && s.latestAssessment.startsWith(selectedMonthFilter);
+        if (!matchesDueYearMonth && !matchesAssessMonth) return false;
+      }
+
+      // Assessed By (Staff / Excel Import) Filter
+      if (assessedByFilter !== 'ALL') {
+        if (assessedByFilter === 'EXCEL_IMPORT') {
+          if (!s.isExcelImport) return false;
+        } else {
+          const matchedUser = rawUsers.find(u => u.id === assessedByFilter || u.name?.toLowerCase() === assessedByFilter.toLowerCase());
+          const targetName = matchedUser?.name?.toLowerCase() || assessedByFilter.toLowerCase();
+          const sExaminer = (s.examinerName || s.rawExaminer || '').toLowerCase();
+          if (s.isExcelImport || sExaminer !== targetName) return false;
+        }
+      }
 
       return true;
     });
-  }, [criticalStudents, studentSearch, classFilter, sectionFilter, genderFilter, priorityCategoryFilter, upcomingMonthFilter]);
+  }, [criticalStudents, studentSearch, classFilter, sectionFilter, genderFilter, priorityCategoryFilter, upcomingMonthFilter, selectedMonthFilter, assessedByFilter, rawUsers]);
 
-  const activeStudent = studentsData.find(s => s.id === selectedStudentId) || studentsData[0] || {
+  const activeStudent = studentsData.find(s => String(s.id) === String(selectedStudentId)) || studentsData[0] || {
     id: '',
     idCode: '',
     name: 'Student',
@@ -664,6 +1247,9 @@ export default function StudentsManagementView() {
     bmiZScore: 0,
     heightZScore: 0,
     weightZScore: 0,
+    progressStatus: null,
+    weightDelta: null,
+    progressAlert: null,
   };
 
   // Assessment monthly records from active student
@@ -683,58 +1269,237 @@ export default function StudentsManagementView() {
     }
     return activeStudent.raw.assessments.map(a => {
       const dt = new Date(a.assessment_date || a.created_at || Date.now());
+      const isAbsent = a.attendance_status === 'Absent' || a.nutrition_status === 'Absent' || (a.height_cm == null && a.weight_kg == null);
+      const aExaminer = (a.examiner_name || '').trim();
+      const aImportId = a.import_id || null;
+      const isTcAssessment = Boolean(
+        (a.notes && a.notes.toLowerCase().includes('tc')) ||
+        activeStudent?.previous_school_name ||
+        activeStudent?.raw?.previous_school_name ||
+        aExaminer.toLowerCase() === 'admin'
+      );
+      const aIsExplicitImport = !isTcAssessment && Boolean(
+        aImportId ||
+        aExaminer.toLowerCase().includes('excel') ||
+        aExaminer.toLowerCase().includes('import') ||
+        aExaminer.toLowerCase() === 'mobile who engine'
+      );
+      const aMatchedStaffUser = aExaminer ? rawUsers.find(u => (u.name && u.name.trim().toLowerCase() === aExaminer.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === aExaminer.toLowerCase())) : null;
+      const aIsKnownStaff = !aIsExplicitImport && aExaminer ? (registeredUserNames.has(aExaminer.toLowerCase()) || aExaminer.toLowerCase() === 'admin' || Boolean(aMatchedStaffUser) || (aExaminer.toLowerCase() !== 'health officer' && aExaminer.length > 0)) : false;
+      const aIsExcelImport = !isTcAssessment && (aIsExplicitImport || (!aExaminer && !a.assessment_date));
+      const aStaffName = isTcAssessment
+        ? (aExaminer && aExaminer.toLowerCase() !== 'health officer' ? aExaminer : 'Admin')
+        : (aMatchedStaffUser ? aMatchedStaffUser.name : (aExaminer && !aIsExplicitImport ? aExaminer : null));
+
       return {
         month: dt.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
         date: dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         height: a.height_cm,
         weight: a.weight_kg,
         bmi: a.bmi,
-        classification: a.nutrition_status || a.bmi_for_age_classification || 'Normal'
+        attendanceStatus: isAbsent ? 'Absent' : 'Present',
+        absentReason: a.absent_reason,
+        classification: isAbsent ? 'Absent' : (a.nutrition_status || a.bmi_for_age_classification || 'Normal'),
+        examinerName: aStaffName,
+        isExcelImport: aIsExcelImport,
+        rawExaminer: aExaminer
       };
     });
-  }, [activeStudent]);
+  }, [activeStudent, rawUsers, registeredUserNames]);
 
   // Dynamic Filtering for Clusters
   const filteredClusters = clustersData.filter(c =>
     c.name.toLowerCase().includes(clusterSearch.toLowerCase())
   );
 
-  // Dynamic Filtering for Schools
-  const filteredSchools = schoolsList.filter(s =>
-    s.name.toLowerCase().includes(schoolSearch.toLowerCase())
-  );
-
-  // Dynamic Filtering for Students
-  const filteredStudents = studentsData.filter(s => {
-    if (enrollmentStatusFilter !== 'All' && (s.enrollmentStatus || 'Active') !== enrollmentStatusFilter) return false;
-    if (studentSearch) {
-      const q = studentSearch.toLowerCase();
-      const match = s.name.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
-      if (!match) return false;
-    }
-    if (classFilter !== 'All Classes') {
-      const target = normalizeClassFilter(classFilter);
-      const sVal = normalizeClassFilter(s.classVal);
-      if (sVal !== target) return false;
-    }
-    if (sectionFilter !== 'All Sections') {
-      const target = normalizeSectionFilter(sectionFilter);
-      const sVal = normalizeSectionFilter(s.section);
-      if (sVal !== target) return false;
-    }
-    if (genderFilter !== 'All Genders' && s.gender !== genderFilter) return false;
-    if (statusFilter !== 'All Status' && s.healthStatus !== statusFilter) return false;
-    return true;
+  // Dynamic Filtering for Schools (matches school name or unique school code)
+  const filteredSchools = schoolsList.filter(s => {
+    const q = schoolSearch.trim().toLowerCase();
+    if (!q) return true;
+    const matchName = s.name.toLowerCase().includes(q);
+    const matchCode = s.code && s.code.toLowerCase().includes(q);
+    return matchName || matchCode;
   });
 
-  const handleClearStudentFilters = () => {
-    setStudentSearch('');
-    setClassFilter('All Classes');
-    setSectionFilter('All Sections');
-    setGenderFilter('All Genders');
-    setStatusFilter('All Status');
-    setEnrollmentStatusFilter('Active');
+  // Dynamic Filtering for Students across schools when searching on Screen 2 (Schools in Cluster)
+  const matchedStudents = useMemo(() => {
+    const q = schoolSearch.trim().toLowerCase();
+    if (!q) return [];
+
+    return rawStudents
+      .filter(st => {
+        const matchName = st.name && st.name.toLowerCase().includes(q);
+        const matchId = st.id && String(st.id).toLowerCase().includes(q);
+        return matchName || matchId;
+      })
+      .map(st => {
+        const sch = rawSchools.find(s =>
+          (st.school_id && String(s.id) === String(st.school_id)) ||
+          (s.name && st.school_name && s.name.toLowerCase() === st.school_name.toLowerCase())
+        );
+        const sName = sch?.name || st.school_name || 'School';
+        const sCode = sch?.code || '';
+        const sId = sch?.id || st.school_id || '';
+        const cName = sch?.cluster_name || st.cluster_name || activeCluster?.name || '';
+        const cId = sch?.cluster_id || st.cluster_id || '';
+
+        return {
+          id: st.id,
+          name: st.name,
+          class_name: st.class_name || 'Class 1',
+          section: st.section || 'A',
+          gender: st.gender || 'Female',
+          school_id: sId,
+          school_name: sName,
+          school_code: sCode,
+          cluster_id: cId,
+          cluster_name: cName,
+          nutrition_status: st.nutrition_status || st.latest_bmi_for_age_classification || 'Normal',
+        };
+      });
+  }, [schoolSearch, rawStudents, rawSchools, activeCluster]);
+
+  const handleSelectStudentFromSearch = (st) => {
+    let targetClusterId = st.cluster_id;
+    if (!targetClusterId) {
+      const sch = rawSchools.find(s => String(s.id) === String(st.school_id));
+      if (sch?.cluster_id) targetClusterId = sch.cluster_id;
+    }
+    if (targetClusterId) {
+      setSelectedClusterId(targetClusterId);
+    }
+    setSelectedSchoolId(st.school_id);
+    setSelectedStudentId(st.id);
+    setViewLevel('student_details');
   };
+
+  const handleSelectSchoolFromSearch = (sch) => {
+    if (sch.cluster_id) setSelectedClusterId(sch.cluster_id);
+    setSelectedSchoolId(sch.id);
+    setViewLevel('students');
+  };
+
+  const getStatusBadge = (status) => {
+    const s = String(status || 'Normal').toLowerCase();
+    if (s.includes('severely wasted') || s.includes('severe thinness')) {
+      return { bg: '#FEF2F2', text: '#DC2626', label: 'Severely Wasted' };
+    }
+    if (s.includes('wasted') || s.includes('thinness')) {
+      return { bg: '#FFF7ED', text: '#D97706', label: 'Wasted' };
+    }
+    if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) {
+      return { bg: '#FEF3C7', text: '#D97706', label: 'Overweight' };
+    }
+    if (s.includes('absent')) {
+      return { bg: '#F1F5F9', text: '#64748B', label: 'Absent' };
+    }
+    return { bg: '#ECFDF5', text: '#059669', label: 'Normal' };
+  };
+
+  const isShowingStudentResults = Boolean(
+    schoolSearch.trim() && (
+      (matchedStudents.length > 0 && filteredSchools.length === 0) ||
+      (matchedStudents.length > 0 && searchResultView === 'students')
+    )
+  );
+
+  // Dynamic Filtering & Sorting for Students
+  const filteredStudents = useMemo(() => {
+    const list = studentsData.filter(s => {
+      // Enrollment and Status filters:
+      if (statusFilter !== 'All Status') {
+        if (statusFilter === 'TC Issued') {
+          if (s.enrollmentStatus !== 'TC Issued' && s.currentStatus !== 'TC Issued') return false;
+        } else if (statusFilter === 'Graduated') {
+          if (s.enrollmentStatus !== 'Graduated' && s.currentStatus !== 'Graduated') return false;
+        } else {
+          // Specific health/nutrition status: 'Normal', 'Wasted', 'Severely Wasted', 'Overweight', 'Absent'
+          // Non-active students (Graduated or TC Issued) must NEVER appear under active health categories!
+          if (s.enrollmentStatus === 'Graduated' || s.enrollmentStatus === 'TC Issued') return false;
+
+          const matchesHealth =
+            (statusFilter === 'Overweight' && (s.currentStatus === 'Overweight' || s.currentStatus === 'Obesity' || s.nutritionStatus === 'Overweight' || s.nutritionStatus === 'Obesity')) ||
+            s.currentStatus === statusFilter ||
+            s.healthStatus === statusFilter ||
+            s.nutritionStatus === statusFilter;
+          if (!matchesHealth) return false;
+
+          if (enrollmentStatusFilter !== 'All' && (s.enrollmentStatus || 'Active') !== enrollmentStatusFilter) return false;
+        }
+      } else {
+        // statusFilter === 'All Status'
+        if (enrollmentStatusFilter === 'Active' && s.enrollmentStatus && s.enrollmentStatus !== 'Active') return false;
+        if (enrollmentStatusFilter === 'TC Issued' && s.enrollmentStatus !== 'TC Issued') return false;
+        if (enrollmentStatusFilter === 'Graduated' && s.enrollmentStatus !== 'Graduated') return false;
+        // If enrollmentStatusFilter is 'All', allow all records (including Graduated and TC Issued) to show under All Status
+      }
+
+      if (studentSearch) {
+        const q = studentSearch.toLowerCase().trim();
+        const match = s.name.toLowerCase().includes(q) ||
+                      s.id.toLowerCase().includes(q) ||
+                      (s.dob && s.dob.toLowerCase().includes(q)) ||
+                      (s.dobFormatted && s.dobFormatted.toLowerCase().includes(q));
+        if (!match) return false;
+      }
+      if (dobFilter && s.dob !== dobFilter) return false;
+      if (classFilter !== 'All Classes') {
+        const target = normalizeClassFilter(classFilter);
+        const sVal = normalizeClassFilter(s.classVal);
+        if (sVal !== target) return false;
+      }
+      if (sectionFilter !== 'All Sections') {
+        const target = normalizeSectionFilter(sectionFilter);
+        const sVal = normalizeSectionFilter(s.section);
+        if (sVal !== target) return false;
+      }
+      if (genderFilter !== 'All Genders' && s.gender !== genderFilter) return false;
+      if (academicYearFilter !== 'All Years' && s.academicYear !== academicYearFilter) return false;
+
+      // Assessed By (Staff / Excel Import) Filter
+      if (assessedByFilter !== 'ALL') {
+        if (assessedByFilter === 'EXCEL_IMPORT') {
+          if (!s.isExcelImport) return false;
+        } else {
+          const matchedUser = rawUsers.find(u => u.id === assessedByFilter || u.name?.toLowerCase() === assessedByFilter.toLowerCase());
+          const targetName = matchedUser?.name?.toLowerCase() || assessedByFilter.toLowerCase();
+          const sExaminer = (s.examinerName || s.rawExaminer || '').toLowerCase();
+          if (s.isExcelImport || sExaminer !== targetName) return false;
+        }
+      }
+
+      return true;
+    });
+
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'id') {
+        cmp = String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortField === 'name') {
+        cmp = String(a.name || '').localeCompare(String(b.name || ''));
+      } else if (sortField === 'class') {
+        const numA = parseInt(a.classVal) || 0;
+        const numB = parseInt(b.classVal) || 0;
+        cmp = numA !== numB ? numA - numB : String(a.classVal || '').localeCompare(String(b.classVal || ''));
+      } else if (sortField === 'section') {
+        cmp = String(a.section || '').localeCompare(String(b.section || ''));
+      } else if (sortField === 'dob') {
+        cmp = String(a.dob || '').localeCompare(String(b.dob || ''));
+      } else if (sortField === 'status') {
+        cmp = String(a.healthStatus || '').localeCompare(String(b.healthStatus || ''));
+      } else {
+        cmp = String(a.id || '').localeCompare(String(b.id || ''), undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return sortAsc ? cmp : -cmp;
+    });
+
+    return list.map((item, idx) => ({
+      ...item,
+      sno: idx + 1
+    }));
+  }, [studentsData, enrollmentStatusFilter, studentSearch, dobFilter, classFilter, sectionFilter, genderFilter, statusFilter, academicYearFilter, assessedByFilter, rawUsers, sortField, sortAsc]);
+
+
 
   // Helper values for Z-score bars
   const getZMeterPosition = (val) => {
@@ -751,8 +1516,7 @@ export default function StudentsManagementView() {
         gap: '14px',
         width: '100%',
         maxWidth: '100%',
-        boxSizing: 'border-box',
-        overflowX: 'hidden'
+        boxSizing: 'border-box'
       }}
     >
       {/* ================= BREADCRUMBS ================= */}
@@ -1096,6 +1860,37 @@ export default function StudentsManagementView() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
+                          setModalCluster(cluster);
+                          setShowClusterGrowthModal(true);
+                        }}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '8px',
+                          border: '1px solid #BFDBFE',
+                          backgroundColor: '#EFF6FF',
+                          color: '#2563EB',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title={`Overall Cluster Report (PDF) - ${cluster.name}`}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#DBEAFE';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#EFF6FF';
+                        }}
+                      >
+                        <FileText size={15} />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setClusterToEdit(cluster);
                         }}
                         style={{
@@ -1205,6 +2000,34 @@ export default function StudentsManagementView() {
               </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalCluster(activeCluster);
+                  setShowClusterGrowthModal(true);
+                }}
+                style={{
+                  backgroundColor: '#EFF6FF',
+                  color: '#2563EB',
+                  border: '1.5px solid #BFDBFE',
+                  borderRadius: '8px',
+                  padding: '8px 15px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+                title={`Overall Cluster Report (PDF) for ${activeCluster.name}`}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#DBEAFE'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+              >
+                <FileText size={14} color="#2563EB" />
+                <span>Overall Cluster Report</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setClusterToEdit(activeCluster)}
@@ -1336,8 +2159,97 @@ export default function StudentsManagementView() {
             </div>
           </div>
 
-          {/* Section: Schools Table */}
+          {/* Cluster Sub-Tabs */}
           <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderBottom: '1.5px solid #E2E8F0',
+              paddingBottom: '2px',
+              marginTop: '4px'
+            }}
+          >
+            {/* Sub-Tab 1: Schools Directory */}
+            <button
+              type="button"
+              onClick={() => setClusterViewTab('schools')}
+              style={{
+                padding: '9px 18px',
+                border: 'none',
+                background: 'none',
+                fontSize: '13.5px',
+                fontWeight: clusterViewTab === 'schools' ? 700 : 500,
+                color: clusterViewTab === 'schools' ? '#EB5A1D' : '#64748B',
+                borderBottom: clusterViewTab === 'schools' ? '2.5px solid #EB5A1D' : '2.5px solid transparent',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <School size={16} color={clusterViewTab === 'schools' ? '#EB5A1D' : '#64748B'} />
+              <span>Schools Directory</span>
+              <span
+                style={{
+                  backgroundColor: clusterViewTab === 'schools' ? '#FFEDD5' : '#F1F5F9',
+                  color: clusterViewTab === 'schools' ? '#EA580C' : '#64748B',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '2px 8px',
+                  borderRadius: '10px'
+                }}
+              >
+                {filteredSchools.length}
+              </span>
+            </button>
+
+            {/* Sub-Tab 2: Monthly Progress Report */}
+            <button
+              type="button"
+              onClick={() => {
+                setClusterViewTab('progress');
+                setProgressViewType('school');
+              }}
+              style={{
+                padding: '9px 18px',
+                border: 'none',
+                background: 'none',
+                fontSize: '13.5px',
+                fontWeight: clusterViewTab === 'progress' ? 700 : 500,
+                color: clusterViewTab === 'progress' ? '#EB5A1D' : '#64748B',
+                borderBottom: clusterViewTab === 'progress' ? '2.5px solid #EB5A1D' : '2.5px solid transparent',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Activity size={16} color={clusterViewTab === 'progress' ? '#EB5A1D' : '#64748B'} />
+              <span>Monthly Progress Report</span>
+              {progressReportData?.summary?.not_normal_count > 0 && (
+                <span
+                  style={{
+                    backgroundColor: clusterViewTab === 'progress' ? '#FEE2E2' : '#F1F5F9',
+                    color: clusterViewTab === 'progress' ? '#DC2626' : '#64748B',
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '10px'
+                  }}
+                  title="Students not yet in Normal nutritional category"
+                >
+                  {progressReportData.summary.not_normal_count}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {clusterViewTab === 'schools' ? (
+            /* Section: Schools Table */
+            <div
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '14px',
@@ -1346,34 +2258,136 @@ export default function StudentsManagementView() {
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{
+              display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              justifyContent: 'space-between',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: '12px',
+              marginBottom: '16px'
+            }}>
               <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                  Schools in {activeCluster.name}
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
+                    {schoolSearch.trim()
+                      ? (isShowingStudentResults
+                        ? `Students matching "${schoolSearch}"`
+                        : `Schools matching "${schoolSearch}"`)
+                      : `Schools in ${activeCluster.name}`}
+                  </h3>
+                  {schoolSearch.trim() && (
+                    <span style={{
+                      backgroundColor: '#EFF6FF',
+                      color: '#2563EB',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '12px'
+                    }}>
+                      {isShowingStudentResults ? `${matchedStudents.length} Found` : `${filteredSchools.length} Found`}
+                    </span>
+                  )}
+                </div>
                 <p style={{ fontSize: '12.5px', color: '#64748B', margin: '3px 0 0 0' }}>
-                  List of schools and their student distribution.
+                  {schoolSearch.trim()
+                    ? (isShowingStudentResults
+                      ? `Listing students one by one across schools with their school name and unique code.`
+                      : `Listing schools matching your search.`)
+                    : 'List of schools and their student distribution.'}
                 </p>
               </div>
 
-              {/* Search box */}
-              <div style={{ position: 'relative', width: isMobile ? '100%' : '260px' }}>
-                <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                <input
-                  type="text"
-                  value={schoolSearch}
-                  onChange={(e) => setSchoolSearch(e.target.value)}
-                  placeholder="Search schools..."
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px 8px 36px',
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', width: isMobile ? '100%' : 'auto', flexWrap: 'wrap' }}>
+                {/* Switcher pills if both match */}
+                {schoolSearch.trim() && matchedStudents.length > 0 && filteredSchools.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    backgroundColor: '#F1F5F9',
                     borderRadius: '8px',
-                    border: '1px solid #CBD5E1',
-                    fontSize: '12.5px',
-                    outline: 'none',
-                    boxSizing: 'border-box'
-                  }}
-                />
+                    padding: '3px',
+                    gap: '2px'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setSearchResultView('students')}
+                      style={{
+                        padding: '5px 11px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        backgroundColor: isShowingStudentResults ? '#FFFFFF' : 'transparent',
+                        color: isShowingStudentResults ? '#2563EB' : '#64748B',
+                        boxShadow: isShowingStudentResults ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
+                      }}
+                    >
+                      Students ({matchedStudents.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSearchResultView('schools')}
+                      style={{
+                        padding: '5px 11px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '11.5px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        backgroundColor: !isShowingStudentResults ? '#FFFFFF' : 'transparent',
+                        color: !isShowingStudentResults ? '#EA580C' : '#64748B',
+                        boxShadow: !isShowingStudentResults ? '0 1px 2px rgba(0,0,0,0.06)' : 'none'
+                      }}
+                    >
+                      Schools ({filteredSchools.length})
+                    </button>
+                  </div>
+                )}
+
+                {/* Clean Search Input (No Popover) */}
+                <div style={{ position: 'relative', width: isMobile ? '100%' : '280px' }}>
+                  <Search size={15} color="#94A3B8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    value={schoolSearch}
+                    onChange={(e) => {
+                      setSchoolSearch(e.target.value);
+                      setSearchResultView('students');
+                    }}
+                    placeholder="Search by student name or school..."
+                    style={{
+                      width: '100%',
+                      padding: schoolSearch ? '8px 32px 8px 36px' : '8px 12px 8px 36px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12.5px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {schoolSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setSchoolSearch('')}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        color: '#94A3B8'
+                      }}
+                      title="Clear search"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1381,204 +2395,1157 @@ export default function StudentsManagementView() {
             <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '750px' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>School Name ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Students ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Assessed ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Pending ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Current Status ↕</th>
-                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>Actions</th>
-                  </tr>
+                  {isShowingStudentResults ? (
+                    <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', fontWeight: 600, color: '#475569', width: '45px', whiteSpace: 'nowrap' }}>#</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Student Name & ID</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>School Name & Code</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Class & Section</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Cluster</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Status</th>
+                      <th style={{ padding: '10px 14px', fontSize: '11.5px', fontWeight: 600, color: '#475569', textAlign: 'center', whiteSpace: 'nowrap' }}>Action</th>
+                    </tr>
+                  ) : (
+                    <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>School Name ↕</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>School Code ↕</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Students ↕</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Assessed ↕</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Pending ↕</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Current Status ↕</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody>
-                  {filteredSchools.map((item) => (
-                    <tr
-                      key={item.id}
-                      onClick={() => {
-                        setSelectedSchoolId(item.id);
-                        setViewLevel('students');
-                      }}
-                      style={{
-                        borderBottom: '1px solid #F1F5F9',
-                        transition: 'background-color 0.15s ease',
-                        cursor: 'pointer'
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                    >
-                      <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '8px',
-                              backgroundColor: item.iconBg,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}
-                          >
-                            <School size={16} color={item.iconColor} />
+                  {isShowingStudentResults ? (
+                    matchedStudents.map((st, idx) => {
+                      const stStatus = getStatusBadge(st.nutrition_status);
+                      return (
+                        <tr
+                          key={`match-student-${st.school_id}-${st.id}`}
+                          onClick={() => handleSelectStudentFromSearch(st)}
+                          style={{
+                            borderBottom: '1px solid #F1F5F9',
+                            transition: 'background-color 0.15s ease',
+                            cursor: 'pointer'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          <td style={{ padding: '12px 14px', fontSize: '12px', color: '#94A3B8', fontWeight: 500 }}>
+                            {idx + 1}
+                          </td>
+                          <td style={{ padding: '12px 14px', fontSize: '13px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '50%',
+                                backgroundColor: st.gender === 'Female' ? '#FCE7F3' : '#DBEAFE',
+                                color: st.gender === 'Female' ? '#DB2777' : '#1D4ED8',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 700,
+                                fontSize: '12px',
+                                flexShrink: 0
+                              }}>
+                                {st.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, color: '#0F172A' }}>{st.name}</div>
+                                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '1px' }}>
+                                  ID: {st.id}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 14px', fontSize: '13px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <School size={15} color="#EA580C" />
+                                <span style={{ fontWeight: 600, color: '#0F172A' }}>{st.school_name}</span>
+                              </div>
+                              {st.school_code && (
+                                <span style={{
+                                  fontSize: '10.5px',
+                                  fontWeight: 700,
+                                  color: '#EA580C',
+                                  backgroundColor: '#FFF7ED',
+                                  border: '1px solid #FFEDD5',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px'
+                                }}>
+                                  {st.school_code}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ padding: '12px 14px', fontSize: '12.5px', color: '#334155' }}>
+                            {st.class_name} • {st.section}
+                          </td>
+                          <td style={{ padding: '12px 14px', fontSize: '12px', color: '#64748B' }}>
+                            {st.cluster_name}
+                          </td>
+                          <td style={{ padding: '12px 14px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: stStatus.text,
+                              backgroundColor: stStatus.bg,
+                              padding: '2px 8px',
+                              borderRadius: '12px',
+                              display: 'inline-block'
+                            }}>
+                              {stStatus.label}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectStudentFromSearch(st);
+                              }}
+                              style={{
+                                backgroundColor: '#EFF6FF',
+                                color: '#2563EB',
+                                border: '1px solid #BFDBFE',
+                                borderRadius: '6px',
+                                padding: '6px 12px',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#DBEAFE'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                            >
+                              <span>View Student</span>
+                              <ArrowRight size={12} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : filteredSchools.length > 0 ? (
+                    filteredSchools.map((item) => (
+                      <tr
+                        key={item.id}
+                        onClick={() => {
+                          setSelectedSchoolId(item.id);
+                          setViewLevel('students');
+                        }}
+                        style={{
+                          borderBottom: '1px solid #F1F5F9',
+                          transition: 'background-color 0.15s ease',
+                          cursor: 'pointer'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div
+                              style={{
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
+                                backgroundColor: item.iconBg,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                              }}
+                            >
+                              <School size={16} color={item.iconColor} />
+                            </div>
+                            <span style={{ fontSize: '13.5px', fontWeight: 600, color: '#0F172A' }}>
+                              {item.name}
+                            </span>
                           </div>
-                          <span>{item.name}</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 14px', fontSize: '13px', color: '#0F172A' }}>{item.students}</td>
-                      <td style={{ padding: '12px 14px', fontSize: '13px', color: '#475569' }}>{item.assessed}</td>
-                      <td style={{ padding: '12px 14px', fontSize: '13px', color: '#475569' }}>{item.pending}</td>
-                      <td style={{ padding: '12px 14px', fontSize: '12.5px', color: '#475569' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {/* Progress bar */}
-                          <div style={{ width: '80px', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
-                            <div style={{ width: `${item.pct}%`, height: '100%', backgroundColor: item.barColor, borderRadius: '3px' }} />
+                        </td>
+                        <td style={{ padding: '12px 14px', fontSize: '12.5px' }}>
+                          {item.code ? (
+                            <span
+                              style={{
+                                fontSize: '11.5px',
+                                fontWeight: 700,
+                                color: '#EA580C',
+                                backgroundColor: '#FFF7ED',
+                                border: '1px solid #FFEDD5',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                letterSpacing: '0.02em',
+                                display: 'inline-block'
+                              }}
+                            >
+                              {item.code}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94A3B8' }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 14px', fontSize: '13px', color: '#0F172A' }}>{item.students}</td>
+                        <td style={{ padding: '12px 14px', fontSize: '13px', color: '#475569' }}>{item.assessed}</td>
+                        <td style={{ padding: '12px 14px', fontSize: '13px', color: '#475569' }}>{item.pending}</td>
+                        <td style={{ padding: '12px 14px', fontSize: '12.5px', color: '#475569' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {/* Progress bar */}
+                            <div style={{ width: '80px', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${item.pct}%`, height: '100%', backgroundColor: item.barColor, borderRadius: '3px' }} />
+                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 500 }}>{item.pct}% Assessed</span>
                           </div>
-                          <span style={{ fontSize: '12px', fontWeight: 500 }}>{item.pct}% Assessed</span>
-                        </div>
-                      </td>
-                      <td style={{ padding: '12px 14px', textAlign: 'center' }}>
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setModalSchool(item);
-                              setShowSchoolGrowthModal(true);
-                            }}
-                            style={{
-                              backgroundColor: '#EFF6FF',
-                              color: '#2563EB',
-                              border: '1px solid #BFDBFE',
-                              borderRadius: '6px',
-                              padding: '6px 11px',
-                              fontSize: '11.5px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              transition: 'all 0.15s ease'
-                            }}
-                            title="Download School Growth Report (PDF)"
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#DBEAFE';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = '#EFF6FF';
-                            }}
-                          >
-                            <FileText size={13} color="#2563EB" />
-                            <span>Growth Report</span>
-                          </button>
+                        </td>
+                        <td style={{ padding: '12px 14px', textAlign: 'center' }}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setModalSchool(item);
+                                setShowSchoolGrowthModal(true);
+                              }}
+                              style={{
+                                backgroundColor: '#EFF6FF',
+                                color: '#2563EB',
+                                border: '1px solid #BFDBFE',
+                                borderRadius: '6px',
+                                padding: '6px 11px',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title="Download School Growth Report (PDF)"
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#DBEAFE';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#EFF6FF';
+                              }}
+                            >
+                              <FileText size={13} color="#2563EB" />
+                              <span>Growth Report</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedSchoolId(item.id);
-                              setViewLevel('students');
-                            }}
-                            style={{
-                              backgroundColor: '#FFFFFF',
-                              color: '#0F172A',
-                              border: '1.5px solid #CBD5E1',
-                              borderRadius: '6px',
-                              padding: '6px 14px',
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px',
-                              transition: 'all 0.15s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.borderColor = '#EA580C';
-                              e.currentTarget.style.color = '#EA580C';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.borderColor = '#CBD5E1';
-                              e.currentTarget.style.color = '#0F172A';
-                            }}
-                          >
-                            <span>View</span>
-                            <ArrowRight size={13} />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedSchoolId(item.id);
+                                setViewLevel('students');
+                              }}
+                              style={{
+                                backgroundColor: '#FFFFFF',
+                                color: '#0F172A',
+                                border: '1.5px solid #CBD5E1',
+                                borderRadius: '6px',
+                                padding: '6px 14px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.borderColor = '#EA580C';
+                                e.currentTarget.style.color = '#EA580C';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.borderColor = '#CBD5E1';
+                                e.currentTarget.style.color = '#0F172A';
+                              }}
+                            >
+                              <span>View</span>
+                              <ArrowRight size={13} />
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSchoolToEdit(item);
-                            }}
-                            style={{
-                              backgroundColor: '#FFF7ED',
-                              color: '#EA580C',
-                              border: '1px solid #FED7AA',
-                              borderRadius: '6px',
-                              padding: '6px 11px',
-                              fontSize: '11.5px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              transition: 'all 0.15s ease'
-                            }}
-                            title={`Edit School ${item.name}`}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#FFEDD5';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = '#FFF7ED';
-                            }}
-                          >
-                            <Edit2 size={13} color="#EA580C" />
-                            <span>Edit</span>
-                          </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSchoolToEdit(item);
+                              }}
+                              style={{
+                                backgroundColor: '#FFF7ED',
+                                color: '#EA580C',
+                                border: '1px solid #FED7AA',
+                                borderRadius: '6px',
+                                padding: '6px 11px',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title={`Edit School ${item.name}`}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FFEDD5';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FFF7ED';
+                              }}
+                            >
+                              <Edit2 size={13} color="#EA580C" />
+                              <span>Edit</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSchoolToDelete(item);
-                            }}
-                            style={{
-                              backgroundColor: '#FFF5F5',
-                              color: '#EF4444',
-                              border: '1px solid #FEE2E2',
-                              borderRadius: '6px',
-                              padding: '6px 11px',
-                              fontSize: '11.5px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              transition: 'all 0.15s ease'
-                            }}
-                            title={`Delete School ${item.name}`}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.backgroundColor = '#FEE2E2';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.backgroundColor = '#FFF5F5';
-                            }}
-                          >
-                            <Trash2 size={13} color="#EF4444" />
-                            <span>Delete</span>
-                          </button>
-                        </div>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSchoolToDelete(item);
+                              }}
+                              style={{
+                                backgroundColor: '#FFF5F5',
+                                color: '#EF4444',
+                                border: '1px solid #FEE2E2',
+                                borderRadius: '6px',
+                                padding: '6px 11px',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title={`Delete School ${item.name}`}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FEE2E2';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FFF5F5';
+                              }}
+                            >
+                              <Trash2 size={13} color="#EF4444" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} style={{ padding: '36px 14px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
+                        {schoolSearch.trim() ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                            <span>No students or schools found matching "<strong>{schoolSearch}</strong>".</span>
+                            <button
+                              type="button"
+                              onClick={() => setSchoolSearch('')}
+                              style={{
+                                backgroundColor: '#F1F5F9',
+                                color: '#475569',
+                                border: '1px solid #CBD5E1',
+                                borderRadius: '6px',
+                                padding: '5px 12px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Clear Search
+                            </button>
+                          </div>
+                        ) : (
+                          <span>No schools found in this cluster.</span>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
+            {/* Progress Filter Bar */}
+            <div
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #ECEEF2',
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+              }}
+            >
+              {/* Month Searchable Dropdown */}
+              <SearchableDropdown
+                label="Month"
+                value={progressMonthFilter}
+                onChange={(val) => setProgressMonthFilter(val)}
+                options={progressMonthDropdownOptions}
+                allOptionLabel="All Months"
+                placeholder="All Months"
+                searchPlaceholder="Search month..."
+                icon={Calendar}
+                minWidth="170px"
+              />
+
+              {/* School Searchable Dropdown */}
+              <SearchableDropdown
+                label="School"
+                value={progressSchoolFilter}
+                onChange={(val) => setProgressSchoolFilter(val)}
+                options={progressSchoolOptions}
+                allOptionLabel={`All Schools in ${activeCluster.name}`}
+                placeholder={`All Schools in ${activeCluster.name}`}
+                searchPlaceholder="Search school..."
+                icon={School}
+                minWidth="200px"
+              />
+
+              {/* View Switcher: School Breakdown / Students Trajectory */}
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  backgroundColor: '#F1F5F9',
+                  borderRadius: '8px',
+                  padding: '3px',
+                  gap: '2px'
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setProgressViewType('school')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: progressViewType === 'school' ? 700 : 500,
+                    backgroundColor: progressViewType === 'school' ? '#FFFFFF' : 'transparent',
+                    color: progressViewType === 'school' ? '#EA580C' : '#64748B',
+                    boxShadow: progressViewType === 'school' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  <School size={13} />
+                  <span>School Breakdown</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setProgressViewType('students')}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    fontSize: '12px',
+                    fontWeight: progressViewType === 'students' ? 700 : 500,
+                    backgroundColor: progressViewType === 'students' ? '#FFFFFF' : 'transparent',
+                    color: progressViewType === 'students' ? '#EA580C' : '#64748B',
+                    boxShadow: progressViewType === 'students' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  <Users size={13} />
+                  <span>Students Trajectory</span>
+                </button>
+              </div>
+
+              {/* Overall Cluster Report (PDF) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setModalCluster(activeCluster);
+                  setShowClusterGrowthModal(true);
+                }}
+                style={{
+                  backgroundColor: '#2563EB',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)'
+                }}
+                title="Print or Save Overall Cluster Growth & Recovery Report as PDF"
+              >
+                <Printer size={13} />
+                <span>Overall Cluster Report (PDF)</span>
+              </button>
+
+              {/* Reset Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date();
+                  setProgressMonthFilter(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                  setProgressSchoolFilter('All Schools');
+                }}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  color: '#475569',
+                  border: '1px solid #CBD5E1',
+                  borderRadius: '8px',
+                  padding: '7px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  cursor: 'pointer'
+                }}
+                title="Reset filters"
+              >
+                <RotateCcw size={13} />
+                <span>Reset</span>
+              </button>
+            </div>
+
+            {/* 4 Summary KPI Cards — compact */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(4, 1fr)',
+                gap: '10px'
+              }}
+            >
+              {/* Total Monitored */}
+              <div
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '10px',
+                  border: '1px solid #E2E8F0',
+                  padding: '10px 14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}
+              >
+                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <ClipboardCheck size={15} color="#2563EB" />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#64748B' }}>Total Monitored</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                    <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
+                      {progressReportData?.summary?.total_assessed || 0}
+                    </span>
+                    <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>SW & Wasted cohort</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Not Yet Normal */}
+              <div
+                onClick={() => {
+                  setProgressModal({
+                    isOpen: true,
+                    title: `Severely Wasted & Wasted Students (${activeCluster.name})`,
+                    category: 'not_normal',
+                    clusterId: activeCluster.id,
+                    schoolId: null,
+                    clusterName: activeCluster.name,
+                    schoolName: null
+                  });
+                  setProgressModalCategoryFilter('not_normal');
+                }}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '10px',
+                  border: '1px solid #FED7AA',
+                  padding: '10px 14px',
+                  boxShadow: '0 1px 3px rgba(234,88,12,0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#EA580C'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#FED7AA'}
+                title="Click to view Severely Wasted and Wasted students"
+              >
+                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <AlertTriangle size={15} color="#EA580C" />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#9A3412' }}>Not Yet Normal</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                    <span style={{ fontSize: '22px', fontWeight: 800, color: '#EA580C', lineHeight: 1.1 }}>
+                      {progressReportData?.summary?.not_normal_count || 0}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '8px', backgroundColor: '#FFEDD5', color: '#C2410C' }}>
+                      {progressReportData?.summary?.not_normal_pct || 0}%
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '10px', color: '#C2410C', fontWeight: 600 }}>
+                    SW: {progressReportData?.summary?.severely_wasted_count || 0} • W: {progressReportData?.summary?.wasted_count || 0} • Click
+                  </span>
+                </div>
+              </div>
+
+              {/* No Improvement / Deteriorating */}
+              <div
+                onClick={() => {
+                  setProgressModal({
+                    isOpen: true,
+                    title: `Students with No Improvement / Deteriorating (${activeCluster.name})`,
+                    category: 'deteriorated',
+                    clusterId: activeCluster.id,
+                    schoolId: null,
+                    clusterName: activeCluster.name,
+                    schoolName: null
+                  });
+                  setProgressModalCategoryFilter('deteriorated');
+                }}
+                style={{
+                  backgroundColor: '#FFF5F5',
+                  borderRadius: '10px',
+                  border: '1.5px solid #FCA5A5',
+                  padding: '10px 14px',
+                  boxShadow: '0 1px 3px rgba(220,38,38,0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#DC2626'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#FCA5A5'}
+                title="Click to view students with dropped BMI or worsened status"
+              >
+                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <TrendingDown size={15} color="#DC2626" />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#991B1B' }}>No Improvement / Dropped</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                    <span style={{ fontSize: '22px', fontWeight: 800, color: '#DC2626', lineHeight: 1.1 }}>
+                      {progressReportData?.summary?.deteriorated_count || 0}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '8px', backgroundColor: '#FEE2E2', color: '#991B1B' }}>
+                      🔻 Critical
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '10px', color: '#991B1B', fontWeight: 600 }}>
+                    BMI declined • Click to view
+                  </span>
+                </div>
+              </div>
+
+              {/* Improving / Recovering */}
+              <div
+                onClick={() => {
+                  setProgressModal({
+                    isOpen: true,
+                    title: `Students Recovering / Improving (${activeCluster.name})`,
+                    category: 'improved',
+                    clusterId: activeCluster.id,
+                    schoolId: null,
+                    clusterName: activeCluster.name,
+                    schoolName: null
+                  });
+                  setProgressModalCategoryFilter('improved');
+                }}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '10px',
+                  border: '1px solid #A7F3D0',
+                  padding: '10px 14px',
+                  boxShadow: '0 1px 3px rgba(5,150,105,0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = '#059669'}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#A7F3D0'}
+                title="Click to view students with health improvement"
+              >
+                <div style={{ width: '28px', height: '28px', borderRadius: '7px', backgroundColor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <TrendingUp size={15} color="#059669" />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0px' }}>
+                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#065F46' }}>Improving / Recovering</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+                    <span style={{ fontSize: '22px', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
+                      {progressReportData?.summary?.improved_count || 0}
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '8px', backgroundColor: '#D1FAE5', color: '#065F46' }}>
+                      🔺 Positive
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '10px', color: '#047857', fontWeight: 500 }}>
+                    BMI → Normal • Click to view
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* View 1: School-wise Table */}
+            {progressViewType === 'school' && (
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Schools in {activeCluster.name} — Progress Summary
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#64748B', margin: '3px 0 0 0' }}>
+                      School-level nutritional recovery rates and students with deteriorating health in this cluster
+                    </p>
+                  </div>
+                  <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
+                    {progressReportData?.schools?.length || 0} Schools Active
+                  </span>
+                </div>
+
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '820px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1.5px solid #E2E8F0' }}>
+                        <th style={{ padding: '12px 16px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>School Name</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Cluster</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Total Monitored</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#DC2626', whiteSpace: 'nowrap' }}>Severely Wasted</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#EA580C', whiteSpace: 'nowrap' }}>Wasted</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>No Improvement (BMI Dropped)</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#059669', whiteSpace: 'nowrap' }}>Improving</th>
+                        <th style={{ padding: '12px 16px', fontSize: '11.5px', fontWeight: 700, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {progressReportData?.schools && progressReportData.schools.length > 0 ? (
+                        progressReportData.schools.map((s) => (
+                          <tr key={s.school_id} style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.1s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                            <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '28px', height: '28px', borderRadius: '6px', backgroundColor: '#ECFDF5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <School size={15} color="#059669" />
+                                </div>
+                                <span>{s.school_name}</span>
+                              </div>
+                            </td>
+                            <td style={{ padding: '14px', fontSize: '12.5px', color: '#475569', whiteSpace: 'nowrap' }}>
+                              {s.cluster_name}
+                            </td>
+                            <td style={{ padding: '14px', fontSize: '13px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
+                              {s.total_assessed}
+                            </td>
+                            <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                              <span
+                                onClick={() => {
+                                  setProgressModal({
+                                    isOpen: true,
+                                    title: `Severely Wasted Students — School: ${s.school_name}`,
+                                    category: 'severely_wasted',
+                                    clusterId: s.cluster_id,
+                                    schoolId: s.school_id,
+                                    clusterName: s.cluster_name,
+                                    schoolName: s.school_name
+                                  });
+                                  setProgressModalCategoryFilter('severely_wasted');
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '3px 9px',
+                                  borderRadius: '12px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  backgroundColor: s.severely_wasted_count > 0 ? '#FEE2E2' : '#F1F5F9',
+                                  color: s.severely_wasted_count > 0 ? '#DC2626' : '#64748B',
+                                  cursor: 'pointer'
+                                }}
+                                title="Click to view Severely Wasted students in this school"
+                              >
+                                {s.severely_wasted_count}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                              <span
+                                onClick={() => {
+                                  setProgressModal({
+                                    isOpen: true,
+                                    title: `Wasted Students — School: ${s.school_name}`,
+                                    category: 'wasted',
+                                    clusterId: s.cluster_id,
+                                    schoolId: s.school_id,
+                                    clusterName: s.cluster_name,
+                                    schoolName: s.school_name
+                                  });
+                                  setProgressModalCategoryFilter('wasted');
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  padding: '3px 9px',
+                                  borderRadius: '12px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  backgroundColor: s.wasted_count > 0 ? '#FFEDD5' : '#F1F5F9',
+                                  color: s.wasted_count > 0 ? '#EA580C' : '#64748B',
+                                  cursor: 'pointer'
+                                }}
+                                title="Click to view Wasted students in this school"
+                              >
+                                {s.wasted_count}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                              <span
+                                onClick={() => {
+                                  setProgressModal({
+                                    isOpen: true,
+                                    title: `No Improvement / Dropped BMI Students — School: ${s.school_name}`,
+                                    category: 'deteriorated',
+                                    clusterId: s.cluster_id,
+                                    schoolId: s.school_id,
+                                    clusterName: s.cluster_name,
+                                    schoolName: s.school_name
+                                  });
+                                  setProgressModalCategoryFilter('deteriorated');
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '3px 9px',
+                                  borderRadius: '12px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  backgroundColor: s.deteriorated_count > 0 ? '#FEE2E2' : '#F1F5F9',
+                                  color: s.deteriorated_count > 0 ? '#DC2626' : '#64748B',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                title="Click to view students showing no improvement or BMI drop in this school"
+                              >
+                                {s.deteriorated_count > 0 && <span>🔻</span>}
+                                <span>{s.deteriorated_count} due</span>
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                              <span
+                                onClick={() => {
+                                  setProgressModal({
+                                    isOpen: true,
+                                    title: `Improving Students — School: ${s.school_name}`,
+                                    category: 'improved',
+                                    clusterId: s.cluster_id,
+                                    schoolId: s.school_id,
+                                    clusterName: s.cluster_name,
+                                    schoolName: s.school_name
+                                  });
+                                  setProgressModalCategoryFilter('improved');
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '3px 9px',
+                                  borderRadius: '12px',
+                                  fontSize: '12px',
+                                  fontWeight: 700,
+                                  backgroundColor: '#D1FAE5',
+                                  color: '#065F46',
+                                  cursor: 'pointer'
+                                }}
+                                title="Click to view improving students in this school"
+                              >
+                                {s.improved_count > 0 && <span>🔺</span>}
+                                <span>{s.improved_count}</span>
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setProgressModal({
+                                      isOpen: true,
+                                      title: `Monitored Students — School: ${s.school_name}`,
+                                      category: 'all',
+                                      clusterId: s.cluster_id,
+                                      schoolId: s.school_id,
+                                      clusterName: s.cluster_name,
+                                      schoolName: s.school_name
+                                    });
+                                    setProgressModalCategoryFilter('all');
+                                  }}
+                                  style={{
+                                    backgroundColor: '#FFFFFF',
+                                    color: '#0F172A',
+                                    border: '1px solid #CBD5E1',
+                                    borderRadius: '6px',
+                                    padding: '5px 10px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  <span>View Students</span>
+                                  <ArrowRight size={12} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedSchoolId(s.school_id);
+                                    setViewLevel('students');
+                                  }}
+                                  style={{
+                                    backgroundColor: '#EFF6FF',
+                                    color: '#1D4ED8',
+                                    border: '1px solid #BFDBFE',
+                                    borderRadius: '6px',
+                                    padding: '5px 10px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                >
+                                  <span>Open School</span>
+                                  <ArrowRight size={12} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#64748B', fontSize: '13px' }}>
+                            No school records found for the selected period.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* View 2: Students Trajectory Table */}
+            {progressViewType === 'students' && (
+              <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      Severely Wasted & Wasted Progress Records ({activeCluster.name})
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#64748B', margin: '3px 0 0 0' }}>
+                      Individual month-over-month weight, BMI, and nutritional trajectory for monitored students in this cluster
+                    </p>
+                  </div>
+                  <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
+                    {progressReportData?.students?.length || 0} Monitored Students
+                  </span>
+                </div>
+
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '920px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1.5px solid #E2E8F0' }}>
+                        <th style={{ padding: '12px 16px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Student</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Class & Section</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>School / Cluster</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Previous Assessment</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Current Assessment</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>BMI Trajectory</th>
+                        <th style={{ padding: '12px 16px', fontSize: '11.5px', fontWeight: 700, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {progressReportData?.students && progressReportData.students.length > 0 ? (
+                        (() => {
+                          // Deduplicate: keep only one row per student_id (backend already does this; this is a safety guard)
+                          const seen = new Set();
+                          const uniqueStudents = progressReportData.students.filter(st => {
+                            if (seen.has(st.student_id)) return false;
+                            seen.add(st.student_id);
+                            return true;
+                          });
+                          return uniqueStudents;
+                        })().map((st) => {
+                          const isDeteriorated = st.is_deteriorated;
+                          const isImproved = st.progress_status === 'improved';
+                          const isStagnant = st.progress_status === 'stagnant';
+                          return (
+                            <tr key={st.student_id} style={{ borderBottom: '1px solid #F1F5F9', backgroundColor: isDeteriorated ? '#FFFBFB' : 'transparent', transition: 'background 0.1s' }}>
+                              <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: st.gender === 'Female' ? '#FCE7F3' : '#E0F2FE', color: st.gender === 'Female' ? '#BE185D' : '#0369A1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700 }}>
+                                    {st.name?.charAt(0) || 'S'}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{st.name}</div>
+                                    <div style={{ fontSize: '11px', color: '#64748B' }}>ID: {st.student_id}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px', fontSize: '12.5px', color: '#475569', whiteSpace: 'nowrap' }}>
+                                {st.class_name} • {st.section}
+                              </td>
+                              <td style={{ padding: '14px', fontSize: '12.5px', color: '#475569', whiteSpace: 'nowrap' }}>
+                                <div>{st.school_name}</div>
+                                <div style={{ fontSize: '11px', color: '#94A3B8' }}>{st.cluster_name}</div>
+                              </td>
+                              <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                                {st.prev_date ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A' }}>
+                                      {st.prev_bmi ? `${st.prev_bmi} kg/m²` : '—'} ({st.prev_weight_kg ? `${st.prev_weight_kg}kg` : '—'})
+                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '4px', backgroundColor: getNutritionStatusBg(st.prev_status), color: getNutritionStatusColor(st.prev_status), fontWeight: 700 }}>
+                                        {st.prev_status}
+                                      </span>
+                                      <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>{st.prev_date}</span>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '11.5px', color: '#94A3B8', fontStyle: 'italic' }}>
+                                    Initial Screening (Baseline)
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                                    {st.bmi ? `${st.bmi} kg/m²` : '—'} ({st.weight_kg ? `${st.weight_kg}kg` : '—'})
+                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                    <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '4px', backgroundColor: getNutritionStatusBg(st.nutrition_status), color: getNutritionStatusColor(st.nutrition_status), fontWeight: 700 }}>
+                                      {st.nutrition_status}
+                                    </span>
+                                    <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>{st.assessment_date}</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
+                                {st.bmi_delta !== null ? (
+                                  <span
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      padding: '3px 8px',
+                                      borderRadius: '10px',
+                                      fontSize: '11.5px',
+                                      fontWeight: 800,
+                                      backgroundColor: isDeteriorated ? '#FEE2E2' : isImproved ? '#D1FAE5' : '#F1F5F9',
+                                      color: isDeteriorated ? '#DC2626' : isImproved ? '#065F46' : '#64748B'
+                                    }}
+                                  >
+                                    {isDeteriorated && '🔻'}
+                                    {isImproved && '🔺'}
+                                    {isStagnant && '➖'}
+                                    <span>
+                                      {st.bmi_delta > 0 ? `+${st.bmi_delta}` : st.bmi_delta} kg/m²
+                                    </span>
+                                    <span style={{ fontSize: '10px', opacity: 0.85 }}>
+                                      ({isDeteriorated ? 'Deteriorated' : isImproved ? 'Recovering' : 'No Change'})
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '8px', backgroundColor: '#EFF6FF', color: '#1D4ED8', fontWeight: 600 }}>
+                                    Baseline screening
+                                  </span>
+                                )}
+                              </td>
+                                <td style={{ padding: '14px 16px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenStudentGrowthReport(st);
+                                    }}
+                                    style={{
+                                      backgroundColor: '#EB5A1D',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      borderRadius: '6px',
+                                      padding: '5px 10px',
+                                      fontSize: '11px',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                      boxShadow: '0 1px 3px rgba(235, 90, 29, 0.2)',
+                                      whiteSpace: 'nowrap',
+                                      transition: 'all 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D9480F'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+                                    title="View Student Health & Growth Report"
+                                  >
+                                    <FileText size={12} />
+                                    <span>Growth Report</span>
+                                  </button>
+                                </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan="7" style={{ textAlign: 'center', padding: '40px 30px', color: '#64748B', fontSize: '13px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '28px' }}>📅</span>
+                              {progressMonthFilter && progressMonthFilter !== 'All Months' ? (
+                                <>
+                                  <div style={{ fontWeight: 700, fontSize: '14px', color: '#0F172A' }}>
+                                    No students assessed in {monthDropdownOptions.find(m => m.value === progressMonthFilter)?.label || progressMonthFilter}
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#94A3B8' }}>
+                                    No Severely Wasted or Wasted students were assessed during this month. Try selecting a different month.
+                                  </div>
+                                </>
+                              ) : (
+                                <div style={{ fontWeight: 600, color: '#475569' }}>No monitored students found matching the selected filters.</div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )}
 
       {/* ========================================================================= */}
       {/* SCREEN 3: SCHOOL STUDENTS LIST (IMAGE 3)                                  */}
@@ -1588,16 +3555,58 @@ export default function StudentsManagementView() {
           {/* Header row with Title and Right Summary Card & PDF Button */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
             <div>
-              <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.15 }}>
-                {activeSchool.name}
-              </h1>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0, lineHeight: 1.15 }}>
+                  {activeSchool.name}
+                </h1>
+
+                {activeSchool.code && (
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: 800,
+                    color: '#EA580C',
+                    backgroundColor: '#FFF7ED',
+                    border: '1.5px solid #FFEDD5',
+                    padding: '3px 9px',
+                    borderRadius: '6px',
+                    letterSpacing: '0.03em',
+                  }}>
+                    CODE: {activeSchool.code}
+                  </span>
+                )}
+              </div>
               <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0' }}>
                 {activeSchool.students} Enrolled Students • Health & Growth Surveillance
               </p>
             </div>
 
             {/* Actions & Summary on Right */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              {/* Refresh Data Button */}
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isManualRefreshing}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  color: isManualRefreshing ? '#94A3B8' : '#0284C7',
+                  border: '1.5px solid #BAE6FD',
+                  borderRadius: '10px',
+                  padding: '11px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  cursor: isManualRefreshing ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Refresh live student and health data from server"
+              >
+                <RotateCcw size={14} className={isManualRefreshing ? 'animate-spin' : ''} />
+                <span>{isManualRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </button>
               {/* School Growth Report (PDF) Button */}
               <button
                 type="button"
@@ -1680,41 +3689,7 @@ export default function StudentsManagementView() {
                 <span>Delete School</span>
               </button>
 
-              {/* Total Students Card on Right */}
-              <div
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: '12px',
-                  border: '1px solid #ECEEF2',
-                  padding: '10px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-                }}
-              >
-                <div
-                  style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '10px',
-                    backgroundColor: '#FFF7ED',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}
-                >
-                  <Users size={20} color="#EA580C" />
-                </div>
-                <div>
-                  <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Total Students</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
-                    {activeSchool.students}
-                  </div>
-                  <div style={{ fontSize: '10.5px', color: '#64748B' }}>In this school</div>
-                </div>
-              </div>
+
             </div>
           </div>
 
@@ -1759,8 +3734,8 @@ export default function StudentsManagementView() {
                 background: 'none',
                 fontSize: '13.5px',
                 fontWeight: studentViewTab === 'priority' ? 700 : 500,
-                color: studentViewTab === 'priority' ? '#DC2626' : '#64748B',
-                borderBottom: studentViewTab === 'priority' ? '2.5px solid #DC2626' : '2.5px solid transparent',
+                color: studentViewTab === 'priority' ? '#EB5A1D' : '#64748B',
+                borderBottom: studentViewTab === 'priority' ? '2.5px solid #EB5A1D' : '2.5px solid transparent',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1768,12 +3743,12 @@ export default function StudentsManagementView() {
                 transition: 'all 0.15s ease'
               }}
             >
-              <AlertTriangle size={16} color="#DC2626" />
-              <span>Priority Tracking: Wasted & Severely Wasted</span>
+              <Calendar size={16} color={studentViewTab === 'priority' ? '#EB5A1D' : '#64748B'} />
+              <span>Monthly Tracking</span>
               <span
                 style={{
-                  backgroundColor: '#FEE2E2',
-                  color: '#DC2626',
+                  backgroundColor: studentViewTab === 'priority' ? '#FFEDD5' : '#F1F5F9',
+                  color: studentViewTab === 'priority' ? '#EA580C' : '#64748B',
                   fontSize: '11px',
                   fontWeight: 800,
                   padding: '2px 8px',
@@ -1785,67 +3760,10 @@ export default function StudentsManagementView() {
             </button>
           </div>
 
-          {/* ================= VIEW TAB 1: PRIORITY TRACKING ================= */}
+          {/* ================= VIEW TAB 1: MONTHLY TRACKING ================= */}
           {studentViewTab === 'priority' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' }}>
-              {/* KPI Summary Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: '12px' }}>
-                {/* Total Priority */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
-                    <AlertTriangle size={20} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Priority Cases</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>{criticalStudents.length}</div>
-                    <div style={{ fontSize: '10.5px', color: '#64748B' }}>Requiring follow-up</div>
-                  </div>
-                </div>
-
-                {/* Severely Wasted */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1.5px solid #FECACA', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
-                    <Activity size={20} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#B91C1C', fontWeight: 700 }}>Severely Wasted</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#DC2626', lineHeight: 1.1 }}>
-                      {criticalStudents.filter(s => s.isSeverelyWasted).length}
-                    </div>
-                    <div style={{ fontSize: '10.5px', color: '#991B1B' }}>Z-Score &lt; -3.0 SD (Critical)</div>
-                  </div>
-                </div>
-
-                {/* Wasted */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1.5px solid #FED7AA', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#EA580C', flexShrink: 0 }}>
-                    <Scale size={20} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#C2410C', fontWeight: 700 }}>Wasted (Moderate)</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#EA580C', lineHeight: 1.1 }}>
-                      {criticalStudents.filter(s => s.isWasted).length}
-                    </div>
-                    <div style={{ fontSize: '10.5px', color: '#9A3412' }}>Z-Score &lt; -2.0 SD (Moderate)</div>
-                  </div>
-                </div>
-
-                {/* Upcoming This Month */}
-                <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', flexShrink: 0 }}>
-                    <Calendar size={20} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#1E40AF', fontWeight: 600 }}>Due This Month</div>
-                    <div style={{ fontSize: '20px', fontWeight: 800, color: '#1E40AF', lineHeight: 1.1 }}>
-                      {criticalStudents.filter(s => s.dueStatus?.includes('Due in') || s.dueStatus?.includes('This Month')).length}
-                    </div>
-                    <div style={{ fontSize: '10.5px', color: '#64748B' }}>October 2026 Assessment</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Filter Bar for Priority Students */}
+              {/* Filter Bar for Monthly Tracking Students */}
               <div style={{ backgroundColor: '#FFFFFF', borderRadius: '12px', border: '1px solid #ECEEF2', padding: '14px 18px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 {/* Search Input */}
                 <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : '200px' }}>
@@ -1854,7 +3772,7 @@ export default function StudentsManagementView() {
                     type="text"
                     value={studentSearch}
                     onChange={(e) => setStudentSearch(e.target.value)}
-                    placeholder="Search by student name or ID..."
+                    placeholder="Search by student name, ID, or DOB..."
                     style={{ width: '100%', padding: '7px 10px 7px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
@@ -1865,7 +3783,7 @@ export default function StudentsManagementView() {
                   onChange={(e) => setPriorityCategoryFilter(e.target.value)}
                   style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', color: '#0F172A', backgroundColor: '#FFFFFF', outline: 'none', cursor: 'pointer' }}
                 >
-                  <option value="ALL">All Priority Categories</option>
+                  <option value="ALL">All Categories</option>
                   <option value="SEVERELY_WASTED">🔴 Severely Wasted Only</option>
                   <option value="WASTED">🟠 Wasted (Moderate) Only</option>
                 </select>
@@ -1896,15 +3814,66 @@ export default function StudentsManagementView() {
                   minWidth="140px"
                 />
 
-                {/* Upcoming Month Filter */}
+                {/* Upcoming Due Status Filter */}
                 <select
                   value={upcomingMonthFilter}
                   onChange={(e) => setUpcomingMonthFilter(e.target.value)}
-                  style={{ padding: '7px 10px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', color: '#0F172A', backgroundColor: '#FFFFFF', outline: 'none', cursor: 'pointer' }}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: upcomingMonthFilter !== 'ALL' ? '1px solid #EA580C' : '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: upcomingMonthFilter !== 'ALL' ? '#C2410C' : '#0F172A',
+                    backgroundColor: upcomingMonthFilter !== 'ALL' ? '#FFF7ED' : '#FFFFFF',
+                    fontWeight: upcomingMonthFilter !== 'ALL' ? 600 : 400,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                  title="Filter by Assessment Due Status"
                 >
-                  <option value="ALL">All Upcoming Assessments</option>
-                  <option value="THIS_MONTH">Due This Month (October 2026)</option>
-                  <option value="NEXT_MONTH">Due Next Month (November 2026)</option>
+                  <option value="ALL">📅 All Upcoming Assessments</option>
+                  <option value="THIS_MONTH">⚡ Due This Month</option>
+                  <option value="NEXT_MONTH">📆 Due Next Month</option>
+                  <option value="OVERDUE">⚠️ Overdue Assessments</option>
+                </select>
+
+                {/* Dedicated Searchable Month Dropdown */}
+                <SearchableDropdown
+                  label="Month"
+                  value={selectedMonthFilter}
+                  onChange={(val) => setSelectedMonthFilter(val)}
+                  options={monthDropdownOptions}
+                  allOptionLabel="All Months"
+                  placeholder="All Months"
+                  searchPlaceholder="Search month (e.g. Sep, Nov)..."
+                  icon={Calendar}
+                  minWidth="165px"
+                />
+
+                {/* Assessed By (Staff / Excel Import) Filter */}
+                <select
+                  value={assessedByFilter}
+                  onChange={(e) => setAssessedByFilter(e.target.value)}
+                  style={{
+                    padding: '7px 10px',
+                    borderRadius: '8px',
+                    border: assessedByFilter !== 'ALL' ? '1px solid #EA580C' : '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: assessedByFilter !== 'ALL' ? '#C2410C' : '#0F172A',
+                    backgroundColor: assessedByFilter !== 'ALL' ? '#FFF7ED' : '#FFFFFF',
+                    fontWeight: assessedByFilter !== 'ALL' ? 600 : 400,
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                  title="Filter by Assessed Staff or Baseline Excel Import"
+                >
+                  <option value="ALL">👤 Assessed By: All Sources & Staff</option>
+                  <option value="EXCEL_IMPORT">📄 Excel Import (Baseline)</option>
+                  {rawUsers.map((u) => (
+                    <option key={u.id} value={u.name}>
+                      👤 {u.name} ({u.role === 'health_officer' ? 'Staff' : (u.role === 'admin' ? 'Admin' : u.role)})
+                    </option>
+                  ))}
                 </select>
 
                 {/* Clear Filters */}
@@ -1917,6 +3886,8 @@ export default function StudentsManagementView() {
                     setGenderFilter('All Genders');
                     setPriorityCategoryFilter('ALL');
                     setUpcomingMonthFilter('ALL');
+                    setSelectedMonthFilter('All Months');
+                    setAssessedByFilter('ALL');
                   }}
                   style={{ backgroundColor: '#FFFFFF', color: '#475569', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '7px 14px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}
                 >
@@ -1930,29 +3901,51 @@ export default function StudentsManagementView() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-                      Critical Nutrition Surveillance Roster
+                      Monthly Tracking Roster
                     </h3>
                     <p style={{ fontSize: '11.5px', color: '#64748B', margin: '2px 0 0 0' }}>
                       Showing {filteredCriticalStudents.length} students requiring upcoming monthly assessment
                     </p>
                   </div>
+                  <button
+                    onClick={handleSendUpcomingReminders}
+                    disabled={isSendingReminders || filteredCriticalStudents.length === 0}
+                    style={{
+                      backgroundColor: isSendingReminders ? '#94A3B8' : '#059669',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontSize: '12.5px',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      cursor: isSendingReminders || filteredCriticalStudents.length === 0 ? 'not-allowed' : 'pointer',
+                      boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
+                      transition: 'all 0.2s ease'
+                    }}
+                    title="Send monthly assessment reminder email to health officers and broadcast alert to mobile app"
+                  >
+                    <Mail size={14} />
+                    <span>{isSendingReminders ? 'Sending Reminders...' : 'Send Schedule Reminders'}</span>
+                  </button>
                 </div>
 
                 <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '920px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#FEF2F2', borderBottom: '1px solid #FECACA' }}>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', width: '45px' }}>#</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Student ID</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Student Name</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Grade-Sec</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Gender</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Status</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>BMI (kg/m²)</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Z-Score</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Last Assessed</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B' }}>Next Assessment Due</th>
-                        <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', textAlign: 'center' }}>Actions</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', width: '45px', whiteSpace: 'nowrap' }}>#</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Student ID</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Student Name</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Grade-Sec</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Gender</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Status</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Last Assessed</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Assessed By</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>Next Assessment Due</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1964,53 +3957,168 @@ export default function StudentsManagementView() {
                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEF2F2'}
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = item.isSeverelyWasted ? '#FFFBFB' : '#FFFFFF'}
                           >
-                            <td style={{ padding: '10px 12px', fontSize: '12px', color: '#64748B' }}>{idx + 1}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 600, color: '#0F172A' }}>{item.id}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>{item.name}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '12px', color: '#475569' }}>Class {item.classVal}-{item.section}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '11.5px', color: '#475569' }}>{item.gender}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '11.5px' }}>
+                            <td style={{ padding: '12px 14px', fontSize: '12px', color: '#64748B', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>{idx + 1}</td>
+                            <td style={{ padding: '12px 14px', fontSize: '12px', fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>{item.id}</td>
+                            <td style={{ padding: '12px 14px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>{item.name}</td>
+                            <td style={{ padding: '12px 14px', fontSize: '12px', color: '#475569', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>Class {item.classVal}-{item.section}</td>
+                            <td style={{ padding: '12px 14px', fontSize: '11.5px', color: '#475569', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>{item.gender}</td>
+                            <td style={{ padding: '12px 14px', fontSize: '11.5px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
                               <span style={{
-                                display: 'inline-block',
-                                padding: '2px 8px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '3px 10px',
                                 borderRadius: '12px',
                                 fontWeight: 700,
+                                whiteSpace: 'nowrap',
                                 backgroundColor: item.isSeverelyWasted ? '#FEE2E2' : '#FFEDD5',
                                 color: item.isSeverelyWasted ? '#DC2626' : '#EA580C',
                                 border: `1px solid ${item.isSeverelyWasted ? '#FECACA' : '#FED7AA'}`
                               }}>
                                 {item.isSeverelyWasted ? '🔴 Severely Wasted' : '🟠 Wasted'}
                               </span>
+                              {item.bmiDelta !== null && item.bmiDelta < 0 && (
+                                <div style={{ marginTop: '5px' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 800,
+                                    backgroundColor: '#FEF2F2',
+                                    color: '#991B1B',
+                                    border: '1px solid #F87171'
+                                  }}>
+                                    <span>🚨 Lower BMI ({item.bmiDelta > 0 ? `+${item.bmiDelta}` : item.bmiDelta})</span>
+                                  </span>
+                                </div>
+                              )}
+                              {item.progressStatus === 'weight_loss' && (
+                                <div style={{ marginTop: '5px' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    backgroundColor: '#FEE2E2',
+                                    color: '#B91C1C',
+                                    border: '1px solid #FCA5A5'
+                                  }}>
+                                    <span>🔻 {item.weightDelta} kg (Weight Loss)</span>
+                                  </span>
+                                </div>
+                              )}
+                              {item.progressStatus === 'stagnant' && (
+                                <div style={{ marginTop: '5px' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    backgroundColor: '#FEF3C7',
+                                    color: '#B45309',
+                                    border: '1px solid #FCD34D'
+                                  }}>
+                                    <span>⚠️ 0.0 kg (No Gain)</span>
+                                  </span>
+                                </div>
+                              )}
+                              {item.progressStatus === 'improving' && (
+                                <div style={{ marginTop: '5px' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    backgroundColor: '#ECFDF5',
+                                    color: '#047857',
+                                    border: '1px solid #A7F3D0'
+                                  }}>
+                                    <span>🟢 +{item.weightDelta} kg (Improving)</span>
+                                  </span>
+                                </div>
+                              )}
                             </td>
-                            <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>{item.bmi ? item.bmi : '—'}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: 700, color: item.isSeverelyWasted ? '#DC2626' : '#EA580C' }}>
-                              {typeof item.bmiZScore === 'number' ? `${item.bmiZScore.toFixed(2)} SD` : '—'}
+                            <td style={{ padding: '12px 14px', fontSize: '11.5px', color: '#64748B', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>{item.latestAssessment}</td>
+                            <td style={{ padding: '12px 14px', fontSize: '11.5px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                              {item.isExcelImport ? (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '2px 8px',
+                                    borderRadius: '8px',
+                                    fontWeight: 600,
+                                    fontSize: '11px',
+                                    backgroundColor: '#F1F5F9',
+                                    color: '#475569',
+                                    border: '1px solid #CBD5E1',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  title="Baseline data uploaded via Excel spreadsheet"
+                                >
+                                  <FileSpreadsheet size={12} color="#059669" />
+                                  <span>Excel Import (Baseline)</span>
+                                </span>
+                              ) : item.examinerName ? (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '2px 8px',
+                                    borderRadius: '8px',
+                                    fontWeight: 600,
+                                    fontSize: '11px',
+                                    backgroundColor: '#EFF6FF',
+                                    color: '#1D4ED8',
+                                    border: '1px solid #BFDBFE',
+                                    whiteSpace: 'nowrap'
+                                  }}
+                                  title={`Assessed by ${item.examinerName}`}
+                                >
+                                  <UserCheck size={12} color="#2563EB" />
+                                  <span>{item.examinerName}</span>
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94A3B8', fontSize: '11px' }}>—</span>
+                              )}
                             </td>
-                            <td style={{ padding: '10px 12px', fontSize: '11.5px', color: '#64748B' }}>{item.latestAssessment}</td>
-                            <td style={{ padding: '10px 12px', fontSize: '11.5px' }}>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <td style={{ padding: '12px 14px', fontSize: '11.5px', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
                                 <span style={{
                                   display: 'inline-block',
                                   padding: '2px 8px',
                                   borderRadius: '10px',
                                   fontWeight: 600,
                                   fontSize: '11px',
+                                  whiteSpace: 'nowrap',
                                   backgroundColor: item.dueBadgeBg,
                                   color: item.dueBadgeColor
                                 }}>
                                   {item.dueStatus}
                                 </span>
-                                <span style={{ color: '#64748B', fontSize: '10.5px' }}>({item.nextDueDateFormatted})</span>
+                                <span style={{ color: '#64748B', fontSize: '11px', whiteSpace: 'nowrap' }}>({item.nextDueDateFormatted})</span>
                               </div>
                             </td>
-                            <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            <td style={{ padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap', verticalAlign: 'middle' }}>
+                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
                                 <button
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setModalStudent(item);
-                                    setShowStudentGrowthModal(true);
+                                    handleOpenStudentGrowthReport(item);
                                   }}
                                   style={{
                                     backgroundColor: '#EB5A1D',
@@ -2024,12 +4132,13 @@ export default function StudentsManagementView() {
                                     alignItems: 'center',
                                     gap: '4px',
                                     cursor: 'pointer',
-                                    boxShadow: '0 1px 3px rgba(235, 90, 29, 0.2)'
+                                    boxShadow: '0 1px 3px rgba(235, 90, 29, 0.2)',
+                                    whiteSpace: 'nowrap'
                                   }}
-                                  title="Download WHO Growth Chart (PDF)"
+                                  title="View Student Health & Growth Report"
                                 >
                                   <FileText size={12} />
-                                  <span>Growth Chart PDF</span>
+                                  <span>Growth Report</span>
                                 </button>
 
                                 <button
@@ -2050,7 +4159,8 @@ export default function StudentsManagementView() {
                                     display: 'inline-flex',
                                     alignItems: 'center',
                                     gap: '3px',
-                                    cursor: 'pointer'
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap'
                                   }}
                                   title="View Health History & Trends"
                                 >
@@ -2063,8 +4173,12 @@ export default function StudentsManagementView() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="11" style={{ textAlign: 'center', padding: '28px', color: '#64748B' }}>
-                            No students matching the selected priority filter criteria.
+                          <td colSpan="10" style={{ textAlign: 'center', padding: '28px', color: '#64748B', fontSize: '13px' }}>
+                            {selectedMonthFilter && selectedMonthFilter !== 'All Months' && selectedMonthFilter !== 'ALL'
+                              ? `No students in ${availableAssessmentMonths.find(m => m.value === selectedMonthFilter)?.label || selectedMonthFilter}`
+                              : upcomingMonthFilter !== 'ALL'
+                              ? `No students matching the selected ${upcomingMonthFilter === 'OVERDUE' ? 'overdue' : 'upcoming'} filter.`
+                              : 'No students matching the selected monthly tracking filter criteria.'}
                           </td>
                         </tr>
                       )}
@@ -2093,15 +4207,23 @@ export default function StudentsManagementView() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
                   <div style={{ display: 'inline-flex', backgroundColor: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '2px' }}>
                     {[
+                      { id: 'All', label: 'All Records', count: studentsData.length },
                       { id: 'Active', label: 'Active Enrolled', count: studentsData.filter(s => (s.enrollmentStatus || 'Active') === 'Active').length },
                       { id: 'TC Issued', label: 'TC Issued', count: studentsData.filter(s => s.enrollmentStatus === 'TC Issued').length },
-                      { id: 'Graduated', label: 'Graduated', count: studentsData.filter(s => s.enrollmentStatus === 'Graduated').length },
-                      { id: 'All', label: 'All Records', count: studentsData.length }
+                      { id: 'Graduated', label: 'Graduated', count: studentsData.filter(s => s.enrollmentStatus === 'Graduated').length }
                     ].map(tab => (
                       <button
                         key={tab.id}
                         type="button"
-                        onClick={() => setEnrollmentStatusFilter(tab.id)}
+                        onClick={() => {
+                          setEnrollmentStatusFilter(tab.id);
+                          if (tab.id === 'All') setStatusFilter('All Status');
+                          else if (tab.id === 'Active') {
+                            if (statusFilter === 'TC Issued' || statusFilter === 'Graduated') setStatusFilter('All Status');
+                          }
+                          else if (tab.id === 'TC Issued') setStatusFilter('TC Issued');
+                          else if (tab.id === 'Graduated') setStatusFilter('Graduated');
+                        }}
                         style={{
                           padding: '6px 12px',
                           borderRadius: '6px',
@@ -2132,28 +4254,53 @@ export default function StudentsManagementView() {
                     ))}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowPromotionModal(true)}
-                    style={{
-                      backgroundColor: '#7C3AED',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '7px 14px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      cursor: 'pointer',
-                      boxShadow: '0 2px 4px rgba(124, 58, 237, 0.25)'
-                    }}
-                    title="Batch promote students to the next academic year"
-                  >
-                    <GraduationCap size={15} />
-                    <span>Promote Academic Year</span>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowTcIntakeModal(true)}
+                      style={{
+                        backgroundColor: '#0284C7',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '7px 14px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)'
+                      }}
+                      title="Admit Transfer Certificate (TC) student with prior record lookup and intake assessment"
+                    >
+                      <ArrowRightLeft size={15} />
+                      <span>Admit TC Student</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPromotionModal(true)}
+                      style={{
+                        backgroundColor: '#7C3AED',
+                        color: '#FFFFFF',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '7px 14px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 4px rgba(124, 58, 237, 0.25)'
+                      }}
+                      title="Batch promote students to the next academic year"
+                    >
+                      <GraduationCap size={15} />
+                      <span>Promote Academic Year</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Filter Controls Row */}
@@ -2165,7 +4312,7 @@ export default function StudentsManagementView() {
                       type="text"
                       value={studentSearch}
                       onChange={(e) => setStudentSearch(e.target.value)}
-                      placeholder="Student name / ID"
+                      placeholder="Student name, ID, or DOB..."
                       style={{
                         width: '100%',
                         padding: '7px 10px 7px 32px',
@@ -2204,6 +4351,60 @@ export default function StudentsManagementView() {
                     minWidth="140px"
                   />
 
+                  {/* DOB Filter */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      backgroundColor: dobFilter ? '#FFF7ED' : '#FFFFFF',
+                      border: dobFilter ? '1px solid #EA580C' : '1px solid #CBD5E1',
+                      borderRadius: '8px',
+                      padding: '4px 8px',
+                      boxSizing: 'border-box',
+                    }}
+                    title="Filter by Date of Birth (DOB)"
+                  >
+                    <Calendar size={13} color={dobFilter ? '#EA580C' : '#64748B'} />
+                    <span style={{ fontSize: '11px', fontWeight: 600, color: dobFilter ? '#EA580C' : '#64748B', whiteSpace: 'nowrap' }}>
+                      DOB:
+                    </span>
+                    <input
+                      type="date"
+                      value={dobFilter}
+                      onChange={(e) => setDobFilter(e.target.value)}
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        backgroundColor: 'transparent',
+                        fontSize: '12px',
+                        color: '#0F172A',
+                        fontFamily: 'inherit',
+                        cursor: 'pointer',
+                        padding: 0,
+                      }}
+                    />
+                    {dobFilter && (
+                      <button
+                        type="button"
+                        onClick={() => setDobFilter('')}
+                        title="Clear DOB filter"
+                        style={{
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          padding: '0 2px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          color: '#EA580C',
+                        }}
+                      >
+                        <X size={13} />
+                      </button>
+                    )}
+                  </div>
+
                   {/* Gender Filter */}
                   <select
                     value={genderFilter}
@@ -2224,10 +4425,26 @@ export default function StudentsManagementView() {
                     <option value="Female">Female</option>
                   </select>
 
-                  {/* Health Status Filter */}
+                  {/* Health / Enrollment Status Filter */}
                   <select
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setStatusFilter(val);
+                      if (val === 'All Status') {
+                        setEnrollmentStatusFilter('All');
+                      } else if (val === 'TC Issued') {
+                        setEnrollmentStatusFilter('TC Issued');
+                      } else if (val === 'Graduated') {
+                        setEnrollmentStatusFilter('Graduated');
+                      } else {
+                        // When choosing a nutritional health category ('Normal', 'Wasted', 'Severely Wasted', 'Overweight', 'Absent'),
+                        // switch enrollment filter to 'Active' so it never conflicts with TC Issued or Graduated
+                        if (enrollmentStatusFilter === 'TC Issued' || enrollmentStatusFilter === 'Graduated') {
+                          setEnrollmentStatusFilter('Active');
+                        }
+                      }
+                    }}
                     style={{
                       padding: '7px 10px',
                       borderRadius: '8px',
@@ -2244,8 +4461,58 @@ export default function StudentsManagementView() {
                     <option value="Wasted">Wasted</option>
                     <option value="Severely Wasted">Severely Wasted</option>
                     <option value="Overweight">Overweight</option>
-                    <option value="Obesity">Obesity</option>
-                    <option value="Pending Assessment">Pending Assessment</option>
+                    <option value="Absent">Absent</option>
+                    <option value="TC Issued">TC Issued</option>
+                    <option value="Graduated">Graduated</option>
+                  </select>
+
+                  {/* Academic Year Filter (if multiple years exist) */}
+                  {availableAcademicYears.length > 1 && (
+                    <select
+                      value={academicYearFilter}
+                      onChange={(e) => setAcademicYearFilter(e.target.value)}
+                      style={{
+                        padding: '7px 10px',
+                        borderRadius: '8px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '12px',
+                        color: '#0F172A',
+                        backgroundColor: '#FFFFFF',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="All Years">All Academic Years</option>
+                      {availableAcademicYears.map(yr => (
+                        <option key={yr} value={yr}>Session: {yr}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Assessed By (Staff / Excel Import) Filter */}
+                  <select
+                    value={assessedByFilter}
+                    onChange={(e) => setAssessedByFilter(e.target.value)}
+                    style={{
+                      padding: '7px 10px',
+                      borderRadius: '8px',
+                      border: assessedByFilter !== 'ALL' ? '1px solid #EA580C' : '1px solid #CBD5E1',
+                      fontSize: '12px',
+                      color: assessedByFilter !== 'ALL' ? '#C2410C' : '#0F172A',
+                      backgroundColor: assessedByFilter !== 'ALL' ? '#FFF7ED' : '#FFFFFF',
+                      fontWeight: assessedByFilter !== 'ALL' ? 600 : 400,
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                    title="Filter by Assessed Staff or Baseline Excel Import"
+                  >
+                    <option value="ALL">👤 Assessed By: All Sources & Staff</option>
+                    <option value="EXCEL_IMPORT">📄 Excel Import (Baseline)</option>
+                    {rawUsers.map((u) => (
+                      <option key={u.id} value={u.name}>
+                        👤 {u.name} ({u.role === 'health_officer' ? 'Staff' : (u.role === 'admin' ? 'Admin' : u.role)})
+                      </option>
+                    ))}
                   </select>
 
                   {/* Clear Filters */}
@@ -2282,27 +4549,6 @@ export default function StudentsManagementView() {
                   boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '14px', gap: '12px' }}>
-                  <div style={{ fontSize: '12px', color: '#64748B' }}>
-                    Showing 1–{filteredStudents.length} of {studentsData.length} students
-                  </div>
-                  <select
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      border: '1px solid #CBD5E1',
-                      fontSize: '12px',
-                      color: '#0F172A',
-                      backgroundColor: '#FFFFFF',
-                      outline: 'none',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option>10 per page</option>
-                    <option>25 per page</option>
-                    <option>50 per page</option>
-                  </select>
-                </div>
 
                 {/* Table */}
                 <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
@@ -2310,19 +4556,57 @@ export default function StudentsManagementView() {
                     <thead>
                       <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                         <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', width: '50px' }}>S.No</th>
-                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student ID ↕</th>
-                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Student Name</th>
+                        <th
+                          onClick={() => handleSort('id')}
+                          style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'id' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
+                          title="Click to sort by Student ID"
+                        >
+                          Student ID {sortField === 'id' ? (sortAsc ? '↑' : '↓') : '↕'}
+                        </th>
+                        <th
+                          onClick={() => handleSort('name')}
+                          style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'name' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
+                          title="Click to sort by Student Name"
+                        >
+                          Student Name {sortField === 'name' ? (sortAsc ? '↑' : '↓') : ''}
+                        </th>
                         <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Gender</th>
-                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Class ↕</th>
-                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Section ↕</th>
-                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>DOB ↕</th>
+                        <th
+                          onClick={() => handleSort('class')}
+                          style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'class' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
+                          title="Click to sort by Class"
+                        >
+                          Class {sortField === 'class' ? (sortAsc ? '↑' : '↓') : '↕'}
+                        </th>
+                        <th
+                          onClick={() => handleSort('section')}
+                          style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'section' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
+                          title="Click to sort by Section"
+                        >
+                          Section {sortField === 'section' ? (sortAsc ? '↑' : '↓') : '↕'}
+                        </th>
+                        <th
+                          onClick={() => handleSort('dob')}
+                          style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'dob' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
+                          title="Click to sort by DOB"
+                        >
+                          DOB {sortField === 'dob' ? (sortAsc ? '↑' : '↓') : '↕'}
+                        </th>
                         <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Latest Assessment ↕</th>
-                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Status ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Assessed By</th>
+                        <th
+                          onClick={() => handleSort('status')}
+                          style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'status' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
+                          title="Click to sort by Status"
+                        >
+                          Status {sortField === 'status' ? (sortAsc ? '↑' : '↓') : '↕'}
+                        </th>
                         <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredStudents.map((item) => (
+                      {filteredStudents.length > 0 ? (
+                        filteredStudents.map((item) => (
                         <tr
                           key={item.id}
                           onClick={() => {
@@ -2339,24 +4623,7 @@ export default function StudentsManagementView() {
                         >
                           <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#64748B' }}>{item.sno}</td>
                           <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 600, color: '#0F172A' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span>{item.id}</span>
-                              {item.enrollmentStatus && item.enrollmentStatus !== 'Active' && (
-                                <span
-                                  style={{
-                                    fontSize: '10px',
-                                    fontWeight: 700,
-                                    padding: '1px 6px',
-                                    borderRadius: '8px',
-                                    backgroundColor: item.enrollmentStatus === 'TC Issued' ? '#FEF2F2' : '#EFF6FF',
-                                    color: item.enrollmentStatus === 'TC Issued' ? '#DC2626' : '#2563EB',
-                                    border: `1px solid ${item.enrollmentStatus === 'TC Issued' ? '#FECACA' : '#BFDBFE'}`
-                                  }}
-                                >
-                                  {item.enrollmentStatus}
-                                </span>
-                              )}
-                            </div>
+                            <span>{item.id}</span>
                           </td>
                           <td style={{ padding: '10px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.name}</td>
                           <td style={{ padding: '10px 14px', fontSize: '12px' }}>
@@ -2377,6 +4644,51 @@ export default function StudentsManagementView() {
                           <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.section}</td>
                           <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.dob}</td>
                           <td style={{ padding: '10px 14px', fontSize: '12.5px', color: '#475569' }}>{item.latestAssessment}</td>
+                          <td style={{ padding: '10px 14px', fontSize: '12px' }}>
+                            {item.isExcelImport ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '2px 8px',
+                                  borderRadius: '8px',
+                                  fontWeight: 600,
+                                  fontSize: '11px',
+                                  backgroundColor: '#F1F5F9',
+                                  color: '#475569',
+                                  border: '1px solid #CBD5E1',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title="Baseline data uploaded via Excel spreadsheet"
+                              >
+                                <FileSpreadsheet size={12} color="#059669" />
+                                <span>Excel Import (Baseline)</span>
+                              </span>
+                            ) : item.examinerName ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '2px 8px',
+                                  borderRadius: '8px',
+                                  fontWeight: 600,
+                                  fontSize: '11px',
+                                  backgroundColor: '#EFF6FF',
+                                  color: '#1D4ED8',
+                                  border: '1px solid #BFDBFE',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title={`Assessed by ${item.examinerName}`}
+                              >
+                                <UserCheck size={12} color="#2563EB" />
+                                <span>{item.examinerName}</span>
+                              </span>
+                            ) : (
+                              <span style={{ color: '#94A3B8', fontSize: '11px' }}>—</span>
+                            )}
+                          </td>
                           <td style={{ padding: '10px 14px', fontSize: '12px' }}>
                             <span
                               style={{
@@ -2403,152 +4715,242 @@ export default function StudentsManagementView() {
                               {item.currentStatus}
                             </span>
                           </td>
-                          <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <td
+                            style={{ padding: '8px 14px', textAlign: 'center', position: 'relative' }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
                               <button
                                 type="button"
+                                className="student-action-dots-btn"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setModalStudent(item);
-                                  setShowStudentGrowthModal(true);
+                                  setActiveActionMenuId(prev => prev === item.id ? null : item.id);
                                 }}
                                 style={{
-                                  backgroundColor: '#F8FAFC',
-                                  color: '#0F172A',
-                                  border: '1px solid #CBD5E1',
-                                  borderRadius: '6px',
-                                  padding: '4px 8px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '8px',
+                                  border: '1px solid #E2E8F0',
+                                  backgroundColor: activeActionMenuId === item.id ? '#F1F5F9' : '#FFFFFF',
+                                  color: activeActionMenuId === item.id ? '#0F172A' : '#64748B',
                                   display: 'inline-flex',
                                   alignItems: 'center',
-                                  gap: '4px',
-                                  cursor: 'pointer'
+                                  justifyContent: 'center',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.15s ease',
+                                  boxShadow: activeActionMenuId === item.id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
                                 }}
-                                title="Download Student Growth Chart (PDF)"
+                                onMouseEnter={(e) => {
+                                  if (activeActionMenuId !== item.id) {
+                                    e.currentTarget.style.backgroundColor = '#F8FAFC';
+                                    e.currentTarget.style.color = '#0F172A';
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (activeActionMenuId !== item.id) {
+                                    e.currentTarget.style.backgroundColor = '#FFFFFF';
+                                    e.currentTarget.style.color = '#64748B';
+                                  }
+                                }}
+                                title="Actions"
                               >
-                                <FileText size={12} color="#2563EB" />
-                                <span>PDF</span>
+                                <MoreVertical size={16} />
                               </button>
 
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTransferModalStudent(item);
-                                }}
-                                style={{
-                                  backgroundColor: '#EFF6FF',
-                                  color: '#1D4ED8',
-                                  border: '1px solid #BFDBFE',
-                                  borderRadius: '6px',
-                                  padding: '4px 8px',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  cursor: 'pointer'
-                                }}
-                                title="Issue TC or Transfer to another school"
-                              >
-                                <ArrowRightLeft size={12} color="#1D4ED8" />
-                                <span>TC / Transfer</span>
-                              </button>
-
-                              {(item.enrollmentStatus === 'TC Issued' || item.enrollmentStatus === 'Graduated') && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setTcCertModalStudent(item);
-                                  }}
+                              {/* Three-dots Dropdown Menu */}
+                              {activeActionMenuId === item.id && (
+                                <div
+                                  className="student-action-dropdown-menu"
                                   style={{
-                                    backgroundColor: '#FEF3C7',
-                                    color: '#B45309',
-                                    border: '1px solid #FDE68A',
-                                    borderRadius: '6px',
-                                    padding: '4px 8px',
-                                    fontSize: '11px',
-                                    fontWeight: 600,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    cursor: 'pointer'
+                                    position: 'absolute',
+                                    right: 0,
+                                    top: (filteredStudents.indexOf(item) >= filteredStudents.length - 2 && filteredStudents.length > 3) ? 'auto' : 'calc(100% + 4px)',
+                                    bottom: (filteredStudents.indexOf(item) >= filteredStudents.length - 2 && filteredStudents.length > 3) ? 'calc(100% + 4px)' : 'auto',
+                                    backgroundColor: '#FFFFFF',
+                                    borderRadius: '10px',
+                                    border: '1px solid #E2E8F0',
+                                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.08)',
+                                    zIndex: 100,
+                                    minWidth: '155px',
+                                    padding: '5px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '2px',
+                                    textAlign: 'left'
                                   }}
-                                  title="Print TC Health Summary Record"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <Printer size={12} color="#B45309" />
-                                  <span>TC Record</span>
-                                </button>
-                              )}
+                                  {/* PDF Growth Chart */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveActionMenuId(null);
+                                      handleOpenStudentGrowthReport(item);
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '9px',
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      backgroundColor: 'transparent',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      color: '#1E293B',
+                                      transition: 'background-color 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    title="View Student Health & Growth Report"
+                                  >
+                                    <FileText size={14} color="#2563EB" />
+                                    <span>Growth Report</span>
+                                  </button>
 
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedStudentId(item.id);
-                                  setViewLevel('student_details');
-                                }}
-                                style={{
-                                  backgroundColor: '#FFFFFF',
-                                  color: '#0F172A',
-                                  border: '1px solid #CBD5E1',
-                                  borderRadius: '6px',
-                                  padding: '4px 10px',
-                                  fontSize: '11.5px',
-                                  fontWeight: 600,
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  cursor: 'pointer'
-                                }}
-                              >
-                                <Eye size={13} />
-                                <span>View</span>
-                              </button>
+                                  {/* TC / Transfer */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveActionMenuId(null);
+                                      setTransferModalStudent(item);
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '9px',
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      backgroundColor: 'transparent',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      color: '#1E293B',
+                                      transition: 'background-color 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#EFF6FF'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    title="Issue TC or Transfer to another school"
+                                  >
+                                    <ArrowRightLeft size={14} color="#1D4ED8" />
+                                    <span>TC / Transfer</span>
+                                  </button>
+
+                                  {/* Edit Student */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveActionMenuId(null);
+                                      setEditModalStudent(item);
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '9px',
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      backgroundColor: 'transparent',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      color: '#1E293B',
+                                      transition: 'background-color 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FFF7ED'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    title="Edit Student Details"
+                                  >
+                                    <Edit2 size={14} color="#EA580C" />
+                                    <span>Edit</span>
+                                  </button>
+
+                                  {/* View Profile */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveActionMenuId(null);
+                                      setSelectedStudentId(item.id);
+                                      setViewLevel('student_details');
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '9px',
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      backgroundColor: 'transparent',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      color: '#1E293B',
+                                      transition: 'background-color 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    title="View Student Full Profile"
+                                  >
+                                    <Eye size={14} color="#0F172A" />
+                                    <span>View</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="11" style={{ textAlign: 'center', padding: '40px 28px', color: '#64748B' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '28px' }}>🔍</span>
+                            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0F172A' }}>
+                              No students match the current filter
+                            </div>
+                            {statusFilter !== 'All Status' && (
+                              <div style={{ fontSize: '12px', color: '#94A3B8' }}>
+                                You're filtering by <strong style={{ color: '#EA580C' }}>{statusFilter}</strong>.
+                                {' '}No students have this status in this school.
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleClearStudentFilters}
+                              style={{
+                                marginTop: '6px',
+                                backgroundColor: '#FFF7ED',
+                                color: '#EA580C',
+                                border: '1px solid #FFEDD5',
+                                borderRadius: '8px',
+                                padding: '7px 16px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              Clear All Filters — Show All {studentsData.length} Students
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Pagination Controls */}
-                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '6px', marginTop: '16px' }}>
-                  <button
-                    type="button"
-                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-                  >
-                    &lt;
-                  </button>
-                  <button
-                    type="button"
-                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: 'none', backgroundColor: '#EB5A1D', color: '#FFFFFF', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-                  >
-                    1
-                  </button>
-                  <button
-                    type="button"
-                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-                  >
-                    2
-                  </button>
-                  <button
-                    type="button"
-                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-                  >
-                    3
-                  </button>
-                  <span style={{ fontSize: '12px', color: '#94A3B8' }}>...</span>
-                  <button
-                    type="button"
-                    style={{ width: '28px', height: '28px', borderRadius: '6px', border: '1px solid #E2E8F0', backgroundColor: '#FFFFFF', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '12px' }}
-                  >
-                    &gt;
-                  </button>
-                </div>
+
               </div>
             </div>
           )}
@@ -2560,52 +4962,130 @@ export default function StudentsManagementView() {
       {/* ========================================================================= */}
       {viewLevel === 'student_details' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%' }}>
-          {/* Top Profile Card */}
+          {/* Top Profile Card — 2-Row Layout */}
           <div
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '14px',
               border: '1px solid #ECEEF2',
-              padding: '22px 24px',
               boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: '16px'
+              overflow: 'hidden'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
-              <StudentAvatar size={74} />
-              <div>
-                <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0F172A', margin: 0, lineHeight: 1.15 }}>
-                  {activeStudent.name}
-                </h1>
-                <div style={{ fontSize: '13px', color: '#64748B', marginTop: '2px', fontWeight: 500 }}>
-                  Student ID: {activeStudent.id || activeStudent.idCode || 'N/A'}
+            {/* Row 1: Avatar + Info (left) | Current Status (right) */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '20px 24px',
+                gap: '16px',
+                flexWrap: 'wrap'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+                <StudentAvatar size={64} />
+                <div>
+                  <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', margin: 0, lineHeight: 1.15 }}>
+                    {activeStudent.name}
+                  </h1>
+                  <div style={{ fontSize: '12.5px', color: '#64748B', marginTop: '2px', fontWeight: 500 }}>
+                    Student ID: {activeStudent.id || activeStudent.idCode || 'N/A'}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginTop: '6px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#475569' }}>
+                      <School size={14} color="#64748B" />
+                      <span>{activeSchool.name}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#475569' }}>
+                      <BookOpen size={14} color="#64748B" />
+                      <span>Grade {activeStudent.classVal}{activeStudent.section}</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', color: '#475569' }}>
+                      <Network size={14} color="#64748B" />
+                      <span>{activeCluster.name}</span>
+                    </div>
+                  </div>
                 </div>
+              </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '8px', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: '#475569' }}>
-                    <School size={15} color="#64748B" />
-                    <span>{activeSchool.name}</span>
+              {/* Current Status Badge */}
+              <div
+                style={{
+                  backgroundColor: getNutritionStatusBg(activeStudent.currentStatus) || '#F0FDF4',
+                  border: `1px solid ${getNutritionStatusColor(activeStudent.currentStatus) || '#DCFCE7'}20`,
+                  borderRadius: '12px',
+                  padding: '12px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  flexShrink: 0
+                }}
+              >
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    backgroundColor: getNutritionStatusBg(activeStudent.currentStatus),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: getNutritionStatusColor(activeStudent.currentStatus)
+                  }}
+                >
+                  <Activity size={20} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '10.5px', color: '#64748B', fontWeight: 500 }}>Current Status</div>
+                  <div style={{ fontSize: '16px', fontWeight: 800, color: getNutritionStatusColor(activeStudent.currentStatus), lineHeight: 1.1 }}>
+                    {activeStudent.currentStatus || 'Normal'}
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: '#475569' }}>
-                    <BookOpen size={15} color="#64748B" />
-                    <span>Grade {activeStudent.classVal}{activeStudent.section}</span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: '#475569' }}>
-                    <Network size={15} color="#64748B" />
-                    <span>{activeCluster.name}</span>
+                  <div style={{ fontSize: '10.5px', color: '#94A3B8', marginTop: '1px' }}>
+                    Based on latest assessment
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Current Status Box & Action Buttons on Right */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Row 2: Action Buttons — full width */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexWrap: 'wrap',
+                padding: '12px 24px',
+                borderTop: '1px solid #F1F5F9',
+                backgroundColor: '#FAFBFC'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setEditModalStudent(activeStudent)}
+                style={{
+                  backgroundColor: '#FFF7ED',
+                  color: '#EA580C',
+                  border: '1px solid #FFEDD5',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Edit Student Information and Metrics"
+              >
+                <Edit2 size={14} color="#EA580C" />
+                <span>Edit Student</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setTransferModalStudent(activeStudent)}
@@ -2613,20 +5093,20 @@ export default function StudentsManagementView() {
                   backgroundColor: '#2563EB',
                   color: '#FFFFFF',
                   border: 'none',
-                  borderRadius: '10px',
-                  padding: '12px 16px',
-                  fontSize: '12.5px',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(37, 99, 235, 0.25)',
+                  boxShadow: '0 1px 3px rgba(37, 99, 235, 0.2)',
                   transition: 'all 0.15s ease'
                 }}
                 title="Issue Transfer Certificate or transfer student to another school"
               >
-                <ArrowRightLeft size={15} />
+                <ArrowRightLeft size={14} />
                 <span>TC / Transfer</span>
               </button>
 
@@ -2638,20 +5118,20 @@ export default function StudentsManagementView() {
                     backgroundColor: '#D97706',
                     color: '#FFFFFF',
                     border: 'none',
-                    borderRadius: '10px',
-                    padding: '12px 16px',
-                    fontSize: '12.5px',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '12px',
                     fontWeight: 600,
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '6px',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(217, 119, 6, 0.25)',
+                    boxShadow: '0 1px 3px rgba(217, 119, 6, 0.2)',
                     transition: 'all 0.15s ease'
                   }}
                   title="Print Official TC Health Summary Certificate"
                 >
-                  <Printer size={15} />
+                  <Printer size={14} />
                   <span>TC Health Record</span>
                 </button>
               )}
@@ -2666,58 +5146,22 @@ export default function StudentsManagementView() {
                   backgroundColor: '#EB5A1D',
                   color: '#FFFFFF',
                   border: 'none',
-                  borderRadius: '10px',
-                  padding: '12px 16px',
-                  fontSize: '12.5px',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
                   cursor: 'pointer',
-                  boxShadow: '0 2px 6px rgba(235, 90, 29, 0.25)',
+                  boxShadow: '0 1px 3px rgba(235, 90, 29, 0.2)',
                   transition: 'all 0.15s ease'
                 }}
                 title="Download official WHO Growth Chart PDF"
               >
-                <FileText size={15} />
+                <FileText size={14} />
                 <span>Growth Chart (PDF)</span>
               </button>
-
-              <div
-                style={{
-                  backgroundColor: '#F0FDF4',
-                  border: '1px solid #DCFCE7',
-                  borderRadius: '12px',
-                  padding: '14px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '14px'
-                }}
-              >
-                <div
-                  style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '10px',
-                    backgroundColor: getNutritionStatusBg(activeStudent.currentStatus),
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: getNutritionStatusColor(activeStudent.currentStatus)
-                  }}
-                >
-                  <Activity size={24} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Current Status</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: getNutritionStatusColor(activeStudent.currentStatus), lineHeight: 1.1 }}>
-                    {activeStudent.currentStatus || 'Normal'}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                    Based on latest assessment
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -2783,9 +5227,48 @@ export default function StudentsManagementView() {
                   <span style={{ fontWeight: 600, color: '#0F172A' }}>{activeSchool.name}</span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: '13px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                   <span style={{ color: '#64748B' }}>Cluster</span>
                   <span style={{ fontWeight: 600, color: '#0F172A' }}>{activeCluster.name}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', fontSize: '13px' }}>
+                  <span style={{ color: '#64748B' }}>Assessed By</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {activeStudent.isExcelImport ? (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        backgroundColor: '#F1F5F9',
+                        color: '#475569',
+                        border: '1px solid #CBD5E1'
+                      }}>
+                        <FileSpreadsheet size={13} color="#059669" />
+                        <span>Excel Import (Baseline)</span>
+                      </span>
+                    ) : activeStudent.examinerName ? (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11.5px',
+                        backgroundColor: '#EFF6FF',
+                        color: '#1D4ED8',
+                        border: '1px solid #BFDBFE'
+                      }}>
+                        <UserCheck size={13} color="#2563EB" />
+                        <span>{activeStudent.examinerName}</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: '#94A3B8' }}>—</span>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -2863,13 +5346,13 @@ export default function StudentsManagementView() {
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>
                     {activeStudent.bmi ? activeStudent.bmi : '—'}
                   </div>
-                  <span style={{ 
-                    fontSize: '10px', 
-                    fontWeight: 700, 
-                    backgroundColor: activeStudent.isSeverelyWasted ? '#FEE2E2' : activeStudent.isWasted ? '#FFEDD5' : '#DCFCE7', 
-                    color: activeStudent.isSeverelyWasted ? '#DC2626' : activeStudent.isWasted ? '#EA580C' : '#15803D', 
-                    padding: '2px 8px', 
-                    borderRadius: '10px' 
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    backgroundColor: activeStudent.isSeverelyWasted ? '#FEE2E2' : activeStudent.isWasted ? '#FFEDD5' : '#DCFCE7',
+                    color: activeStudent.isSeverelyWasted ? '#DC2626' : activeStudent.isWasted ? '#EA580C' : '#15803D',
+                    padding: '2px 8px',
+                    borderRadius: '10px'
                   }}>
                     {activeStudent.bmi ? (activeStudent.isSeverelyWasted ? 'Sev. Wasted' : activeStudent.isWasted ? 'Wasted' : 'Normal') : 'Pending'}
                   </span>
@@ -2884,13 +5367,13 @@ export default function StudentsManagementView() {
                   <div style={{ fontSize: '15px', fontWeight: 800, color: getNutritionStatusColor(activeStudent.currentStatus), margin: '2px 0 4px 0' }}>
                     {activeStudent.currentStatus || 'Pending'}
                   </div>
-                  <span style={{ 
-                    fontSize: '10px', 
-                    fontWeight: 700, 
-                    backgroundColor: getNutritionStatusBg(activeStudent.currentStatus), 
-                    color: getNutritionStatusColor(activeStudent.currentStatus), 
-                    padding: '2px 8px', 
-                    borderRadius: '10px' 
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    backgroundColor: getNutritionStatusBg(activeStudent.currentStatus),
+                    color: getNutritionStatusColor(activeStudent.currentStatus),
+                    padding: '2px 8px',
+                    borderRadius: '10px'
                   }}>
                     {activeStudent.isCritical ? 'Follow-up Due' : activeStudent.currentStatus === 'Normal' ? 'Healthy Range' : 'Observation'}
                   </span>
@@ -2951,6 +5434,74 @@ export default function StudentsManagementView() {
                   </div>
                 </div>
               </div>
+
+              {/* Student Progress Growth Alert Banner */}
+              {activeStudent.progressStatus === 'weight_loss' && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FEF2F2',
+                  border: '1px solid #FECACA',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <div style={{ fontSize: '18px' }}>🔻</div>
+                  <div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#991B1B' }}>
+                      Weight Loss Alert ({activeStudent.weightDelta} kg)
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#B91C1C', marginTop: '2px' }}>
+                      Child has experienced weight reduction compared to their previous assessment. Clinical dietary intervention is strongly advised.
+                    </div>
+                  </div>
+                </div>
+              )}
+              {activeStudent.progressStatus === 'stagnant' && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <div style={{ fontSize: '18px' }}>⚠️</div>
+                  <div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#92400E' }}>
+                      No Improvement (Stagnant Weight: 0.0 kg gain)
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#B45309', marginTop: '2px' }}>
+                      Child shows zero weight increase over the follow-up period. Supplemental nutrition and counseling recommended.
+                    </div>
+                  </div>
+                </div>
+              )}
+              {activeStudent.progressStatus === 'improving' && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px 14px',
+                  borderRadius: '10px',
+                  backgroundColor: '#F0FDF4',
+                  border: '1px solid #BBF7D0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <div style={{ fontSize: '18px' }}>🟢</div>
+                  <div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 800, color: '#166534' }}>
+                      Positive Growth Progress (+{activeStudent.weightDelta} kg gain)
+                    </div>
+                    <div style={{ fontSize: '11.5px', color: '#15803D', marginTop: '2px' }}>
+                      Child is making positive recovery progress toward healthy WHO growth percentiles.
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -3061,14 +5612,14 @@ export default function StudentsManagementView() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid #F1F5F9', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Classification</span>
-                <span style={{ 
-                  fontSize: '11px', 
-                  fontWeight: 700, 
-                  backgroundColor: getNutritionStatusBg(activeStudent.currentStatus), 
-                  color: getNutritionStatusColor(activeStudent.currentStatus), 
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  backgroundColor: getNutritionStatusBg(activeStudent.currentStatus),
+                  color: getNutritionStatusColor(activeStudent.currentStatus),
                   border: `1px solid ${getNutritionStatusBorder(activeStudent.currentStatus)}`,
-                  padding: '2px 10px', 
-                  borderRadius: '10px' 
+                  padding: '2px 10px',
+                  borderRadius: '10px'
                 }}>
                   {activeStudent.currentStatus || 'Pending'}
                 </span>
@@ -3302,7 +5853,7 @@ export default function StudentsManagementView() {
                     >
                       {assessmentHistory.slice().reverse().map((item) => (
                         <span key={item.month} style={{ fontSize: '10.5px', color: '#64748B', width: '42px', textAlign: 'center' }}>
-                          {item.month.replace(' 2026', '').replace('November', 'Nov').replace('October', 'Oct').replace('September', 'Sep').replace('August', 'Aug').replace('July', 'Jul').replace('June', 'Jun')}
+                          {String(item.month || '').replace(/\s*\d{4}/, '').slice(0, 3)}
                         </span>
                       ))}
                     </div>
@@ -3382,6 +5933,25 @@ export default function StudentsManagementView() {
 
               {/* Details Key Values */}
               <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {assessmentHistory.length > 0 && assessmentHistory[0].attendanceStatus === 'Absent' && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
+                    <span style={{ color: '#D97706', fontWeight: 600 }}>Attendance</span>
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      backgroundColor: '#FEF3C7',
+                      color: '#D97706',
+                      border: '1px solid #FCD34D',
+                      padding: '2px 8px',
+                      borderRadius: '8px',
+                      maxWidth: '200px',
+                      textAlign: 'right'
+                    }}>
+                      Absent {assessmentHistory[0].absentReason ? `• ${assessmentHistory[0].absentReason}` : ''}
+                    </span>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F1F5F9', fontSize: '13px' }}>
                   <span style={{ color: '#64748B' }}>Height</span>
                   <span style={{ fontWeight: 600, color: '#0F172A' }}>
@@ -3405,14 +5975,14 @@ export default function StudentsManagementView() {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', fontSize: '13px' }}>
                   <span style={{ color: '#64748B' }}>Classification</span>
-                  <span style={{ 
-                    fontSize: '11.5px', 
-                    fontWeight: 700, 
-                    backgroundColor: getNutritionStatusBg(assessmentHistory.length > 0 && assessmentHistory[0].classification ? assessmentHistory[0].classification : activeStudent.currentStatus), 
-                    color: getNutritionStatusColor(assessmentHistory.length > 0 && assessmentHistory[0].classification ? assessmentHistory[0].classification : activeStudent.currentStatus), 
+                  <span style={{
+                    fontSize: '11.5px',
+                    fontWeight: 700,
+                    backgroundColor: getNutritionStatusBg(assessmentHistory.length > 0 && assessmentHistory[0].classification ? assessmentHistory[0].classification : activeStudent.currentStatus),
+                    color: getNutritionStatusColor(assessmentHistory.length > 0 && assessmentHistory[0].classification ? assessmentHistory[0].classification : activeStudent.currentStatus),
                     border: `1px solid ${getNutritionStatusBorder(assessmentHistory.length > 0 && assessmentHistory[0].classification ? assessmentHistory[0].classification : activeStudent.currentStatus)}`,
-                    padding: '3px 10px', 
-                    borderRadius: '10px' 
+                    padding: '3px 10px',
+                    borderRadius: '10px'
                   }}>
                     {assessmentHistory.length > 0 && assessmentHistory[0].classification ? assessmentHistory[0].classification : (activeStudent.currentStatus || 'Pending')}
                   </span>
@@ -3462,10 +6032,12 @@ export default function StudentsManagementView() {
                   <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                     <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Month</th>
                     <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Assessment Date</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Attendance</th>
                     <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Height (cm)</th>
                     <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Weight (kg)</th>
                     <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>BMI</th>
                     <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Classification</th>
+                    <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Assessed By</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3482,27 +6054,93 @@ export default function StudentsManagementView() {
                       >
                         <td style={{ padding: '11px 14px', fontSize: '12.5px', fontWeight: 500, color: '#0F172A' }}>{item.month}</td>
                         <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.date}</td>
+                        <td style={{ padding: '11px 14px', fontSize: '12px' }}>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            backgroundColor: item.attendanceStatus === 'Absent' ? '#FEF3C7' : '#DCFCE7',
+                            color: item.attendanceStatus === 'Absent' ? '#D97706' : '#15803D',
+                            border: `1px solid ${item.attendanceStatus === 'Absent' ? '#FCD34D' : '#86EFAC'}`
+                          }}>
+                            {item.attendanceStatus}
+                          </span>
+                          {item.absentReason && (
+                            <div style={{ fontSize: '10.5px', color: '#B45309', marginTop: '3px' }}>
+                              {item.absentReason}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.height ? `${item.height} cm` : '—'}</td>
                         <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.weight ? `${item.weight} kg` : '—'}</td>
                         <td style={{ padding: '11px 14px', fontSize: '12.5px', color: '#475569' }}>{item.bmi ? item.bmi : '—'}</td>
                         <td style={{ padding: '11px 14px', fontSize: '12px' }}>
-                          <span style={{ 
-                            fontSize: '11px', 
-                            fontWeight: 700, 
-                            backgroundColor: getNutritionStatusBg(item.classification), 
-                            color: getNutritionStatusColor(item.classification), 
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            backgroundColor: getNutritionStatusBg(item.classification),
+                            color: getNutritionStatusColor(item.classification),
                             border: `1px solid ${getNutritionStatusBorder(item.classification)}`,
-                            padding: '2px 10px', 
-                            borderRadius: '10px' 
+                            padding: '2px 10px',
+                            borderRadius: '10px'
                           }}>
                             {item.classification}
                           </span>
+                        </td>
+                        <td style={{ padding: '11px 14px', fontSize: '12px' }}>
+                          {item.isExcelImport ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 8px',
+                                borderRadius: '8px',
+                                fontWeight: 600,
+                                fontSize: '11px',
+                                backgroundColor: '#F1F5F9',
+                                color: '#475569',
+                                border: '1px solid #CBD5E1',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title="Baseline data uploaded via Excel spreadsheet"
+                            >
+                              <FileSpreadsheet size={12} color="#059669" />
+                              <span>Excel Import (Baseline)</span>
+                            </span>
+                          ) : item.examinerName ? (
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '2px 8px',
+                                borderRadius: '8px',
+                                fontWeight: 600,
+                                fontSize: '11px',
+                                backgroundColor: '#EFF6FF',
+                                color: '#1D4ED8',
+                                border: '1px solid #BFDBFE',
+                                whiteSpace: 'nowrap'
+                              }}
+                              title={`Assessed by ${item.examinerName}`}
+                            >
+                              <UserCheck size={12} color="#2563EB" />
+                              <span>{item.examinerName}</span>
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94A3B8', fontSize: '11px' }}>—</span>
+                          )}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="6" style={{ padding: '30px', textAlign: 'center', color: '#64748B' }}>
+                      <td colSpan="8" style={{ padding: '30px', textAlign: 'center', color: '#64748B' }}>
                         No historical health assessment records found for this student. Assessments conducted in the Mobile App will appear here in real-time.
                       </td>
                     </tr>
@@ -3515,17 +6153,6 @@ export default function StudentsManagementView() {
       )}
 
       {/* ================= MODALS FOR PDF GROWTH CHARTS ================= */}
-      <StudentGrowthChartModal
-        isOpen={showStudentGrowthModal}
-        onClose={() => {
-          setShowStudentGrowthModal(false);
-          setModalStudent(null);
-        }}
-        student={modalStudent}
-        schoolName={activeSchool?.name}
-        clusterName={activeCluster?.name}
-      />
-
       <SchoolGrowthChartModal
         isOpen={showSchoolGrowthModal}
         onClose={() => {
@@ -3537,6 +6164,19 @@ export default function StudentsManagementView() {
         clusterName={activeCluster?.name}
       />
 
+      <ClusterGrowthChartModal
+        isOpen={showClusterGrowthModal}
+        onClose={() => {
+          setShowClusterGrowthModal(false);
+          setModalCluster(null);
+        }}
+        cluster={modalCluster || activeCluster}
+        schools={rawSchools}
+        students={rawStudents}
+        progressData={progressReportData}
+        assessmentMonth={progressMonthFilter}
+      />
+
       {/* ================= ACADEMIC PROMOTION MODAL ================= */}
       {showPromotionModal && activeSchool && (
         <AcademicPromotionModal
@@ -3544,6 +6184,16 @@ export default function StudentsManagementView() {
           onClose={() => setShowPromotionModal(false)}
           school={activeSchool}
           allStudents={rawStudents}
+          onSuccess={() => loadLiveStudentsData()}
+        />
+      )}
+
+      {/* ================= TC STUDENT INTAKE MODAL ================= */}
+      {showTcIntakeModal && activeSchool && (
+        <TCStudentIntakeModal
+          isOpen={showTcIntakeModal}
+          onClose={() => setShowTcIntakeModal(false)}
+          school={activeSchool}
           onSuccess={() => loadLiveStudentsData()}
         />
       )}
@@ -3718,6 +6368,506 @@ export default function StudentsManagementView() {
           setSchoolToEdit(null);
           await loadLiveStudentsData();
         }}
+      />
+
+      {/* Edit Student Modal */}
+      {Boolean(editModalStudent) && (
+        <EditStudentModal
+          isOpen={Boolean(editModalStudent)}
+          onClose={() => setEditModalStudent(null)}
+          student={editModalStudent}
+          schools={schoolsList}
+          onSuccess={async (updatedStudent) => {
+            showToast(`Student "${updatedStudent.name}" details updated successfully!`);
+            setEditModalStudent(null);
+            await loadLiveStudentsData();
+          }}
+        />
+      )}
+
+      {/* ================= MONTHLY PROGRESS REPORT: STUDENTS DRILLDOWN MODAL ================= */}
+      {progressModal.isOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => {
+            setProgressModal(prev => ({ ...prev, isOpen: false }));
+            setProgressModalSearch('');
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              width: 'min(1180px, 94vw)',
+              height: 'min(700px, 88vh)',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden',
+              border: '1px solid #E2E8F0'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                borderBottom: '1px solid #E2E8F0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                backgroundColor: '#F8FAFC',
+                flexShrink: 0
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
+                    style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '10px',
+                      backgroundColor: '#FFEDD5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Activity size={20} color="#EA580C" />
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: '16.5px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+                      {progressModal.title || 'Assessed Students Progress Trajectory'}
+                    </h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', fontSize: '12px', color: '#64748B', flexWrap: 'wrap' }}>
+                      <span>Assessment Period: <strong>{progressMonthFilter}</strong></span>
+                      {progressModal.clusterName && <span>• Cluster: <strong>{progressModal.clusterName}</strong></span>}
+                      {progressModal.schoolName && <span>• School: <strong>{progressModal.schoolName}</strong></span>}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProgressModal(prev => ({ ...prev, isOpen: false }));
+                    setProgressModalSearch('');
+                  }}
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '8px',
+                    border: '1px solid #E2E8F0',
+                    backgroundColor: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#64748B',
+                    flexShrink: 0,
+                    transition: 'all 0.15s ease'
+                  }}
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Sub-Filters: Category Pills and Search Input */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setProgressModalCategoryFilter('all')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: progressModalCategoryFilter === 'all' ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+                      backgroundColor: progressModalCategoryFilter === 'all' ? '#EFF6FF' : '#FFFFFF',
+                      color: progressModalCategoryFilter === 'all' ? '#1D4ED8' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: progressModalCategoryFilter === 'all' ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>All Monitored</span>
+                    <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#DBEAFE', color: '#1E40AF', fontWeight: 800 }}>
+                      {modalScopeStudents.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProgressModalCategoryFilter('severely_wasted')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: progressModalCategoryFilter === 'severely_wasted' ? '1.5px solid #DC2626' : '1px solid #CBD5E1',
+                      backgroundColor: progressModalCategoryFilter === 'severely_wasted' ? '#FEF2F2' : '#FFFFFF',
+                      color: progressModalCategoryFilter === 'severely_wasted' ? '#B91C1C' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: progressModalCategoryFilter === 'severely_wasted' ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>🔴 Severely Wasted</span>
+                    <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 800 }}>
+                      {modalScopeStudents.filter(s => s.is_severely_wasted || s.nutrition_status === 'Severely Wasted').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProgressModalCategoryFilter('wasted')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: progressModalCategoryFilter === 'wasted' ? '1.5px solid #EA580C' : '1px solid #CBD5E1',
+                      backgroundColor: progressModalCategoryFilter === 'wasted' ? '#FFF7ED' : '#FFFFFF',
+                      color: progressModalCategoryFilter === 'wasted' ? '#C2410C' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: progressModalCategoryFilter === 'wasted' ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>🟠 Wasted</span>
+                    <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#FFEDD5', color: '#9A3412', fontWeight: 800 }}>
+                      {modalScopeStudents.filter(s => s.is_wasted || s.nutrition_status === 'Wasted').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProgressModalCategoryFilter('deteriorated')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: progressModalCategoryFilter === 'deteriorated' ? '1.5px solid #DC2626' : '1px solid #CBD5E1',
+                      backgroundColor: progressModalCategoryFilter === 'deteriorated' ? '#FEF2F2' : '#FFFFFF',
+                      color: progressModalCategoryFilter === 'deteriorated' ? '#B91C1C' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: progressModalCategoryFilter === 'deteriorated' ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>🔻 No Improvement / Dropped</span>
+                    <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#FEE2E2', color: '#991B1B', fontWeight: 800 }}>
+                      {modalScopeStudents.filter(s => s.is_deteriorated || s.progress_status === 'deteriorated').length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setProgressModalCategoryFilter('improved')}
+                    style={{
+                      padding: '5px 12px',
+                      borderRadius: '20px',
+                      border: progressModalCategoryFilter === 'improved' ? '1.5px solid #16A34A' : '1px solid #CBD5E1',
+                      backgroundColor: progressModalCategoryFilter === 'improved' ? '#F0FDF4' : '#FFFFFF',
+                      color: progressModalCategoryFilter === 'improved' ? '#15803D' : '#475569',
+                      fontSize: '12px',
+                      fontWeight: progressModalCategoryFilter === 'improved' ? 700 : 500,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <span>🔺 Improving</span>
+                    <span style={{ fontSize: '11px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#DCFCE7', color: '#166534', fontWeight: 800 }}>
+                      {modalScopeStudents.filter(s => s.progress_status === 'improved').length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Real-time search in modal */}
+                <div style={{ position: 'relative', minWidth: '220px' }}>
+                  <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="text"
+                    value={progressModalSearch}
+                    onChange={e => setProgressModalSearch(e.target.value)}
+                    placeholder="Search name, ID, class..."
+                    style={{
+                      width: '100%',
+                      padding: '6px 12px 6px 32px',
+                      borderRadius: '8px',
+                      border: '1px solid #CBD5E1',
+                      fontSize: '12px',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {progressModalSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setProgressModalSearch('')}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        border: 'none',
+                        background: 'none',
+                        cursor: 'pointer',
+                        color: '#94A3B8',
+                        padding: '2px'
+                      }}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Table Body (zero pixel overflow) */}
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '880px' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 2, backgroundColor: '#F8FAFC', borderBottom: '1.5px solid #E2E8F0' }}>
+                  <tr>
+                    <th style={{ padding: '12px 18px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Student</th>
+                    <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Class & Section</th>
+                    <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>School / Cluster</th>
+                    <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Previous Assessment</th>
+                    <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Current Assessment</th>
+                    <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>BMI Trajectory</th>
+                    <th style={{ padding: '12px 18px', fontSize: '11.5px', fontWeight: 700, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modalStudents.length > 0 ? (
+                    modalStudents.map(st => {
+                      const isDeteriorated = st.is_deteriorated;
+                      const isImproved = st.progress_status === 'improved';
+                      const isStagnant = st.progress_status === 'stagnant';
+                      return (
+                        <tr
+                          key={st.student_id}
+                          style={{
+                            borderBottom: '1px solid #F1F5F9',
+                            backgroundColor: isDeteriorated ? '#FFFBFB' : 'transparent',
+                            transition: 'background 0.1s ease'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = isDeteriorated ? '#FFF5F5' : '#F8FAFC'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = isDeteriorated ? '#FFFBFB' : 'transparent'}
+                        >
+                          <td style={{ padding: '13px 18px', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                              <div
+                                style={{
+                                  width: '28px',
+                                  height: '28px',
+                                  borderRadius: '50%',
+                                  backgroundColor: st.gender === 'Female' ? '#FCE7F3' : '#E0F2FE',
+                                  color: st.gender === 'Female' ? '#BE185D' : '#0369A1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '11.5px',
+                                  fontWeight: 700
+                                }}
+                              >
+                                {st.name?.charAt(0) || 'S'}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{st.name}</div>
+                                <div style={{ fontSize: '11px', color: '#64748B' }}>ID: {st.student_id}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '13px 14px', fontSize: '12.5px', color: '#334155', whiteSpace: 'nowrap' }}>
+                            {st.class_name} • {st.section}
+                          </td>
+                          <td style={{ padding: '13px 14px', fontSize: '12px', color: '#334155', whiteSpace: 'nowrap' }}>
+                            <div style={{ fontWeight: 600 }}>{st.school_name}</div>
+                            <div style={{ fontSize: '10.5px', color: '#64748B' }}>{st.cluster_name}</div>
+                          </td>
+                          <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                            {st.prev_date ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 600, color: '#0F172A' }}>
+                                  {st.prev_bmi ? `${st.prev_bmi} kg/m²` : '—'} ({st.prev_weight_kg ? `${st.prev_weight_kg}kg` : '—'})
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '4px', backgroundColor: getNutritionStatusBg(st.prev_status), color: getNutritionStatusColor(st.prev_status), fontWeight: 700 }}>
+                                    {st.prev_status}
+                                  </span>
+                                  <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>{st.prev_date}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize: '11px', color: '#94A3B8', fontStyle: 'italic' }}>
+                                Initial Screening (Baseline)
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>
+                                {st.bmi ? `${st.bmi} kg/m²` : '—'} ({st.weight_kg ? `${st.weight_kg}kg` : '—'})
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '10.5px', padding: '1px 6px', borderRadius: '4px', backgroundColor: getNutritionStatusBg(st.nutrition_status), color: getNutritionStatusColor(st.nutrition_status), fontWeight: 700 }}>
+                                  {st.nutrition_status}
+                                </span>
+                                <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>{st.assessment_date}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ padding: '13px 14px', whiteSpace: 'nowrap' }}>
+                            {st.bmi_delta !== null ? (
+                              <span
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '3px 8px',
+                                  borderRadius: '10px',
+                                  fontSize: '11.5px',
+                                  fontWeight: 800,
+                                  backgroundColor: isDeteriorated ? '#FEE2E2' : isImproved ? '#D1FAE5' : '#F1F5F9',
+                                  color: isDeteriorated ? '#DC2626' : isImproved ? '#065F46' : '#64748B'
+                                }}
+                              >
+                                {isDeteriorated && '🔻'}
+                                {isImproved && '🔺'}
+                                {isStagnant && '➖'}
+                                <span>
+                                  {st.bmi_delta > 0 ? `+${st.bmi_delta}` : st.bmi_delta} kg/m²
+                                </span>
+                                <span style={{ fontSize: '10px', opacity: 0.85 }}>
+                                  ({isDeteriorated ? 'Deteriorated' : isImproved ? 'Recovering' : 'No Change'})
+                                </span>
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '8px', backgroundColor: '#EFF6FF', color: '#1D4ED8', fontWeight: 600 }}>
+                                Baseline screening
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '13px 18px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenStudentGrowthReport(st);
+                              }}
+                              style={{
+                                backgroundColor: '#EB5A1D',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: '6px',
+                                padding: '5px 10px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                boxShadow: '0 1px 3px rgba(235, 90, 29, 0.2)',
+                                whiteSpace: 'nowrap',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#D9480F'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#EB5A1D'}
+                              title="View Student Health & Growth Report"
+                            >
+                              <FileText size={12} />
+                              <span>Growth Report</span>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="7" style={{ textAlign: 'center', height: '280px', color: '#64748B', fontSize: '13px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '100%' }}>
+                          <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+                            <Users size={20} />
+                          </div>
+                          <span style={{ fontWeight: 600, color: '#475569', fontSize: '13.5px' }}>No students in this category</span>
+                          <span style={{ fontSize: '12px', color: '#94A3B8' }}>No monitored students match the selected category or search filter.</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 24px',
+                borderTop: '1px solid #E2E8F0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                backgroundColor: '#F8FAFC',
+                flexShrink: 0
+              }}
+            >
+              <div style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
+                Showing {modalStudents.length} of {modalScopeStudents.length} students
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setProgressModal(prev => ({ ...prev, isOpen: false }));
+                  setProgressModalSearch('');
+                }}
+                style={{
+                  backgroundColor: '#0F172A',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '7px 16px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ================= MODAL FOR STUDENT HEALTH & GROWTH REPORT ================= */}
+      <StudentGrowthChartModal
+        isOpen={showStudentGrowthModal}
+        onClose={() => {
+          setShowStudentGrowthModal(false);
+          setModalStudent(null);
+        }}
+        student={modalStudent}
+        schoolName={modalStudent?.schoolName || modalStudent?.school_name || activeSchool?.name}
+        clusterName={modalStudent?.clusterName || modalStudent?.cluster_name || activeCluster?.name}
       />
     </div>
   );

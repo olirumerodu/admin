@@ -370,7 +370,7 @@ export default function StudentTransferModal({ isOpen = true, student, schools =
                   <option value="">-- Select Destination School --</option>
                   {availableTargetSchools.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} ({s.cluster_name || 'Cluster'})
+                      {s.name} {s.code ? `[${s.code}]` : ''} ({s.cluster_name || 'Cluster'})
                     </option>
                   ))}
                 </select>

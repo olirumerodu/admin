@@ -2,7 +2,7 @@ import React from 'react';
 import logoImg from '../assets/images/wattasattam_logo.png';
 
 /**
- * WattaSattam Brand Logo - Official circular foundation logo & brand typography
+ * Waattasaattam Brand Logo - Official circular foundation logo & brand typography
  */
 export default function StudentHealthLogo({ size = 44, showText = true, isWhite = false, style = {}, className = '' }) {
   const navyColor = isWhite ? '#FFFFFF' : '#0E1B38';
@@ -41,7 +41,7 @@ export default function StudentHealthLogo({ size = 44, showText = true, isWhite 
       >
         <img 
           src={logoImg} 
-          alt="WattaSattam Logo" 
+          alt="Waattasaattam Logo" 
           style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
         />
       </div>
@@ -58,7 +58,7 @@ export default function StudentHealthLogo({ size = 44, showText = true, isWhite 
               fontFamily: "'Plus Jakarta Sans', sans-serif"
             }}
           >
-            WattaSattam
+            Waattasaattam
           </span>
           <span 
             className="brand-title-sub" 

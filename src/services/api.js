@@ -186,6 +186,8 @@ export const api = {
     if (params.school_id) searchParams.append('school_id', params.school_id);
     if (params.cluster_id) searchParams.append('cluster_id', params.cluster_id);
     if (params.class_name) searchParams.append('class_name', params.class_name);
+    if (params.dob) searchParams.append('dob', params.dob);
+    if (params.search) searchParams.append('search', params.search);
     if (params.is_follow_up_required !== undefined) {
       searchParams.append('is_follow_up_required', params.is_follow_up_required);
     }
@@ -298,6 +300,38 @@ export const api = {
     if (!res.ok) {
       const err = await res.json();
       throw new Error(err.detail || 'Failed to transfer student.');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Search for historical TC student records by Name, DOB, and Gender across all schools
+   */
+  async tcLookup(params) {
+    const res = await fetch(`${API_BASE}/students/tc-lookup`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to search for student records.');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Admit a TC student into a new school & class with initial intake anthropometrics
+   */
+  async tcAdmit(data) {
+    const res = await fetch(`${API_BASE}/students/tc-admit`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Failed to admit student.');
     }
     return await res.json();
   },
@@ -488,7 +522,7 @@ export const api = {
   /**
    * Bulk Import Students directly to PostgreSQL Database
    */
-  async bulkImportStudents(schoolId, students, fileName = 'Import_Data.xlsx') {
+  async bulkImportStudents(schoolId, students, fileName = 'Import_Data.xlsx', options = {}) {
     const res = await fetch(`${API_BASE}/students/bulk-import`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -496,6 +530,9 @@ export const api = {
         school_id: schoolId,
         students: students,
         file_name: fileName,
+        academic_year: options.academicYear || '2026-2027',
+        assessment_date: options.assessmentDate || undefined,
+        auto_mark_absent: options.autoMarkAbsent !== false,
       }),
     });
     if (!res.ok) {
@@ -596,6 +633,131 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to delete notification');
     return await res.json();
+  },
+
+  /**
+   * Dispatch upcoming assessment reminders (In-app broadcast + Email via SMTP)
+   */
+  async sendUpcomingReminders(schoolId = null, targetEmail = null) {
+    const params = new URLSearchParams();
+    if (schoolId) params.set('school_id', schoolId);
+    if (targetEmail) params.set('target_email', targetEmail);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/alerts/send-upcoming-reminders${qs}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to send upcoming reminders');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Real-time School Visit Schedules
+   */
+  async getSchoolVisitSchedules(clusterId = null, schoolId = null) {
+    const params = new URLSearchParams();
+    if (clusterId && clusterId !== 'ALL' && clusterId !== 'All Clusters') params.set('cluster_id', clusterId);
+    if (schoolId && schoolId !== 'ALL' && schoolId !== 'All Schools') params.set('school_id', schoolId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/alerts/school-visit-schedules${qs}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch school visit schedules');
+    return await res.json();
+  },
+
+  /**
+   * Run Cadence Check and Dispatch Alerts (3 days before, 2 days before, tomorrow, evening, next morning)
+   */
+  async checkSchoolVisitSchedules(schoolId = null, forceStage = null) {
+    const params = new URLSearchParams();
+    if (schoolId) params.set('school_id', schoolId);
+    if (forceStage) params.set('force_stage', forceStage);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/alerts/check-school-visit-schedules${qs}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to check school visit schedules');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Dispatch Visit Completed Receipt with Real-time Metrics
+   */
+  async sendSchoolVisitCompleted(schoolId, examinerName = null) {
+    const params = new URLSearchParams();
+    params.set('school_id', schoolId);
+    if (examinerName) params.set('examiner_name', examinerName);
+    const res = await fetch(`${API_BASE}/alerts/send-school-visit-completed?${params.toString()}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to dispatch visit completed receipt');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Fetch Real-time Severely Wasted / Wasted Students with Lower BMI or 3-Month Non-Improvement
+   */
+  async getChronicWastingStudents(schoolId = null, clusterId = null) {
+    const params = new URLSearchParams();
+    if (schoolId && schoolId !== 'ALL' && schoolId !== 'All Schools') params.set('school_id', schoolId);
+    if (clusterId && clusterId !== 'ALL' && clusterId !== 'All Clusters') params.set('cluster_id', clusterId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/alerts/chronic-wasting-students${qs}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) throw new Error('Failed to fetch chronic wasting students');
+    return await res.json();
+  },
+
+  /**
+   * Scan and Dispatch Chronic Malnutrition & Lower BMI Email Alerts to Assigned Assessor and Admins
+   */
+  async checkChronicWastingAlerts(studentId = null) {
+    const params = new URLSearchParams();
+    if (studentId) params.set('student_id', studentId);
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/alerts/check-chronic-wasting-alerts${qs}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to dispatch chronic wasting alerts');
+    }
+    return await res.json();
+  },
+
+  /**
+   * Monthly Student Progress Report (Cluster-wise & School-wise)
+   */
+  async getMonthlyProgressReport(params = {}) {
+    try {
+      const query = new URLSearchParams();
+      if (params.month && params.month !== 'ALL' && params.month !== 'All Months') query.set('month', params.month);
+      if (params.clusterId && params.clusterId !== 'ALL' && params.clusterId !== 'All Clusters') query.set('cluster_id', params.clusterId);
+      if (params.schoolId && params.schoolId !== 'ALL' && params.schoolId !== 'All Schools') query.set('school_id', params.schoolId);
+      const qs = query.toString() ? `?${query.toString()}` : '';
+      const res = await fetch(`${API_BASE}/reports/monthly-progress${qs}`, {
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error('Failed to fetch monthly progress report');
+      return await res.json();
+    } catch (err) {
+      console.warn('getMonthlyProgressReport notice:', err);
+      return null;
+    }
   },
 
   /**

@@ -161,7 +161,7 @@ export default function UserDetailsView({
       id: 2,
       title: 'System Access Status',
       timestamp: user.lastLoginDate ? `${user.lastLoginDate}, ${user.lastLoginTime}` : (user.createdAtFormatted || user.joinedOn),
-      description: user.status === 'Active' ? 'Account active with access to WattaSattam mobile app and admin portal.' : 'Account is currently deactivated.',
+      description: user.status === 'Active' ? 'Account active with access to Waattasaattam mobile app and admin portal.' : 'Account is currently deactivated.',
       color: '#3B82F6',
     },
     {

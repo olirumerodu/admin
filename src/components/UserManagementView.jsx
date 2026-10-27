@@ -388,11 +388,16 @@ export default function UserManagementView() {
         'Monthly Tracking',
         'Health History',
       ];
+      const foundCluster = dbClusters.find(c => c.name === newUser.cluster || c.id === newUser.cluster);
+      const assignedCluster = (newUser.cluster === 'All Clusters' || !newUser.cluster) ? null : (foundCluster?.id || newUser.cluster);
+
       const created = await api.createUser({
         name: newUser.name.trim(),
         email: newUser.email.trim(),
         role: newUser.role,
-        assigned_cluster_id: newUser.cluster === 'All Clusters' ? null : newUser.cluster,
+        assigned_cluster_id: assignedCluster,
+        school_name: newUser.school === 'All Assigned Schools' ? null : newUser.school,
+        scope_type: newUser.school && newUser.school !== 'All Assigned Schools' ? 'school' : 'cluster',
         is_active: newUser.status === 'Active',
         permissions: defaultModules,
       });
@@ -1286,10 +1291,10 @@ export default function UserManagementView() {
                     onChange={(e) => setNewUser({ ...newUser, cluster: e.target.value })}
                     style={modalInputStyle}
                   >
-                    <option value="North Cluster">North Cluster</option>
-                    <option value="East Cluster">East Cluster</option>
-                    <option value="West Cluster">West Cluster</option>
-                    <option value="Central Cluster">Central Cluster</option>
+                    <option value="All Clusters">All Clusters</option>
+                    {dbClusters.map(c => (
+                      <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1301,11 +1306,10 @@ export default function UserManagementView() {
                   onChange={(e) => setNewUser({ ...newUser, school: e.target.value })}
                   style={modalInputStyle}
                 >
-                  <option value="Greenwood Public School">Greenwood Public School</option>
-                  <option value="Sunrise International School">Sunrise International School</option>
-                  <option value="Riverdale Higher Secondary">Riverdale Higher Secondary</option>
-                  <option value="Maple Leaf Public School">Maple Leaf Public School</option>
-                  <option value="St. Mary's Matriculation School">St. Mary's Matriculation School</option>
+                  <option value="All Assigned Schools">All Assigned Schools</option>
+                  {dbSchools.map(s => (
+                    <option key={s.id || s.name} value={s.name}>{s.name}</option>
+                  ))}
                 </select>
               </div>
 

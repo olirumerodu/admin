@@ -59,7 +59,7 @@ export default function LoginScreen({ onLoginSuccess }) {
 
           {/* Large Hero Headline */}
           <h1 className="hero-main-title">
-            <span className="hero-title-dark">WattaSattam</span>
+            <span className="hero-title-dark">Waattasaattam</span>
             <span className="hero-title-orange">Admin Portal</span>
           </h1>
 

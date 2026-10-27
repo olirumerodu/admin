@@ -48,6 +48,58 @@
   --shadow-card: 0 4px 14px rgba(15, 23, 42, 0.04);
 }
 
+/* Standard Button Utilities */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: var(--primary, #EA580C);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(235, 90, 29, 0.25);
+  height: 38px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #D84D12;
+  box-shadow: 0 4px 10px rgba(235, 90, 29, 0.35);
+}
+
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background-color: #FFFFFF;
+  color: #475569;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  height: 38px;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #F8FAFC;
+  border-color: #94A3B8;
+  color: #1E293B;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -62,6 +114,9 @@ html, body {
   margin: 0;
   padding: 0;
   overflow-x: hidden;
+  /* Prevent horizontal two-finger or mouse swipe from triggering browser history navigation (back/forward) */
+  overscroll-behavior-x: none;
+  touch-action: pan-y pinch-zoom;
   font-family: var(--font-main);
   background-color: var(--bg-page);
   color: var(--navy-dark);
@@ -77,9 +132,50 @@ html, body {
   max-width: 100vw;
   max-height: 100vh;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+/* Ensure horizontal tables allow vertical mouse wheel to scroll the main page freely without trapping */
+.table-container,
+.data-table-container,
+table {
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: auto !important;
+}
+
+/* Enable free, smooth, hardware-accelerated scrolling for main scroll areas */
+main {
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto !important;
+}
+
+/* Clean, modern scrollbars */
+main::-webkit-scrollbar,
+div::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+main::-webkit-scrollbar-track,
+div::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+main::-webkit-scrollbar-thumb,
+div::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 99px;
+}
+
+main::-webkit-scrollbar-thumb:hover,
+div::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
 }
 
 /* =========================================================
@@ -1289,5 +1385,14 @@ html, body {
     opacity: 1;
     transform: scale(1) translateY(0);
   }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite !important;
 }
 

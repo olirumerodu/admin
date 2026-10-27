@@ -20,28 +20,37 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
   if (!isOpen || !student) return null;
 
   // Use real assessments from backend or student's real recorded screening data
-  const rawAssessments = Array.isArray(student.raw?.assessments) ? student.raw.assessments : [];
+  const rawAssessments = Array.isArray(student.raw?.assessments)
+    ? student.raw.assessments
+    : Array.isArray(student.assessments)
+    ? student.assessments
+    : [];
+
+  const hVal = Number(student.height || student.height_cm || student.raw?.height_cm || 0);
+  const wVal = Number(student.weight || student.weight_kg || student.raw?.weight_kg || 0);
+  const bVal = Number(student.bmi || student.raw?.bmi || (hVal > 0 && wVal > 0 ? (wVal / Math.pow(hVal / 100, 2)).toFixed(2) : 0));
+
   const assessments = rawAssessments.length > 0
     ? rawAssessments
-    : (student.height > 0 || student.weight > 0 || student.bmi > 0)
+    : (hVal > 0 || wVal > 0 || bVal > 0)
     ? [
         {
           assessment_date: student.latestAssessment && student.latestAssessment !== 'Pending' ? student.latestAssessment : new Date().toISOString().split('T')[0],
-          height_cm: student.height,
-          weight_kg: student.weight,
-          bmi: student.bmi,
-          bmi_for_age_zscore: student.bmiZScore,
-          height_for_age_zscore: student.heightZScore,
-          weight_for_age_zscore: student.weightZScore,
-          nutrition_status: student.currentStatus || 'Normal',
-          examiner_name: 'School Health Officer'
+          height_cm: hVal,
+          weight_kg: wVal,
+          bmi: bVal,
+          bmi_for_age_zscore: student.bmiZScore ?? student.bmi_for_age_zscore,
+          height_for_age_zscore: student.heightZScore ?? student.height_for_age_zscore,
+          weight_for_age_zscore: student.weightZScore ?? student.weight_for_age_zscore,
+          nutrition_status: student.currentStatus || student.nutritionStatus || student.nutrition_status || 'Normal',
+          examiner_name: student.examinerName || (student.isExcelImport ? 'Excel Import (Baseline)' : (student.raw?.latest_examiner_name || 'Staff Evaluator'))
         }
       ]
     : [];
 
   const latestAssessment = assessments[0] || null;
-  const isSeverelyWasted = student.isSeverelyWasted || String(student.currentStatus || '').toLowerCase().includes('severely wasted') || (typeof student.bmiZScore === 'number' && student.bmiZScore < -3);
-  const isWasted = !isSeverelyWasted && (student.isWasted || String(student.currentStatus || '').toLowerCase().includes('wasted') || (typeof student.bmiZScore === 'number' && student.bmiZScore < -2));
+  const isSeverelyWasted = student.isSeverelyWasted || String(student.currentStatus || student.nutrition_status || student.nutritionStatus || '').toLowerCase().includes('severely wasted') || (typeof student.bmiZScore === 'number' && student.bmiZScore < -3);
+  const isWasted = !isSeverelyWasted && (student.isWasted || String(student.currentStatus || student.nutrition_status || student.nutritionStatus || '').toLowerCase().includes('wasted') || (typeof student.bmiZScore === 'number' && student.bmiZScore < -2));
 
   // Dynamic academic session: from student data or current date
   const studentAcademicYear = student.raw?.academic_year || student.academicYear;
@@ -117,6 +126,7 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
               background-color: #F8FAFC !important;
               font-weight: 700;
               text-align: left;
+              white-space: nowrap !important;
             }
           </style>
         </head>
@@ -152,7 +162,7 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
         bottom: 0,
         backgroundColor: 'rgba(15, 23, 42, 0.65)',
         backdropFilter: 'blur(4px)',
-        zIndex: 9999,
+        zIndex: 10050,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -266,14 +276,14 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
               color: '#0F172A'
             }}
           >
-            {/* WATTASATTAM Brand Report Header */}
+            {/* WAATTASAATTAM Brand Report Header */}
             <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '14px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <StudentHealthLogo size={52} showText={false} isWhite={false} />
                   <div>
                     <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800, color: '#EA580C' }}>
-                      WATTASATTAM • STUDENT HEALTH TRACKING
+                      WAATTASAATTAM • STUDENT HEALTH TRACKING
                     </div>
                     <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0F172A', margin: '2px 0 0 0', letterSpacing: '-0.3px' }}>
                       STUDENT NUTRITIONAL HEALTH REPORT
@@ -350,10 +360,10 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 700, textTransform: 'uppercase' }}>ENROLLED AT</div>
                   <div style={{ fontSize: '13px', fontWeight: 800, color: '#0F172A', marginTop: '1px' }}>
-                    🏫 {schoolName || student.raw?.school_name || 'Government School'}
+                    🏫 {schoolName || student.school_name || student.schoolName || student.raw?.school_name || 'Government School'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
-                    Cluster: <strong>{clusterName || student.raw?.cluster_name || 'Erode Cluster'}</strong>
+                    Cluster: <strong>{clusterName || student.cluster_name || student.clusterName || student.raw?.cluster_name || 'Erode Cluster'}</strong>
                   </div>
                 </div>
               </div>
@@ -503,18 +513,19 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
               <div style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Monthly Assessment History & Follow-up Log
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #CBD5E1' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC' }}>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'left' }}>Assessment Date</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Height (cm)</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Weight (kg)</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>BMI (kg/m²)</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>WHO Z-Score</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Status</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'left' }}>Examiner</th>
-                  </tr>
-                </thead>
+              <div style={{ overflowX: 'auto', width: '100%' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #CBD5E1' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F8FAFC' }}>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'left', whiteSpace: 'nowrap' }}>Assessment Date</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Height (cm)</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Weight (kg)</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>BMI (kg/m²)</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>WHO Z-Score</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Status</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'left', whiteSpace: 'nowrap' }}>Examiner</th>
+                    </tr>
+                  </thead>
                 <tbody>
                   {assessments.length > 0 ? (
                     assessments.map((a, idx) => (
@@ -543,11 +554,20 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
                             backgroundColor: isSeverelyWasted ? '#FEE2E2' : '#FFEDD5',
                             color: isSeverelyWasted ? '#DC2626' : '#EA580C'
                           }}>
-                            {a.nutrition_status || student.currentStatus || 'Pending'}
+                            {(() => {
+                              const st = a.nutrition_status || student.currentStatus || 'Pending';
+                              return (String(st).toLowerCase().includes('obese') || String(st).toLowerCase().includes('obesity')) ? 'Overweight' : st;
+                            })()}
                           </span>
                         </td>
                         <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', color: '#64748B' }}>
-                          {a.examiner_name || 'School Health Officer'}
+                          {(a.notes && a.notes.toLowerCase().includes('tc')) || (a.examiner_name && a.examiner_name.toLowerCase() === 'admin')
+                            ? (a.examiner_name && a.examiner_name.toLowerCase() !== 'health officer' ? a.examiner_name : 'Admin')
+                            : (a.import_id || (a.examiner_name && (a.examiner_name.toLowerCase().includes('excel') || a.examiner_name.toLowerCase().includes('import')))
+                              ? 'Excel Import (Baseline)'
+                              : (a.examiner_name && a.examiner_name !== 'School Health Officer' && a.examiner_name.toLowerCase() !== 'health officer' && a.examiner_name.toLowerCase() !== 'mobile who engine'
+                                  ? a.examiner_name
+                                  : 'Excel Import (Baseline)'))}
                         </td>
                       </tr>
                     ))
@@ -560,6 +580,7 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Clinical & Dietary Action Notes */}

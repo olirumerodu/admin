@@ -48,7 +48,7 @@ export default function DashboardSidebar({ activeTab, onTabSelect, mobileOpen, o
           <div className="sidebar-logo-group">
             <StudentHealthLogo size={36} showText={false} isWhite={true} />
             <div>
-              <div className="sidebar-brand-name">WattaSattam</div>
+              <div className="sidebar-brand-name">Waattasaattam</div>
               <div className="sidebar-brand-badge">ADMIN PORTAL</div>
             </div>
           </div>

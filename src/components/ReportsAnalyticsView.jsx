@@ -208,8 +208,7 @@ export default function ReportsAnalyticsView() {
         if (cat === 'normal' && !nut.includes('normal')) return false;
         if (cat === 'severely wasted' && !nut.includes('severe')) return false;
         if (cat === 'wasted' && (!nut.includes('wasted') && !nut.includes('thinness') || nut.includes('severe'))) return false;
-        if (cat === 'overweight' && !nut.includes('overweight')) return false;
-        if (cat === 'obesity' && (!nut.includes('obese') && !nut.includes('obesity'))) return false;
+        if (cat === 'overweight' && (!nut.includes('overweight') && !nut.includes('obese') && !nut.includes('obesity'))) return false;
       }
       return true;
     });
@@ -220,7 +219,7 @@ export default function ReportsAnalyticsView() {
     let baseSchools = liveSchools;
     if (baseSchools.length === 0) {
       const distinctNames = Array.from(new Set(liveStudents.map(s => s.school_name).filter(Boolean)));
-      baseSchools = distinctNames.map(name => ({ id: name, name, cluster_name: 'Central District' }));
+      baseSchools = distinctNames.map(name => ({ id: name, name, cluster_name: 'Unassigned' }));
     }
 
     const filtered = baseSchools.filter(s => {
@@ -244,13 +243,13 @@ export default function ReportsAnalyticsView() {
       const norm = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('normal')).length;
       const sevWasted = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('severe')).length;
       const wasted = schoolStudents.filter(st => (st.nutrition_status?.toLowerCase().includes('wasted') || st.nutrition_status?.toLowerCase().includes('thinness')) && !st.nutrition_status?.toLowerCase().includes('severe')).length;
-      const overwt = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('overweight')).length;
-      const obesity = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('obese') || st.nutrition_status?.toLowerCase().includes('obesity')).length;
+      const overwt = schoolStudents.filter(st => st.nutrition_status?.toLowerCase().includes('overweight') || st.nutrition_status?.toLowerCase().includes('obese') || st.nutrition_status?.toLowerCase().includes('obesity')).length;
+      const obesity = 0;
 
       return {
         id: s.id,
         name: s.name,
-        cluster: s.cluster_name || 'Central District',
+        cluster: s.cluster_name || 'Unassigned',
         totalStudents: total,
         sampleCount: total,
         male,
@@ -309,10 +308,8 @@ export default function ReportsAnalyticsView() {
         severelyWasted += 1;
       } else if (nut.includes('wasted') || nut.includes('thinness')) {
         wasted += 1;
-      } else if (nut.includes('overweight')) {
+      } else if (nut.includes('overweight') || nut.includes('obese') || nut.includes('obesity')) {
         overweight += 1;
-      } else if (nut.includes('obese') || nut.includes('obesity')) {
-        obesity += 1;
       } else {
         normal += 1;
       }
@@ -327,7 +324,7 @@ export default function ReportsAnalyticsView() {
       wasted: { count: wasted, pct: calcPct(wasted), color: '#F59E0B' },
       severelyWasted: { count: severelyWasted, pct: calcPct(severelyWasted), color: '#F97316' },
       overweight: { count: overweight, pct: calcPct(overweight), color: '#EF4444' },
-      obesity: { count: obesity, pct: calcPct(obesity), color: '#991B1B' }
+      obesity: { count: 0, pct: '0.0%', color: '#991B1B' }
     };
   }, [filteredStudents]);
 
@@ -342,7 +339,6 @@ export default function ReportsAnalyticsView() {
       { key: 'wasted', ...healthStats.wasted },
       { key: 'severelyWasted', ...healthStats.severelyWasted },
       { key: 'overweight', ...healthStats.overweight },
-      { key: 'obesity', ...healthStats.obesity },
     ];
 
     let cumulativeOffset = 0;
@@ -370,7 +366,6 @@ export default function ReportsAnalyticsView() {
       { key: 'wasted', ...healthStats.wasted },
       { key: 'severelyWasted', ...healthStats.severelyWasted },
       { key: 'overweight', ...healthStats.overweight },
-      { key: 'obesity', ...healthStats.obesity },
     ];
 
     let cumulativeOffset = 0;
@@ -441,7 +436,7 @@ export default function ReportsAnalyticsView() {
     });
 
     filteredStudents.forEach(st => {
-      const cName = st.cluster_name || 'Central District';
+      const cName = st.cluster_name || 'Unassigned';
       if (!map.has(cName)) {
         if (selectedCluster === 'ALL' || selectedCluster.toLowerCase() === cName.toLowerCase()) {
           map.set(cName, {
@@ -462,8 +457,7 @@ export default function ReportsAnalyticsView() {
         if (nut.includes('normal')) entry.normal += 1;
         else if (nut.includes('severe')) entry.severelyWasted += 1;
         else if (nut.includes('wasted') || nut.includes('thinness')) entry.wasted += 1;
-        else if (nut.includes('overweight')) entry.overweight += 1;
-        else if (nut.includes('obese') || nut.includes('obesity')) entry.obesity += 1;
+        else if (nut.includes('overweight') || nut.includes('obese') || nut.includes('obesity')) entry.overweight += 1;
         else entry.normal += 1;
       }
     });
@@ -476,7 +470,6 @@ export default function ReportsAnalyticsView() {
         wasted: `${row.wasted} (${((row.wasted / tot) * 100).toFixed(1)}%)`,
         severelyWasted: `${row.severelyWasted} (${((row.severelyWasted / tot) * 100).toFixed(1)}%)`,
         overweight: `${row.overweight} (${((row.overweight / tot) * 100).toFixed(1)}%)`,
-        obesity: `${row.obesity} (${((row.obesity / tot) * 100).toFixed(1)}%)`,
         total: row.total
       };
     });
@@ -495,8 +488,7 @@ export default function ReportsAnalyticsView() {
       normal: s.nutrition.normal,
       wasted: s.nutrition.wasted,
       severelyWasted: s.nutrition.severelyWasted,
-      overweight: s.nutrition.overweight,
-      obesity: s.nutrition.obesity
+      overweight: (s.nutrition.overweight || 0) + (s.nutrition.obesity || 0)
     }));
   }, [activeSchoolsData]);
 
@@ -697,7 +689,13 @@ export default function ReportsAnalyticsView() {
                 </label>
                 <select
                   value={selectedCluster}
-                  onChange={(e) => setSelectedCluster(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedCluster(e.target.value);
+                    setSelectedSchool('ALL');
+                    setSelectedClass('ALL');
+                    setSelectedSection('ALL');
+                    setReportPage(1);
+                  }}
                   style={{
                     width: '100%',
                     padding: '7px 10px',
@@ -723,7 +721,12 @@ export default function ReportsAnalyticsView() {
                 </label>
                 <select
                   value={selectedSchool}
-                  onChange={(e) => setSelectedSchool(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedSchool(e.target.value);
+                    setSelectedClass('ALL');
+                    setSelectedSection('ALL');
+                    setReportPage(1);
+                  }}
                   style={{
                     width: '100%',
                     padding: '7px 10px',
@@ -736,9 +739,11 @@ export default function ReportsAnalyticsView() {
                   }}
                 >
                   <option value="ALL">All Schools</option>
-                  {activeSchoolsData.map((s) => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
-                  ))}
+                  {activeSchoolsData
+                    .filter(s => selectedCluster === 'ALL' || !s.cluster || s.cluster === selectedCluster)
+                    .map((s) => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
                 </select>
               </div>
 
@@ -825,7 +830,6 @@ export default function ReportsAnalyticsView() {
                   <option value="Wasted">Wasted</option>
                   <option value="Severely Wasted">Severely Wasted</option>
                   <option value="Overweight">Overweight</option>
-                  <option value="Obesity">Obesity</option>
                 </select>
               </div>
             </div>
@@ -1512,8 +1516,7 @@ export default function ReportsAnalyticsView() {
                     { label: 'Normal', color: '#22C55E', count: 1701, pct: '68.4%' },
                     { label: 'Wasted', color: '#F59E0B', count: 378, pct: '15.2%' },
                     { label: 'Severely Wasted', color: '#F97316', count: 194, pct: '7.8%' },
-                    { label: 'Overweight', color: '#EF4444', count: 127, pct: '5.1%' },
-                    { label: 'Obesity', color: '#991B1B', count: 86, pct: '3.5%' }
+                    { label: 'Overweight', color: '#EF4444', count: 213, pct: '8.6%' }
                   ].map((item) => (
                     <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
                       <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color }} />
@@ -1718,7 +1721,12 @@ export default function ReportsAnalyticsView() {
                 </label>
                 <select
                   value={selectedSchool}
-                  onChange={(e) => setSelectedSchool(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedSchool(e.target.value);
+                    setSelectedClass('ALL');
+                    setSelectedSection('ALL');
+                    setReportPage(1);
+                  }}
                   style={{
                     width: '100%',
                     padding: '7px 10px',
@@ -1731,9 +1739,11 @@ export default function ReportsAnalyticsView() {
                   }}
                 >
                   <option value="ALL">All Schools</option>
-                  {activeSchoolsData.map((s) => (
-                    <option key={s.id} value={s.name}>{s.name}</option>
-                  ))}
+                  {activeSchoolsData
+                    .filter(s => selectedCluster === 'ALL' || !s.cluster || s.cluster === selectedCluster)
+                    .map((s) => (
+                      <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
                 </select>
               </div>
 
@@ -1944,49 +1954,10 @@ export default function ReportsAnalyticsView() {
                 <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Overweight</span>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
                   <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                    127
+                    213
                   </span>
                   <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#DB2777' }}>
-                    5.1%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Obesity */}
-            <div
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: '12px',
-                border: '1px solid #E2E8F0',
-                padding: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '14px'
-              }}
-            >
-              <div
-                style={{
-                  width: '46px',
-                  height: '46px',
-                  borderRadius: '12px',
-                  backgroundColor: '#FEE2E2',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                <User size={22} color="#DC2626" />
-              </div>
-              <div>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: '#64748B' }}>Obesity</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.15 }}>
-                    86
-                  </span>
-                  <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#DC2626' }}>
-                    3.5%
+                    8.6%
                   </span>
                 </div>
               </div>
@@ -2056,7 +2027,7 @@ export default function ReportsAnalyticsView() {
                     strokeDashoffset="-378"
                     transform="rotate(-90 100 100)"
                   />
-                  {/* Overweight: 5.1% (23 / 452) */}
+                  {/* Overweight: 8.6% (39 / 452) */}
                   <circle
                     cx="100"
                     cy="100"
@@ -2064,20 +2035,8 @@ export default function ReportsAnalyticsView() {
                     fill="none"
                     stroke="#EF4444"
                     strokeWidth="32"
-                    strokeDasharray="23 452"
+                    strokeDasharray="39 452"
                     strokeDashoffset="-413"
-                    transform="rotate(-90 100 100)"
-                  />
-                  {/* Obesity: 3.5% (16 / 452) */}
-                  <circle
-                    cx="100"
-                    cy="100"
-                    r="72"
-                    fill="none"
-                    stroke="#991B1B"
-                    strokeWidth="32"
-                    strokeDasharray="16 452"
-                    strokeDashoffset="-436"
                     transform="rotate(-90 100 100)"
                   />
                 </svg>
@@ -2105,8 +2064,7 @@ export default function ReportsAnalyticsView() {
                   { label: 'Normal', color: '#22C55E', count: '1,701', pct: '68.4%' },
                   { label: 'Wasted', color: '#F59E0B', count: '378', pct: '15.2%' },
                   { label: 'Severely Wasted', color: '#F97316', count: '194', pct: '7.8%' },
-                  { label: 'Overweight', color: '#EF4444', count: '127', pct: '5.1%' },
-                  { label: 'Obesity', color: '#991B1B', count: '86', pct: '3.5%' }
+                  { label: 'Overweight', color: '#EF4444', count: '213', pct: '8.6%' },
                 ].map((item) => (
                   <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '13px' }}>
                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: item.color }} />
@@ -2172,17 +2130,11 @@ export default function ReportsAnalyticsView() {
                         Overweight
                       </span>
                     </th>
-                    <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#991B1B' }} />
-                        Obesity
-                      </span>
-                    </th>
                     <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {CLUSTER_HEALTH_STATS.map((row) => (
+                  {(clusterHealthStats.length > 0 ? clusterHealthStats : []).map((row) => (
                     <tr
                       key={row.cluster}
                       style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s ease' }}
@@ -2203,9 +2155,6 @@ export default function ReportsAnalyticsView() {
                       </td>
                       <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#DC2626', fontWeight: 500 }}>
                         {row.overweight}
-                      </td>
-                      <td style={{ padding: '11px 16px', fontSize: '12.5px', color: '#991B1B', fontWeight: 500 }}>
-                        {row.obesity}
                       </td>
                       <td style={{ padding: '11px 16px', fontSize: '12.5px', fontWeight: 700, color: '#0F172A' }}>
                         {row.total}
@@ -2570,11 +2519,10 @@ export default function ReportsAnalyticsView() {
                     <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Wasted</th>
                     <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Severely Wasted</th>
                     <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Overweight</th>
-                    <th style={{ padding: '10px 12px', fontSize: '11.5px', fontWeight: 600, color: '#475569' }}>Obesity</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {DETAILED_STUDENT_REPORTS.map((row) => (
+                  {(detailedSchoolReports.length > 0 ? detailedSchoolReports : []).map((row) => (
                     <tr
                       key={row.no}
                       style={{ borderBottom: '1px solid #F1F5F9', transition: 'background-color 0.15s ease' }}
@@ -2624,12 +2572,6 @@ export default function ReportsAnalyticsView() {
                       <td style={{ padding: '10px 12px' }}>
                         <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FCE7F3', color: '#DB2777', padding: '2px 8px', borderRadius: '10px' }}>
                           {row.overweight}
-                        </span>
-                      </td>
-                      {/* Obesity pill */}
-                      <td style={{ padding: '10px 12px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 700, backgroundColor: '#FEE2E2', color: '#DC2626', padding: '2px 8px', borderRadius: '10px' }}>
-                          {row.obesity}
                         </span>
                       </td>
                     </tr>

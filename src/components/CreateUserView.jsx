@@ -513,7 +513,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
         email: createdUser.email,
         phone: createdUser.phone,
         rawPassword: finalPassword,
-        cluster: cluster || 'Central District',
+        cluster: cluster || (scopeType === 'cluster' ? 'All Clusters' : 'None'),
         school: scopeType === 'school' ? school : 'All Assigned Schools',
         role: role,
         status: 'Active',
@@ -973,13 +973,15 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                         style={cleanSelectStyle}
                       >
                         <option value="">-- Select Cluster --</option>
-                        <option value="All Clusters">All Clusters</option>
                         {clustersList.length > 0 ? (
-                          clustersList.map(c => (
-                            <option key={c.id || c.name} value={c.name}>{c.name}</option>
-                          ))
+                          <>
+                            <option value="All Clusters">All Clusters</option>
+                            {clustersList.map(c => (
+                              <option key={c.id || c.name} value={c.name}>{c.name}</option>
+                            ))}
+                          </>
                         ) : (
-                          <option value="Central District">Central District</option>
+                          <option value="" disabled>No clusters available</option>
                         )}
                       </select>
                       {touched.cluster && !fieldErrors.cluster && cluster && (

@@ -6,16 +6,20 @@ import { Search, ChevronDown, Check, X } from 'lucide-react';
  * A sleek, searchable dropdown selector for filter bars and form controls.
  *
  * Props:
- * - label: string (e.g., 'Class', 'Section')
+ * - label?: string (e.g., 'Class', 'Section')
  * - value: string (currently selected value)
  * - onChange: (val: string) => void
- * - options: Array<{ value: string, label: string, count?: number }> | Array<string>
- * - allOptionLabel: string (default: 'All Classes' / 'All Sections')
- * - placeholder: string (default: 'Select...')
- * - searchPlaceholder: string (default: 'Search...')
- * - icon: React component (optional leading icon)
- * - minWidth: string (default: '150px')
+ * - options: Array<{ value: string, label: string, count?: number, sublabel?: string }> | Array<string>
+ * - allOptionLabel?: string (default: 'All')
+ * - showAllOption?: boolean (default: true for filter variant, false for form variant)
+ * - placeholder?: string (default: 'Select...')
+ * - searchPlaceholder?: string (default: 'Search...')
+ * - icon?: React component (optional leading icon)
+ * - minWidth?: string (default: '145px' for filter, '100%' for form)
  * - disabled?: boolean
+ * - style?: React.CSSProperties
+ * - variant?: 'filter' | 'form' (default: 'filter')
+ * - height?: string (e.g. '42px')
  */
 export default function SearchableDropdown({
   label,
@@ -23,33 +27,43 @@ export default function SearchableDropdown({
   onChange,
   options = [],
   allOptionLabel = 'All',
+  showAllOption = undefined,
   placeholder = 'Select...',
   searchPlaceholder = 'Search...',
   icon: IconComponent = null,
-  minWidth = '145px',
+  minWidth = undefined,
   disabled = false,
-  style = {}
+  style = {},
+  variant = 'filter',
+  height = undefined
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef(null);
   const searchInputRef = useRef(null);
+  const optionsListRef = useRef(null);
+  const selectedOptRef = useRef(null);
 
-  // Normalize options into standardized object shape: { value, label, count }
+  const isFormVariant = variant === 'form';
+  const shouldShowAll = showAllOption !== undefined ? showAllOption : !isFormVariant;
+
+  // Normalize options into standardized object shape: { value, label, count, sublabel }
   const normalizedOptions = useMemo(() => {
     return options.map(opt => {
       if (typeof opt === 'object' && opt !== null) {
         return {
           value: opt.value !== undefined ? String(opt.value) : '',
           label: opt.label !== undefined ? String(opt.label) : String(opt.value || ''),
-          count: opt.count !== undefined ? opt.count : null
+          count: opt.count !== undefined ? opt.count : null,
+          sublabel: opt.sublabel || null
         };
       }
       const strVal = String(opt);
       return {
         value: strVal,
         label: strVal,
-        count: null
+        count: null,
+        sublabel: null
       };
     });
   }, [options]);
@@ -60,20 +74,24 @@ export default function SearchableDropdown({
     const q = searchQuery.toLowerCase().trim();
     return normalizedOptions.filter(opt =>
       opt.label.toLowerCase().includes(q) ||
-      opt.value.toLowerCase().includes(q)
+      opt.value.toLowerCase().includes(q) ||
+      (opt.sublabel && opt.sublabel.toLowerCase().includes(q))
     );
   }, [normalizedOptions, searchQuery]);
 
   // Current display label
   const currentLabel = useMemo(() => {
-    if (!value || value === allOptionLabel) {
+    if (!value) {
+      return shouldShowAll ? allOptionLabel : '';
+    }
+    if (shouldShowAll && value === allOptionLabel) {
       return allOptionLabel;
     }
     const matched = normalizedOptions.find(opt => opt.value === value || opt.label === value);
     return matched ? matched.label : value;
-  }, [value, allOptionLabel, normalizedOptions]);
+  }, [value, allOptionLabel, shouldShowAll, normalizedOptions]);
 
-  const isFiltered = value && value !== allOptionLabel;
+  const isFiltered = Boolean(value && (shouldShowAll ? value !== allOptionLabel : true));
 
   // Handle outside click to close
   useEffect(() => {
@@ -99,13 +117,17 @@ export default function SearchableDropdown({
     };
   }, [isOpen]);
 
-  // Auto-focus search input when opening
+  // Auto-focus search input and scroll to selected option when opening
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();
+        }
+        // Scroll selected option into view
+        if (selectedOptRef.current && optionsListRef.current) {
+          selectedOptRef.current.scrollIntoView({ block: 'nearest', behavior: 'instant' });
         }
       }, 50);
     }
@@ -118,7 +140,7 @@ export default function SearchableDropdown({
 
   const handleClear = (e) => {
     e.stopPropagation();
-    onChange(allOptionLabel);
+    onChange(shouldShowAll ? allOptionLabel : '');
     setIsOpen(false);
   };
 
@@ -127,8 +149,10 @@ export default function SearchableDropdown({
       ref={dropdownRef}
       style={{
         position: 'relative',
-        display: 'inline-block',
-        minWidth: minWidth,
+        display: isFormVariant ? 'block' : 'inline-block',
+        width: isFormVariant ? '100%' : 'auto',
+        minWidth: minWidth || (isFormVariant ? '100%' : '145px'),
+        boxSizing: 'border-box',
         ...style
       }}
     >
@@ -143,39 +167,48 @@ export default function SearchableDropdown({
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: '8px',
-          padding: '6.5px 10px',
+          height: height || (isFormVariant ? '42px' : 'auto'),
+          padding: isFormVariant ? '0 12px' : '6.5px 10px',
           borderRadius: '8px',
           border: isOpen
             ? '1.5px solid #EA580C'
+            : isFormVariant
+            ? (isFiltered ? '1.5px solid #CBD5E1' : '1.5px solid #E2E8F0')
             : isFiltered
             ? '1.5px solid #FED7AA'
             : '1px solid #CBD5E1',
-          backgroundColor: isFiltered ? '#FFF7ED' : '#FFFFFF',
-          color: isFiltered ? '#C2410C' : '#0F172A',
-          fontSize: '12px',
-          fontWeight: isFiltered ? 700 : 500,
+          backgroundColor: isFormVariant ? '#FFFFFF' : isFiltered ? '#FFF7ED' : '#FFFFFF',
+          color: isFiltered ? '#0F172A' : (isFormVariant ? '#94A3B8' : '#64748B'),
+          fontSize: isFormVariant ? '13px' : '12px',
+          fontWeight: isFiltered ? (isFormVariant ? 600 : 700) : (isFormVariant ? 400 : 500),
           cursor: disabled ? 'not-allowed' : 'pointer',
           outline: 'none',
           boxSizing: 'border-box',
           transition: 'all 0.15s ease',
           boxShadow: isOpen ? '0 0 0 3px rgba(234, 88, 12, 0.12)' : 'none'
         }}
-        title={`${label || 'Filter'}: ${currentLabel}`}
+        title={`${label || 'Select'}: ${currentLabel || placeholder}`}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isFormVariant ? '10px' : '6px', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
           {IconComponent && (
             <IconComponent
-              size={13}
-              color={isFiltered ? '#EA580C' : '#64748B'}
+              size={isFormVariant ? 16 : 13}
+              color={isOpen ? '#EA580C' : isFiltered ? '#EA580C' : '#64748B'}
               style={{ flexShrink: 0 }}
             />
           )}
           {label && (
-            <span style={{ fontSize: '11px', color: isFiltered ? '#EA580C' : '#64748B', fontWeight: 600 }}>
+            <span style={{ fontSize: isFormVariant ? '12px' : '11px', color: isFiltered ? '#EA580C' : '#64748B', fontWeight: 600 }}>
               {label}:
             </span>
           )}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: isFiltered ? '#0F172A' : (isFormVariant ? '#94A3B8' : '#64748B'),
+            fontWeight: isFiltered ? (isFormVariant ? 600 : 700) : 400
+          }}>
             {currentLabel || placeholder}
           </span>
         </div>
@@ -184,27 +217,33 @@ export default function SearchableDropdown({
           {isFiltered && (
             <span
               onClick={handleClear}
-              title={`Reset ${label || 'filter'}`}
+              title={`Reset ${label || 'selection'}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '16px',
-                height: '16px',
+                width: isFormVariant ? '18px' : '16px',
+                height: isFormVariant ? '18px' : '16px',
                 borderRadius: '50%',
-                backgroundColor: '#FFEDD5',
-                color: '#C2410C',
+                backgroundColor: isFormVariant ? '#F1F5F9' : '#FFEDD5',
+                color: isFormVariant ? '#64748B' : '#C2410C',
                 cursor: 'pointer',
-                transition: 'background 0.15s'
+                transition: 'background 0.15s, color 0.15s'
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FDBA74')}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFEDD5')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = isFormVariant ? '#E2E8F0' : '#FDBA74';
+                e.currentTarget.style.color = '#0F172A';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = isFormVariant ? '#F1F5F9' : '#FFEDD5';
+                e.currentTarget.style.color = isFormVariant ? '#64748B' : '#C2410C';
+              }}
             >
-              <X size={10} strokeWidth={2.5} />
+              <X size={isFormVariant ? 11 : 10} strokeWidth={2.5} />
             </span>
           )}
           <ChevronDown
-            size={13}
+            size={isFormVariant ? 15 : 13}
             color={isOpen ? '#EA580C' : '#94A3B8'}
             style={{
               transition: 'transform 0.15s ease',
@@ -219,34 +258,35 @@ export default function SearchableDropdown({
         <div
           style={{
             position: 'absolute',
-            top: 'calc(100% + 5px)',
+            top: 'calc(100% + 4px)',
             left: 0,
             zIndex: 9999,
             minWidth: '100%',
-            width: 'max-content',
-            maxWidth: '280px',
+            width: isFormVariant ? '100%' : 'max-content',
+            maxWidth: isFormVariant ? '100%' : '280px',
             backgroundColor: '#FFFFFF',
             borderRadius: '10px',
-            border: '1px solid #CBD5E1',
+            border: '1.5px solid #E2E8F0',
             boxShadow: '0 12px 30px -4px rgba(15, 23, 42, 0.16), 0 4px 6px -2px rgba(15, 23, 42, 0.05)',
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
+            boxSizing: 'border-box',
             animation: 'fadeIn 0.12s ease-out'
           }}
         >
           {/* Search Box Header */}
           <div
             style={{
-              padding: '8px 10px',
+              padding: isFormVariant ? '9px 12px' : '8px 10px',
               borderBottom: '1px solid #F1F5F9',
               backgroundColor: '#F8FAFC',
               display: 'flex',
               alignItems: 'center',
-              gap: '6px'
+              gap: '8px'
             }}
           >
-            <Search size={13} color="#94A3B8" style={{ flexShrink: 0 }} />
+            <Search size={isFormVariant ? 15 : 13} color="#94A3B8" style={{ flexShrink: 0 }} />
             <input
               ref={searchInputRef}
               type="text"
@@ -258,7 +298,7 @@ export default function SearchableDropdown({
                 border: 'none',
                 backgroundColor: 'transparent',
                 outline: 'none',
-                fontSize: '11.5px',
+                fontSize: isFormVariant ? '12.5px' : '11.5px',
                 color: '#0F172A',
                 padding: '2px 0'
               }}
@@ -290,23 +330,24 @@ export default function SearchableDropdown({
 
           {/* Options List */}
           <div
+            ref={optionsListRef}
             style={{
-              maxHeight: '220px',
+              maxHeight: isFormVariant ? '240px' : '220px',
               overflowY: 'auto',
               padding: '4px'
             }}
           >
-            {/* "All" Option at top (if not searching or if search matches) */}
-            {(!searchQuery || allOptionLabel.toLowerCase().includes(searchQuery.toLowerCase())) && (
+            {/* "All" Option at top (if shouldShowAll is true) */}
+            {shouldShowAll && (!searchQuery || allOptionLabel.toLowerCase().includes(searchQuery.toLowerCase())) && (
               <div
                 onClick={() => handleSelect(allOptionLabel)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '6.5px 10px',
+                  padding: isFormVariant ? '8px 10px' : '6.5px 10px',
                   borderRadius: '6px',
-                  fontSize: '12px',
+                  fontSize: isFormVariant ? '12.5px' : '12px',
                   fontWeight: !isFiltered ? 700 : 500,
                   color: !isFiltered ? '#EA580C' : '#334155',
                   backgroundColor: !isFiltered ? '#FFF7ED' : 'transparent',
@@ -326,27 +367,28 @@ export default function SearchableDropdown({
             )}
 
             {/* Separator if "All" is shown */}
-            {(!searchQuery || allOptionLabel.toLowerCase().includes(searchQuery.toLowerCase())) &&
+            {shouldShowAll && (!searchQuery || allOptionLabel.toLowerCase().includes(searchQuery.toLowerCase())) &&
               filteredOptions.length > 0 && (
                 <div style={{ height: '1px', backgroundColor: '#F1F5F9', margin: '4px 0' }} />
               )}
 
             {/* Render Filtered Options */}
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => {
+              filteredOptions.map((opt, idx) => {
                 const isSelected = value === opt.value || value === opt.label;
                 return (
                   <div
-                    key={opt.value}
+                    key={`opt-${opt.value}-${idx}`}
+                    ref={isSelected ? selectedOptRef : null}
                     onClick={() => handleSelect(opt.value)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: '8px',
-                      padding: '6.5px 10px',
+                      padding: isFormVariant ? '8.5px 10px' : '6.5px 10px',
                       borderRadius: '6px',
-                      fontSize: '12px',
+                      fontSize: isFormVariant ? '12.5px' : '12px',
                       fontWeight: isSelected ? 700 : 500,
                       color: isSelected ? '#EA580C' : '#0F172A',
                       backgroundColor: isSelected ? '#FFF7ED' : 'transparent',
@@ -360,11 +402,18 @@ export default function SearchableDropdown({
                       if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
                     }}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {opt.label}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', overflow: 'hidden' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {opt.label}
+                      </span>
+                      {opt.sublabel && (
+                        <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 400 }}>
+                          {opt.sublabel}
+                        </span>
+                      )}
+                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                       {opt.count !== null && (
                         <span
                           style={{
@@ -379,7 +428,7 @@ export default function SearchableDropdown({
                           {opt.count}
                         </span>
                       )}
-                      {isSelected && <Check size={13} color="#EA580C" strokeWidth={2.5} />}
+                      {isSelected && <Check size={14} color="#EA580C" strokeWidth={2.5} />}
                     </div>
                   </div>
                 );
@@ -387,9 +436,9 @@ export default function SearchableDropdown({
             ) : (
               <div
                 style={{
-                  padding: '14px 10px',
+                  padding: '16px 10px',
                   textAlign: 'center',
-                  fontSize: '11.5px',
+                  fontSize: '12px',
                   color: '#94A3B8'
                 }}
               >
@@ -410,7 +459,7 @@ export default function SearchableDropdown({
                         cursor: 'pointer'
                       }}
                     >
-                      Filter by "{searchQuery.trim()}"
+                      Select "{searchQuery.trim()}"
                     </button>
                   </div>
                 )}

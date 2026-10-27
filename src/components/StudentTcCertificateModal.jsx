@@ -54,6 +54,7 @@ export default function StudentTcCertificateModal({ isOpen = true, student, onCl
               background-color: #F8FAFC !important;
               font-weight: 700;
               text-align: left;
+              white-space: nowrap !important;
             }
           </style>
         </head>
@@ -185,7 +186,7 @@ export default function StudentTcCertificateModal({ isOpen = true, student, onCl
                 <StudentHealthLogo size={58} showText={false} isWhite={false} />
                 <div>
                   <div style={{ fontSize: '10.5px', fontWeight: 800, color: '#EA580C', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                    OLIRUM ERODU FOUNDATION • WATTASATTAM
+                    OLIRUM ERODU FOUNDATION • WAATTASAATTAM
                   </div>
                   <h1 style={{ fontSize: '19px', fontWeight: 900, color: '#0F172A', margin: '2px 0 0 0', textTransform: 'uppercase' }}>
                     STUDENT HEALTH & GROWTH RECORD
@@ -272,44 +273,46 @@ export default function StudentTcCertificateModal({ isOpen = true, student, onCl
               <div style={{ fontSize: '12px', fontWeight: 800, color: '#0F172A', marginBottom: '6px' }}>
                 CUMULATIVE HEALTH & GROWTH SCREENING TIMELINE
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC' }}>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1' }}>Date</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1' }}>Age</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Height</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Weight</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>BMI</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>BMI-for-Age (WHO)</th>
-                    <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Nutrition Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {assessments.length > 0 ? (
-                    assessments.map((a, i) => (
-                      <tr key={i}>
-                        <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1' }}>{a.assessment_date || 'Baseline'}</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1' }}>{a.age_display || '-'}</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{a.height_cm} cm</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{a.weight_kg} kg</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 700 }}>{a.bmi}</td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
-                          {typeof a.bmi_for_age_zscore === 'number' ? `${a.bmi_for_age_zscore.toFixed(2)} SD` : '—'}
-                        </td>
-                        <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 700 }}>
-                          {a.nutrition_status || 'Normal'}
+              <div style={{ overflowX: 'auto', width: '100%' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F8FAFC' }}>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', whiteSpace: 'nowrap' }}>Date</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', whiteSpace: 'nowrap' }}>Age</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Height</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Weight</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>BMI</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>BMI-for-Age (WHO)</th>
+                      <th style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Nutrition Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assessments.length > 0 ? (
+                      assessments.map((a, i) => (
+                        <tr key={i}>
+                          <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1' }}>{a.assessment_date || 'Baseline'}</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1' }}>{a.age_display || '-'}</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{a.height_cm} cm</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{a.weight_kg} kg</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 700 }}>{a.bmi}</td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
+                            {typeof a.bmi_for_age_zscore === 'number' ? `${a.bmi_for_age_zscore.toFixed(2)} SD` : '—'}
+                          </td>
+                          <td style={{ padding: '6px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 700 }}>
+                            {(a.nutrition_status?.toLowerCase().includes('obese') || a.nutrition_status?.toLowerCase().includes('obesity')) ? 'Overweight' : (a.nutrition_status || 'Normal')}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} style={{ padding: '10px', textAlign: 'center', color: '#64748B' }}>
+                          Baseline checkup verified. Height: {student.height || 0} cm • Weight: {student.weight || 0} kg • BMI: {student.bmi || 0}
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} style={{ padding: '10px', textAlign: 'center', color: '#64748B' }}>
-                        Baseline checkup verified. Height: {student.height || 0} cm • Weight: {student.weight || 0} kg • BMI: {student.bmi || 0}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Medical Advice Box */}
@@ -324,7 +327,7 @@ export default function StudentTcCertificateModal({ isOpen = true, student, onCl
                 color: '#475569',
               }}
             >
-              <strong>Health Officer Remarks:</strong> Student physical development has been monitored under the WattaSattam child health program following World Health Organization (WHO 2007) standards. Recommended for balanced nutrition and regular physical activity at destination institution.
+              <strong>Health Officer Remarks:</strong> Student physical development has been monitored under the Waattasaattam child health program following World Health Organization (WHO 2007) standards. Recommended for balanced nutrition and regular physical activity at destination institution.
             </div>
 
             {/* Official Authorization & Signatures */}
@@ -344,7 +347,7 @@ export default function StudentTcCertificateModal({ isOpen = true, student, onCl
                 <div style={{ borderTop: '1px solid #0F172A', paddingTop: '4px', fontWeight: 700 }}>
                   Screening Medical Officer
                 </div>
-                <div style={{ fontSize: '10px', color: '#64748B' }}>WattaSattam Health Team</div>
+                <div style={{ fontSize: '10px', color: '#64748B' }}>Waattasaattam Health Team</div>
               </div>
 
               <div>

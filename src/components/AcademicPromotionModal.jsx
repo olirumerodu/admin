@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { X, GraduationCap, CheckCircle, AlertCircle, ArrowRight, RotateCcw, Search, School, Users, Check, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, GraduationCap, CheckCircle, AlertCircle, ArrowRight, RotateCcw, Search, School, Users, Check, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, Calendar, CheckSquare, Square } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function AcademicPromotionModal({ isOpen = true, school, allStudents = [], onClose, onSuccess }) {
@@ -14,21 +14,48 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
   const [errorMsg, setErrorMsg] = useState('');
   const [promotionResult, setPromotionResult] = useState(null);
 
+  // Shift helper function: shifts a year string by delta (+1 or -1)
+  const shiftAcademicYear = (yearStr, delta) => {
+    if (!yearStr) {
+      const cur = new Date().getFullYear();
+      return `${cur}-${cur + 1}`;
+    }
+    const m = String(yearStr).trim().match(/^(\d{4})[-/–](\d{4})$/);
+    if (m) {
+      const y1 = parseInt(m[1], 10) + delta;
+      const y2 = parseInt(m[2], 10) + delta;
+      return `${y1}-${y2}`;
+    }
+    const single = String(yearStr).match(/\d{4}/);
+    if (single) {
+      const y = parseInt(single[0], 10) + delta;
+      return `${y}-${y + 1}`;
+    }
+    return yearStr;
+  };
+
   const handleCurrentYearChange = (val) => {
     setCurrentYear(val);
-    const m = val.match(/^(\d{4})-(\d{4})$/);
+    const m = String(val).trim().match(/^(\d{4})[-/–](\d{4})$/);
     if (m) {
       setTargetYear(`${parseInt(m[1], 10) + 1}-${parseInt(m[2], 10) + 1}`);
     }
   };
 
-  // Extract max/terminal class from classes_range e.g. "1–8" -> 8
-  const terminalClassNum = useMemo(() => {
-    if (!school) return 8;
-    const cr = String(school.classes_range || '1–8');
-    const nums = cr.match(/\d+/g);
-    return nums ? Math.max(...nums.map(Number)) : 8;
-  }, [school]);
+  const handleShiftCurrentYear = (delta) => {
+    const nextCurrent = shiftAcademicYear(currentYear, delta);
+    setCurrentYear(nextCurrent);
+    const m = String(nextCurrent).trim().match(/^(\d{4})[-/–](\d{4})$/);
+    if (m) {
+      setTargetYear(`${parseInt(m[1], 10) + 1}-${parseInt(m[2], 10) + 1}`);
+    } else {
+      setTargetYear(shiftAcademicYear(targetYear, delta));
+    }
+  };
+
+  const handleShiftTargetYear = (delta) => {
+    setTargetYear(prev => shiftAcademicYear(prev, delta));
+  };
 
   // Filter students belonging to this school who are active
   const schoolStudents = useMemo(() => {
@@ -40,6 +67,81 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
     });
   }, [allStudents, school]);
 
+  // Maximum class number detected among actual active students in this school
+  const maxStudentClassNum = useMemo(() => {
+    let maxNum = 0;
+    schoolStudents.forEach(s => {
+      const rawCls = s.class_name || s.raw?.class_name || '';
+      const nums = String(rawCls).match(/\d+/g);
+      if (nums) {
+        const n = parseInt(nums[0], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    return maxNum;
+  }, [schoolStudents]);
+
+  // Dynamic terminal (highest) class - no hardcoded 1-8 fallback!
+  // Takes the highest detected between configured classes_range and actual students in the school.
+  const autoTerminalClass = useMemo(() => {
+    const cr = String(school?.classes_range || '');
+    const nums = cr.match(/\d+/g);
+    const crMax = nums ? Math.max(...nums.map(Number)) : 0;
+    const highest = Math.max(crMax, maxStudentClassNum);
+    return highest > 0 ? highest : (maxStudentClassNum > 0 ? maxStudentClassNum : 10);
+  }, [school, maxStudentClassNum]);
+
+  const [customTerminalClass, setCustomTerminalClass] = useState(null);
+
+  // Keep customTerminalClass synced when school/students load
+  useEffect(() => {
+    if (autoTerminalClass) {
+      setCustomTerminalClass(autoTerminalClass);
+    }
+  }, [autoTerminalClass]);
+
+  const terminalClassNum = customTerminalClass || autoTerminalClass || 10;
+
+  // Available options for terminal/graduating class dropdown
+  const terminalClassOptions = useMemo(() => {
+    const opts = new Set([terminalClassNum, autoTerminalClass, maxStudentClassNum]);
+    [5, 8, 9, 10, 11, 12].forEach(n => {
+      if (maxStudentClassNum <= 0 || n >= Math.min(maxStudentClassNum, 8)) {
+        opts.add(n);
+      }
+    });
+    return Array.from(opts).filter(n => n > 0).sort((a, b) => a - b);
+  }, [terminalClassNum, autoTerminalClass, maxStudentClassNum]);
+
+  // Dominant active academic year in this school to set default current & target year
+  const dominantAcademicYear = useMemo(() => {
+    if (!schoolStudents.length) return '2026-2027';
+    const counts = {};
+    schoolStudents.forEach(s => {
+      const yr = s.academic_year || s.raw?.academic_year;
+      if (yr) counts[yr] = (counts[yr] || 0) + 1;
+    });
+    const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    return sorted[0] || '2026-2027';
+  }, [schoolStudents]);
+
+  useEffect(() => {
+    if (dominantAcademicYear) {
+      setCurrentYear(dominantAcademicYear);
+      const m = dominantAcademicYear.match(/^(\d{4})-(\d{4})$/);
+      if (m) {
+        setTargetYear(`${parseInt(m[1], 10) + 1}-${parseInt(m[2], 10) + 1}`);
+      }
+    }
+  }, [dominantAcademicYear]);
+
+  // Quick selectable academic years (including past historical years and dominant year)
+  const quickYears = useMemo(() => {
+    const set = new Set(['2023-2024', '2024-2025', '2025-2026', '2026-2027', '2027-2028']);
+    if (dominantAcademicYear) set.add(dominantAcademicYear);
+    return Array.from(set).sort();
+  }, [dominantAcademicYear]);
+
   // Analyze each student's outcome based on repeating set
   const analyzedStudents = useMemo(() => {
     return schoolStudents.map((std, idx) => {
@@ -48,18 +150,18 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
       const currClsNum = nums ? parseInt(nums[0], 10) : 1;
       const isRepeating = repeatingIds.has(std.id);
 
-      let action = 'Promoted';
+      let action = 'Promote';
       let nextClass = `Class ${currClsNum + 1}`;
       let badgeColor = '#16A34A';
       let badgeBg = '#DCFCE7';
 
       if (isRepeating) {
-        action = 'Repeating';
+        action = 'Repeat';
         nextClass = rawCls;
         badgeColor = '#D97706';
         badgeBg = '#FEF3C7';
       } else if (currClsNum >= terminalClassNum) {
-        action = 'Graduated';
+        action = 'Graduate';
         nextClass = 'Alumni / Graduated';
         badgeColor = '#9333EA';
         badgeBg = '#F3E8FF';
@@ -84,9 +186,9 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
     let graduated = 0;
     let repeating = 0;
     analyzedStudents.forEach(s => {
-      if (s.action === 'Promoted') promoted++;
-      else if (s.action === 'Graduated') graduated++;
-      else if (s.action === 'Repeating') repeating++;
+      if (s.action === 'Promote') promoted++;
+      else if (s.action === 'Graduate') graduated++;
+      else if (s.action === 'Repeat') repeating++;
     });
     return { total: analyzedStudents.length, promoted, graduated, repeating };
   }, [analyzedStudents]);
@@ -212,7 +314,7 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
                 Academic Year Rollover & Student Promotion
               </h2>
               <div style={{ fontSize: '12.5px', color: '#94A3B8', marginTop: '2px' }}>
-                {school?.name} • Grades Range: {school?.classes_range || '1–8'}
+                {school?.name} • Grades Range: {school?.classes_range || `Classes 1–${terminalClassNum}`}
               </div>
             </div>
           </div>
@@ -296,100 +398,350 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
             </div>
           ) : (
             <>
-              {/* Year Transition Control Banner */}
+              {/* Year Transition Control Banner - Split Professionally */}
               <div
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(0, 1.45fr) minmax(0, 1fr)',
+                  gap: '18px',
                   padding: '16px 20px',
                   backgroundColor: '#F8FAFC',
-                  borderRadius: '12px',
-                  border: '1px solid #E2E8F0',
+                  borderRadius: '14px',
+                  border: '1.5px solid #E2E8F0',
                   marginBottom: '20px',
-                  flexWrap: 'wrap',
-                  gap: '14px',
+                  alignItems: 'stretch',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', display: 'block', textTransform: 'uppercase' }}>
-                      Current Year
-                    </label>
-                    <input
-                      type="text"
-                      value={currentYear}
-                      onChange={(e) => handleCurrentYearChange(e.target.value)}
-                      style={{
-                        padding: '6px 10px',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        border: '1px solid #CBD5E1',
-                        borderRadius: '6px',
-                        width: '120px',
-                      }}
-                    />
+                {/* Left Section: Transition Inputs & Quick Jump */}
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    {/* Current Academic Year (From) - Stepper & Manual Enter */}
+                    <div style={{ flex: '1 1 auto', minWidth: '140px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#475569', display: 'block', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.02em' }}>
+                        From Academic Year
+                      </label>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          backgroundColor: '#FFFFFF',
+                          border: '1.5px solid #CBD5E1',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleShiftCurrentYear(-1)}
+                          title="Shift 1 Year Back (-1)"
+                          style={{
+                            padding: '7px 8px',
+                            backgroundColor: '#F8FAFC',
+                            border: 'none',
+                            borderRight: '1px solid #E2E8F0',
+                            cursor: 'pointer',
+                            color: '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E2E8F0')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <input
+                          type="text"
+                          value={currentYear}
+                          onChange={(e) => handleCurrentYearChange(e.target.value)}
+                          placeholder="YYYY-YYYY"
+                          title="Manual enter academic year or use ◀ / ▶ buttons to shift"
+                          style={{
+                            width: '100%',
+                            minWidth: '80px',
+                            padding: '6px 4px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            border: 'none',
+                            outline: 'none',
+                            textAlign: 'center',
+                            color: '#0F172A',
+                            backgroundColor: 'transparent',
+                            fontFamily: 'inherit',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleShiftCurrentYear(1)}
+                          title="Shift 1 Year Forward (+1)"
+                          style={{
+                            padding: '7px 8px',
+                            backgroundColor: '#F8FAFC',
+                            border: 'none',
+                            borderLeft: '1px solid #E2E8F0',
+                            cursor: 'pointer',
+                            color: '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#E2E8F0')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <ArrowRight size={18} color="#EA580C" style={{ marginTop: '18px', flexShrink: 0 }} />
+
+                    {/* New Academic Year (To) - Stepper & Manual Enter */}
+                    <div style={{ flex: '1 1 auto', minWidth: '140px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#EA580C', display: 'block', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.02em' }}>
+                        To Academic Year
+                      </label>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          backgroundColor: '#FFFFFF',
+                          border: '1.5px solid #EA580C',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          boxShadow: '0 1px 2px rgba(234, 88, 12, 0.08)',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleShiftTargetYear(-1)}
+                          title="Shift 1 Year Back (-1)"
+                          style={{
+                            padding: '7px 8px',
+                            backgroundColor: '#FFF7ED',
+                            border: 'none',
+                            borderRight: '1px solid #FFEDD5',
+                            cursor: 'pointer',
+                            color: '#EA580C',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FED7AA')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFF7ED')}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <input
+                          type="text"
+                          value={targetYear}
+                          onChange={(e) => setTargetYear(e.target.value)}
+                          placeholder="YYYY-YYYY"
+                          title="Manual enter target academic year or use ◀ / ▶ buttons to shift"
+                          style={{
+                            width: '100%',
+                            minWidth: '80px',
+                            padding: '6px 4px',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            border: 'none',
+                            outline: 'none',
+                            textAlign: 'center',
+                            color: '#EA580C',
+                            backgroundColor: 'transparent',
+                            fontFamily: 'inherit',
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleShiftTargetYear(1)}
+                          title="Shift 1 Year Forward (+1)"
+                          style={{
+                            padding: '7px 8px',
+                            backgroundColor: '#FFF7ED',
+                            border: 'none',
+                            borderLeft: '1px solid #FFEDD5',
+                            cursor: 'pointer',
+                            color: '#EA580C',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.15s',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FED7AA')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFF7ED')}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Graduating Class */}
+                    <div style={{ flex: '1 1 auto', minWidth: '130px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: 700, color: '#7E22CE', display: 'block', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.02em' }}>
+                        Graduating Class
+                      </label>
+                      <select
+                        value={terminalClassNum}
+                        onChange={(e) => setCustomTerminalClass(parseInt(e.target.value, 10))}
+                        style={{
+                          width: '100%',
+                          height: '35px',
+                          padding: '0 10px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          border: '1.5px solid #9333EA',
+                          borderRadius: '8px',
+                          backgroundColor: '#FFFFFF',
+                          color: '#7E22CE',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        {terminalClassOptions.map(n => (
+                          <option key={n} value={n}>
+                            Class {n} {n === autoTerminalClass ? '(Auto)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
-                  <ArrowRight size={20} color="#EA580C" style={{ marginTop: '16px' }} />
-
-                  <div>
-                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#EA580C', display: 'block', textTransform: 'uppercase' }}>
-                      New Academic Year
-                    </label>
-                    <input
-                      type="text"
-                      value={targetYear}
-                      onChange={(e) => setTargetYear(e.target.value)}
-                      style={{
-                        padding: '6px 10px',
-                        fontSize: '13px',
-                        fontWeight: 700,
-                        border: '1.5px solid #EA580C',
-                        borderRadius: '6px',
-                        width: '120px',
-                        color: '#EA580C',
-                      }}
-                    />
+                  {/* Quick Select Previous / Current / Future Years */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', paddingTop: '2px' }}>
+                    <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Quick Jump:</span>
+                    {quickYears.map(yr => {
+                      const isSelected = currentYear === yr;
+                      return (
+                        <button
+                          key={yr}
+                          type="button"
+                          onClick={() => handleCurrentYearChange(yr)}
+                          style={{
+                            padding: '3px 9px',
+                            fontSize: '11px',
+                            fontWeight: isSelected ? 700 : 500,
+                            borderRadius: '6px',
+                            border: isSelected ? '1.5px solid #EA580C' : '1px solid #CBD5E1',
+                            backgroundColor: isSelected ? '#FFF7ED' : '#FFFFFF',
+                            color: isSelected ? '#EA580C' : '#475569',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          {yr} {yr === dominantAcademicYear ? '(Current Data)' : ''}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Summary badges */}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, backgroundColor: '#DCFCE7', color: '#16A34A' }}>
-                    ● {summary.promoted} to Promote
-                  </span>
-                  <span style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, backgroundColor: '#F3E8FF', color: '#9333EA' }}>
-                    ● {summary.graduated} Graduating (Class {terminalClassNum})
-                  </span>
-                  {summary.repeating > 0 && (
-                    <span style={{ padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, backgroundColor: '#FEF3C7', color: '#D97706' }}>
-                      ● {summary.repeating} Repeating
+                {/* Right Section: Promotion Forecast KPI Cards occupying the right side */}
+                <div
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: '10px',
+                    border: '1px solid #E2E8F0',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 1px 3px rgba(15, 23, 42, 0.03)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <GraduationCap size={14} color="#7E22CE" />
+                      <span>Cohort Promotion Forecast</span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 600 }}>
+                      Total: {summary.total}
                     </span>
-                  )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: summary.repeating > 0 ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)', gap: '10px' }}>
+                    {/* Promote KPI Tile */}
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: '#F0FDF4',
+                        border: '1px solid #86EFAC',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#16A34A' }}></span>
+                        <span>To Promote</span>
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: '#15803D', lineHeight: 1.2, marginTop: '2px' }}>
+                        {summary.promoted}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#166534', opacity: 0.85, marginTop: '2px' }}>
+                        Next Grade
+                      </div>
+                    </div>
+
+                    {/* Graduate KPI Tile */}
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        backgroundColor: '#FAF5FF',
+                        border: '1px solid #D8B4FE',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#6B21A8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#9333EA' }}></span>
+                        <span>To Graduate</span>
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 800, color: '#7E22CE', lineHeight: 1.2, marginTop: '2px' }}>
+                        {summary.graduated}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#6B21A8', opacity: 0.85, marginTop: '2px' }}>
+                        Class {terminalClassNum} Alumni
+                      </div>
+                    </div>
+
+                    {/* Repeat KPI Tile if any */}
+                    {summary.repeating > 0 && (
+                      <div
+                        style={{
+                          padding: '10px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: '#FFFBEB',
+                          border: '1px solid #FDE68A',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#92400E', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#D97706' }}></span>
+                          <span>To Repeat</span>
+                        </div>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#B45309', lineHeight: 1.2, marginTop: '2px' }}>
+                          {summary.repeating}
+                        </div>
+                        <div style={{ fontSize: '10.5px', color: '#92400E', opacity: 0.85, marginTop: '2px' }}>
+                          Retained
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Informational Notice */}
-              <div
-                style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
-                  borderRadius: '10px',
-                  fontSize: '12.5px',
-                  color: '#1E40AF',
-                  marginBottom: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                }}
-              >
-                <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                <span>
-                  All students are checked <strong>[✓]</strong> to automatically promote (+1 standard). Class {terminalClassNum} students will be marked as <strong>Graduated / Alumni</strong>. Uncheck any student who is repeating the same class.
-                </span>
-              </div>
+
 
               {/* Controls: Search, Class Filter, Bulk Select */}
               <div
@@ -402,47 +754,151 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
                   flexWrap: 'wrap',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div className="global-search-bar" style={{ maxWidth: '280px' }}>
-                    <Search size={15} color="#94A3B8" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  {/* Professional Search Input Bar */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      backgroundColor: '#FFFFFF',
+                      border: '1.5px solid #CBD5E1',
+                      borderRadius: '8px',
+                      padding: '0 12px',
+                      height: '38px',
+                      width: '260px',
+                      maxWidth: '100%',
+                      boxSizing: 'border-box',
+                      boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                      transition: 'border-color 0.15s ease',
+                    }}
+                  >
+                    <Search size={15} color="#64748B" style={{ flexShrink: 0 }} />
                     <input
                       type="text"
-                      className="search-input"
                       placeholder="Search student or ID..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
+                      style={{
+                        border: 'none',
+                        outline: 'none',
+                        background: 'transparent',
+                        fontSize: '12.5px',
+                        fontWeight: 500,
+                        color: '#0F172A',
+                        width: '100%',
+                        fontFamily: 'inherit',
+                      }}
                     />
+                    {search && (
+                      <button
+                        type="button"
+                        onClick={() => setSearch('')}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          color: '#94A3B8',
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
                   </div>
 
-                  <select
-                    className="filter-select"
-                    value={classFilter}
-                    onChange={(e) => setClassFilter(e.target.value)}
-                    style={{ padding: '7px 12px', fontSize: '12px' }}
-                  >
-                    <option value="All">All Classes ({schoolStudents.length})</option>
-                    {uniqueClasses.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
+                  {/* Professional Class Filter Dropdown */}
+                  <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+                    <select
+                      value={classFilter}
+                      onChange={(e) => setClassFilter(e.target.value)}
+                      style={{
+                        height: '38px',
+                        padding: '0 34px 0 12px',
+                        fontSize: '12.5px',
+                        fontWeight: 600,
+                        color: '#0F172A',
+                        backgroundColor: '#FFFFFF',
+                        border: '1.5px solid #CBD5E1',
+                        borderRadius: '8px',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        MozAppearance: 'none',
+                        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+                        transition: 'border-color 0.15s ease',
+                      }}
+                    >
+                      <option value="All">All Classes ({schoolStudents.length})</option>
+                      {uniqueClasses.map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      size={14}
+                      color="#64748B"
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
+                {/* Bulk Select Buttons */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button
                     type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '11.5px', padding: '6px 12px' }}
                     onClick={() => handleSelectAll(true)}
+                    style={{
+                      height: '38px',
+                      padding: '0 14px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #BBF7D0',
+                      backgroundColor: '#F0FDF4',
+                      color: '#15803D',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#DCFCE7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#F0FDF4')}
                   >
-                    Promote All [✓]
+                    <CheckSquare size={14} color="#16A34A" />
+                    <span>Promote All</span>
                   </button>
+
                   <button
                     type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '11.5px', padding: '6px 12px' }}
                     onClick={() => handleSelectAll(false)}
+                    style={{
+                      height: '38px',
+                      padding: '0 14px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #FDE68A',
+                      backgroundColor: '#FFFBEB',
+                      color: '#B45309',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#FEF3C7')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFBEB')}
                   >
-                    Repeat All [ ]
+                    <Square size={14} color="#D97706" />
+                    <span>Repeat All</span>
                   </button>
                 </div>
               </div>
@@ -464,7 +920,7 @@ export default function AcademicPromotionModal({ isOpen = true, school, allStude
                       <th style={{ padding: '10px 12px', textAlign: 'left' }}>Student Name</th>
                       <th style={{ padding: '10px 12px', textAlign: 'center' }}>Current Class</th>
                       <th style={{ padding: '10px 12px', textAlign: 'center' }}>Target Next Class</th>
-                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Action Status</th>
+                      <th style={{ padding: '10px 12px', textAlign: 'center' }}>Planned Action</th>
                     </tr>
                   </thead>
                   <tbody>

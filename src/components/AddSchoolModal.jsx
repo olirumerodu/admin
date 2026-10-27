@@ -12,7 +12,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
   const [address, setAddress] = useState('');
 
   // Classes / Groups Configuration (Optional)
-  const [manualClassesInput, setManualClassesInput] = useState('1-8');
+  const [manualClassesInput, setManualClassesInput] = useState('');
 
   // Sections Configuration (Optional)
   const [manualSectionsInput, setManualSectionsInput] = useState('A, B, C');
@@ -51,11 +51,11 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
       setManualSectionsInput('A');
       if (!code) setCode('DC-');
     } else if (type === 'custom') {
-      setManualClassesInput('');
+      setManualClassesInput('General');
       setManualSectionsInput('None');
     } else {
-      // standard school
-      setManualClassesInput('1-8');
+      // standard school - no hardcoded 1-8
+      setManualClassesInput('');
       setManualSectionsInput('A, B, C');
       if (code.startsWith('ANG-') || code.startsWith('DC-')) setCode('');
     }
@@ -75,10 +75,12 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
       // 1. Resolve classes range
       const finalClasses = placeType === 'anganwadi'
         ? 'Anganwadi'
-        : (manualClassesInput.trim() || (placeType === 'daycare' ? 'Pre-KG, LKG, UKG' : '1-8'));
+        : (placeType === 'custom'
+          ? 'General'
+          : (manualClassesInput.trim() || (placeType === 'daycare' ? 'Pre-KG, LKG, UKG' : 'All Classes')));
 
       // 2. Resolve sections
-      const finalSections = placeType === 'anganwadi'
+      const finalSections = (placeType === 'anganwadi' || placeType === 'custom')
         ? 'None'
         : (manualSectionsInput.trim() || 'None');
 
@@ -102,7 +104,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', height: '630px', maxHeight: '92vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Header */}
         <div className="modal-header" style={{ padding: '16px 20px', borderBottom: '1px solid #ECEEF2' }}>
           <div>
@@ -124,7 +126,8 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', flex: 1 }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', flex: 1 }}>
           {/* Institution / Place Type Selector */}
           <div>
             <label className="form-label" style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
@@ -145,6 +148,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
                     type="button"
                     onClick={() => handleSelectPlaceType(item.id)}
                     style={{
+                      height: '76px',
                       padding: '8px 6px',
                       borderRadius: '10px',
                       border: isSelected ? '1.5px solid #EA580C' : '1px solid #E2E8F0',
@@ -152,6 +156,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
+                      justifyContent: 'center',
                       gap: '3px',
                       cursor: 'pointer',
                       transition: 'all 0.15s ease',
@@ -225,17 +230,17 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
 
             <div className="form-group">
               <label className="form-label" style={{ fontSize: '12px', fontWeight: 700 }}>
-                {placeType === 'anganwadi' ? 'Center Code' : 'School / Place Code'}{' '}
-                <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>(Optional)</span>
+                {placeType === 'anganwadi' ? 'Unique Center Code' : 'Unique School Code'}{' '}
+                <span style={{ fontSize: '11px', color: '#EA580C', fontWeight: 500 }}>(Auto-generated if blank)</span>
               </label>
               <div className="input-container">
                 <span className="input-icon"><Hash size={18} /></span>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder={placeType === 'anganwadi' ? 'e.g. ANG-042' : 'e.g. SCH-042'}
+                  placeholder={placeType === 'anganwadi' ? 'e.g. ANG01' : 'e.g. GHS01, PUM01'}
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
                 />
               </div>
             </div>
@@ -258,7 +263,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
           </div>
 
           {/* CLASSES COVERED */}
-          {placeType !== 'anganwadi' && (
+          {placeType !== 'anganwadi' && placeType !== 'custom' && (
             <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -271,7 +276,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
                   </span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#64748B' }}>
-                  {placeType === 'daycare' ? 'Select daycare / preschool level' : 'Enter classes manually (e.g. 1-8)'}
+                  {placeType === 'daycare' ? 'Select daycare / preschool level' : 'Enter classes covered (e.g. 1-10, 1-12, 1-8, 1-5)'}
                 </span>
               </div>
 
@@ -303,7 +308,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
                 ) : (
                   <input
                     type="text"
-                    placeholder="Enter classes manually (e.g. 1-8)..."
+                    placeholder="Enter classes (e.g. 1-10, 1-12, 1-8, 1-5)..."
                     value={manualClassesInput}
                     onChange={(e) => setManualClassesInput(e.target.value)}
                     style={{
@@ -326,7 +331,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
           )}
 
           {/* SECTIONS OFFERED */}
-          {placeType !== 'anganwadi' && (
+          {placeType !== 'anganwadi' && placeType !== 'custom' && (
             <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -388,14 +393,32 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
               </div>
             </div>
           )}
+          </div>
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '12px', marginTop: '6px', borderTop: '1px solid #ECEEF2', paddingTop: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', padding: '14px 20px', borderTop: '1px solid #ECEEF2', backgroundColor: '#FFFFFF', flexShrink: 0 }}>
             <button 
               type="button" 
               className="btn-secondary" 
               onClick={onClose} 
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={{
+                height: '38px',
+                padding: '0 20px',
+                minWidth: '95px',
+                borderRadius: '8px',
+                border: '1.5px solid #CBD5E1',
+                backgroundColor: '#FFFFFF',
+                color: '#475569',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
             >
               Cancel
             </button>
@@ -403,7 +426,27 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
               type="submit" 
               className="btn-primary" 
               disabled={loading}
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={{
+                height: '38px',
+                padding: '0 22px',
+                minWidth: '140px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: '#EA580C',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
+                boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#C2410C')}
+              onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#EA580C')}
             >
               {loading ? 'Registering...' : (placeType === 'anganwadi' ? 'Register Anganwadi' : 'Register School / Place')}
             </button>

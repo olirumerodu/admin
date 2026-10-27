@@ -30,9 +30,21 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
     const isSW = s.isSeverelyWasted || statusLower.includes('severely wasted') || statusLower.includes('severe thinness') || (typeof bmiZ === 'number' && bmiZ < -3.0);
     const isW = !isSW && (s.isWasted || statusLower.includes('wasted') || statusLower.includes('thinness') || (typeof bmiZ === 'number' && bmiZ < -2.0));
     const isNorm = !isSW && !isW && (statusLower.includes('normal') || statusLower.includes('healthy') || (typeof bmiZ === 'number' && bmiZ >= -2.0 && bmiZ <= 1.0));
-    const isOver = statusLower.includes('overweight') || statusLower.includes('obese') || (typeof bmiZ === 'number' && bmiZ > 1.0);
+    const isOver = statusLower.includes('overweight') || statusLower.includes('obese') || statusLower.includes('obesity') || (typeof bmiZ === 'number' && bmiZ > 1.0);
     const hasAssess = hasAssessments || (s.latestAssessment && s.latestAssessment !== 'Pending' && s.latestAssessment !== 'None') || raw.latest_assessment_date;
     
+    // Ensure there is NO category called Obese or Obesity — map strictly to Overweight
+    let finalStatus = currentStatus;
+    if (isOver || statusLower.includes('obese') || statusLower.includes('obesity')) {
+      finalStatus = 'Overweight';
+    } else if (isSW) {
+      finalStatus = 'Severely Wasted';
+    } else if (isW) {
+      finalStatus = 'Wasted';
+    } else if (isNorm) {
+      finalStatus = 'Normal';
+    }
+
     // Class number normalization
     const rawCls = s.classVal || raw.class_name || '1';
     const clsNum = String(rawCls).replace(/class\s*/i, '').trim();
@@ -48,7 +60,7 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
       section: sec,
       bmi: raw.bmi || s.bmi || latestA?.bmi || 0,
       bmiZScore: bmiZ,
-      currentStatus: currentStatus,
+      currentStatus: finalStatus,
       isSeverelyWasted: isSW,
       isWasted: isW,
       isNormal: isNorm,
@@ -171,6 +183,7 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
               background-color: #F8FAFC !important;
               font-weight: 700;
               text-align: left;
+              white-space: nowrap !important;
             }
           </style>
         </head>
@@ -320,14 +333,14 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
               color: '#0F172A'
             }}
           >
-            {/* WATTASATTAM Brand Report Header */}
+            {/* WAATTASAATTAM Brand Report Header */}
             <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '14px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                   <StudentHealthLogo size={52} showText={false} isWhite={false} />
                   <div>
                     <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 800, color: '#EA580C' }}>
-                      WATTASATTAM • STUDENT HEALTH TRACKING
+                      WAATTASAATTAM • STUDENT HEALTH TRACKING
                     </div>
                     <h1 style={{ fontSize: '20px', fontWeight: 900, color: '#0F172A', margin: '2px 0 0 0', letterSpacing: '-0.3px' }}>
                       SCHOOL NUTRITIONAL GROWTH REPORT
@@ -385,7 +398,7 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
                         Cluster: {clusterName || school.cluster_name || 'Erode Cluster'}
                       </span>
                       <span style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
-                        School Code: {school.code || 'SCH-ERD-042'}
+                        School Code: {school.code || 'N/A'}
                       </span>
                       <span style={{ backgroundColor: '#F1F5F9', color: '#334155', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 600 }}>
                         Total Enrolled: {totalEnrolled} Students
@@ -445,22 +458,22 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
               {/* Normal */}
               <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '10px' }}>
                 <div style={{ fontSize: '10.5px', color: '#475569', fontWeight: 600 }}>Normal Weight</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>{normCount}</div>
-                <div style={{ fontSize: '10px', color: '#64748B' }}>{normPct}% of total</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>{normPct}%</div>
+                <div style={{ fontSize: '10px', color: '#64748B' }}>{normCount} Assessed</div>
               </div>
 
               {/* Wasted */}
               <div style={{ backgroundColor: '#FFF7ED', border: '1px solid #FED7AA', borderRadius: '8px', padding: '10px' }}>
                 <div style={{ fontSize: '10.5px', color: '#C2410C', fontWeight: 600 }}>Wasted (Moderate)</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#EA580C', marginTop: '2px' }}>{wCount}</div>
-                <div style={{ fontSize: '10px', color: '#C2410C' }}>{wPct}% (Needs care)</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#EA580C', marginTop: '2px' }}>{wPct}%</div>
+                <div style={{ fontSize: '10px', color: '#C2410C' }}>{wCount} (Needs care)</div>
               </div>
 
               {/* Severely Wasted */}
               <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '10px' }}>
                 <div style={{ fontSize: '10.5px', color: '#B91C1C', fontWeight: 700 }}>Severely Wasted</div>
-                <div style={{ fontSize: '20px', fontWeight: 800, color: '#DC2626', marginTop: '2px' }}>{swCount}</div>
-                <div style={{ fontSize: '10px', color: '#B91C1C', fontWeight: 600 }}>{swPct}% (High Priority)</div>
+                <div style={{ fontSize: '20px', fontWeight: 800, color: '#DC2626', marginTop: '2px' }}>{swPct}%</div>
+                <div style={{ fontSize: '10px', color: '#B91C1C', fontWeight: 600 }}>{swCount} (High Priority)</div>
               </div>
             </div>
 
@@ -500,40 +513,42 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
               <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '6px', textTransform: 'uppercase' }}>
                 Class / Grade Level Nutritional Breakdown
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #CBD5E1' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F8FAFC' }}>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1' }}>Grade</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Enrolled</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Assessed</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Normal</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#D97706' }}>Wasted</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#DC2626' }}>Severely Wasted</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Action Required</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classBreakdown.map((row, idx) => (
-                    <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA' }}>
-                      <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', fontWeight: 600 }}>Class {row.classNum}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{row.enrolled}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{row.assessed}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#16A34A', fontWeight: 600 }}>{row.normal}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#D97706', fontWeight: 700 }}>{row.wasted}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#DC2626', fontWeight: 700 }}>{row.severelyWasted}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
-                        {row.severelyWasted > 0 ? (
-                          <span style={{ color: '#DC2626', fontWeight: 700, fontSize: '10px' }}>⚠️ Clinical Follow-up</span>
-                        ) : row.wasted > 0 ? (
-                          <span style={{ color: '#D97706', fontWeight: 600, fontSize: '10px' }}>Supplementary Diet</span>
-                        ) : (
-                          <span style={{ color: '#16A34A', fontSize: '10px' }}>Routine Monitoring</span>
-                        )}
-                      </td>
+              <div style={{ overflowX: 'auto', width: '100%' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #CBD5E1' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F8FAFC' }}>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', whiteSpace: 'nowrap' }}>Grade</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Enrolled</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Assessed</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Normal</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#D97706', whiteSpace: 'nowrap' }}>Wasted</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#DC2626', whiteSpace: 'nowrap' }}>Severely Wasted</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Action Required</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {classBreakdown.map((row, idx) => (
+                      <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA' }}>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', fontWeight: 600 }}>Class {row.classNum}</td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{row.enrolled}</td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>{row.assessed}</td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#16A34A', fontWeight: 600 }}>{row.normal}</td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#D97706', fontWeight: 700 }}>{row.wasted}</td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#DC2626', fontWeight: 700 }}>{row.severelyWasted}</td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
+                          {row.severelyWasted > 0 ? (
+                            <span style={{ color: '#DC2626', fontWeight: 700, fontSize: '10px' }}>⚠️ Clinical Follow-up</span>
+                          ) : row.wasted > 0 ? (
+                            <span style={{ color: '#D97706', fontWeight: 600, fontSize: '10px' }}>Supplementary Diet</span>
+                          ) : (
+                            <span style={{ color: '#16A34A', fontSize: '10px' }}>Routine Monitoring</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* High Priority Follow-Up Roster for Upcoming Months */}
@@ -547,19 +562,20 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
                 </div>
               </div>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #CBD5E1' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#FEF2F2' }}>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', width: '30px' }}>#</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1' }}>Student Name</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1' }}>ID / Code</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Grade-Sec</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>BMI</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Z-Score</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Classification</th>
-                    <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>Next Assessment Due</th>
-                  </tr>
-                </thead>
+              <div style={{ overflowX: 'auto', width: '100%' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', border: '1px solid #CBD5E1' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#FEF2F2' }}>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', width: '30px', textAlign: 'center', whiteSpace: 'nowrap' }}>#</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', whiteSpace: 'nowrap' }}>Student Name</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', whiteSpace: 'nowrap' }}>ID / Code</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Grade-Sec</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>BMI</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Z-Score</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Classification</th>
+                      <th style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', whiteSpace: 'nowrap' }}>Next Assessment Due</th>
+                    </tr>
+                  </thead>
                 <tbody>
                   {criticalRoster.length > 0 ? (
                     criticalRoster.map((st, idx) => {
@@ -608,6 +624,7 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Institutional Action Plan & Directives */}

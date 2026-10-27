@@ -22,8 +22,7 @@ import {
   FileText,
   X,
   Filter,
-  ExternalLink,
-  Edit2
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StudentHealthLogo from './StudentHealthLogo';
@@ -62,6 +61,16 @@ export default function DashboardView() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeNav, setActiveNav] = useState('dashboard'); // Default to live dashboard overview
+  const [navHistory, setNavHistory] = useState(['dashboard']);
+
+  const handleNavigate = (newNav) => {
+    if (newNav === activeNav) return;
+    setNavHistory(prev => [...prev, newNav]);
+    setActiveNav(newNav);
+    try {
+      window.history.pushState({ activeNav: newNav }, '', '');
+    } catch (_) {}
+  };
   const [searchQuery, setSearchQuery] = useState('');
   const [dashboardSchoolFilter, setDashboardSchoolFilter] = useState('ALL');
   const [studentSchoolFilter, setStudentSchoolFilter] = useState('ALL');
@@ -142,8 +151,8 @@ export default function DashboardView() {
       const norm = dm.count_normal ?? 0;
       const wasted = dm.count_thinness ?? 0;
       const sevWasted = dm.count_severe_thinness ?? 0;
-      const overwt = dm.count_overweight ?? 0;
-      const obesity = dm.count_obesity ?? 0;
+      const overwt = (dm.count_overweight ?? 0) + (dm.count_obesity ?? 0);
+      const obesity = 0;
 
       const calcPct = (v) => totalStudents > 0 ? Number(((v / totalStudents) * 100).toFixed(1)) : 0;
 
@@ -205,6 +214,41 @@ export default function DashboardView() {
       console.warn('Dashboard real-time sync notice:', err);
     }
   };
+
+  // Prevent browser history navigation on horizontal swipe/wheel gestures & handle internal back
+  useEffect(() => {
+    try {
+      window.history.replaceState({ activeNav: 'dashboard' }, '', '');
+      window.history.pushState({ activeNav: 'dashboard' }, '', '');
+    } catch (_) {}
+
+    const handlePopState = () => {
+      // Re-push history entry so browser never exits admin portal
+      try {
+        window.history.pushState({ activeNav: 'dashboard' }, '', '');
+      } catch (_) {}
+
+      // Go back to previous navigation inside the admin portal
+      setNavHistory(prev => {
+        if (prev.length > 1) {
+          const next = [...prev];
+          next.pop();
+          const prevNav = next[next.length - 1] || 'dashboard';
+          setActiveNav(prevNav);
+          return next;
+        } else {
+          setActiveNav('dashboard');
+          return ['dashboard'];
+        }
+      });
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     loadData(dashboardSchoolFilter);
@@ -294,13 +338,10 @@ export default function DashboardView() {
 
       const overweight = list.filter(s => {
         const st = getStatus(s);
-        return st.includes('overweight');
+        return st.includes('overweight') || st.includes('obese') || st.includes('obesity');
       }).length;
 
-      const obesity = list.filter(s => {
-        const st = getStatus(s);
-        return st.includes('obese') || st.includes('obesity');
-      }).length;
+      const obesity = 0;
 
       const calcPct = (v) => Number(((v / total) * 100).toFixed(1));
 
@@ -438,7 +479,7 @@ export default function DashboardView() {
           <nav style={{ padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '2px', flex: 1 }}>
             {/* Dashboard */}
             <button
-              onClick={() => { setActiveNav('dashboard'); if (isMobile) setMobileMenuOpen(false); }}
+              onClick={() => { handleNavigate('dashboard'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -463,7 +504,7 @@ export default function DashboardView() {
 
             {/* User Management */}
             <button
-              onClick={() => { setActiveNav('users'); if (isMobile) setMobileMenuOpen(false); }}
+              onClick={() => { handleNavigate('users'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -489,7 +530,7 @@ export default function DashboardView() {
 
             {/* Student Data Import */}
             <button
-              onClick={() => { setActiveNav('import'); if (isMobile) setMobileMenuOpen(false); }}
+              onClick={() => { handleNavigate('import'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -497,10 +538,10 @@ export default function DashboardView() {
                 padding: '9px 14px',
                 borderRadius: '8px',
                 fontSize: '13px',
-                fontWeight: activeNav === 'import' ? 600 : 500,
-                color: activeNav === 'import' ? '#FFFFFF' : '#94A3B8',
-                background: activeNav === 'import' ? 'linear-gradient(90deg, #F05A24 0%, #E8511A 100%)' : 'transparent',
-                boxShadow: activeNav === 'import' ? '0 3px 10px rgba(240, 90, 36, 0.35)' : 'none',
+                fontWeight: (activeNav === 'import' || activeNav === 'import-history') ? 600 : 500,
+                color: (activeNav === 'import' || activeNav === 'import-history') ? '#FFFFFF' : '#94A3B8',
+                background: (activeNav === 'import' || activeNav === 'import-history') ? 'linear-gradient(90deg, #F05A24 0%, #E8511A 100%)' : 'transparent',
+                boxShadow: (activeNav === 'import' || activeNav === 'import-history') ? '0 3px 10px rgba(240, 90, 36, 0.35)' : 'none',
                 border: 'none',
                 cursor: 'pointer',
                 textAlign: 'left',
@@ -514,7 +555,7 @@ export default function DashboardView() {
 
             {/* Students */}
             <button
-              onClick={() => { setActiveNav('students'); if (isMobile) setMobileMenuOpen(false); }}
+              onClick={() => { handleNavigate('students'); if (isMobile) setMobileMenuOpen(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -753,6 +794,7 @@ export default function DashboardView() {
                 placeholder="Search students, schools, clusters..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
                 style={{
                   border: 'none',
                   outline: 'none',
@@ -763,6 +805,27 @@ export default function DashboardView() {
                   fontFamily: 'inherit'
                 }}
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    setSearchQuery('');
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    color: '#94A3B8'
+                  }}
+                  title="Clear search"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
           </div>
 
@@ -903,7 +966,7 @@ export default function DashboardView() {
                       {user?.name || user?.username || 'Administrator'}
                     </div>
                     <div style={{ color: '#64748B', fontSize: '11px', marginTop: '2px' }}>
-                      {user?.email || 'admin@wattasattam.org'}
+                      {user?.email || 'admin@waattasaattam.org'}
                     </div>
                     <div style={{ marginTop: '6px' }}>
                       <span
@@ -972,7 +1035,7 @@ export default function DashboardView() {
             <UserManagementView />
           </main>
 
-        ) : activeNav === 'import' ? (
+        ) : (activeNav === 'import' || activeNav === 'import-history') ? (
           <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
@@ -984,13 +1047,18 @@ export default function DashboardView() {
               boxSizing: 'border-box'
             }}
           >
-            <StudentDataImportView onNavigateTab={(tab) => setActiveNav(tab)} />
+            <StudentDataImportView 
+              onNavigateTab={(tab) => handleNavigate(tab)} 
+              initialView={activeNav === 'import-history' ? 'history' : 'wizard'}
+              globalSearch={searchQuery}
+            />
           </main>
         ) : activeNav === 'students' ? (
           <main
             style={{
               padding: isMobile ? '12px 14px' : '18px 24px',
               flex: 1,
+              minHeight: 0,
               height: 'calc(100vh - 52px)',
               maxHeight: 'calc(100vh - 52px)',
               overflowY: 'auto',
@@ -998,7 +1066,7 @@ export default function DashboardView() {
               boxSizing: 'border-box'
             }}
           >
-            <StudentsManagementView />
+            <StudentsManagementView initialSearch={searchQuery} />
           </main>
         ) : activeNav === 'notifications' ? (
           <main
@@ -1361,8 +1429,8 @@ export default function DashboardView() {
                   </select>
                 </div>
 
-                {/* 5 Compact Bars */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', width: '100%', flex: 1, justifyContent: 'center' }}>
+                {/* 4 Compact Bars */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', flex: 1, justifyContent: 'center' }}>
                   {/* Normal */}
                   <div style={compactHealthBarRow}>
                     <span style={compactHealthLabel}>Normal</span>
@@ -1402,16 +1470,6 @@ export default function DashboardView() {
                     <span style={compactHealthCount}>{healthOverviewData.overweight}</span>
                     <span style={compactHealthPct}>{healthOverviewData.overweightPct}%</span>
                   </div>
-
-                  {/* Obesity */}
-                  <div style={compactHealthBarRow}>
-                    <span style={compactHealthLabel}>Obesity</span>
-                    <div style={compactHealthTrack}>
-                      <div style={{ ...compactHealthFill, width: `${Math.min(100, healthOverviewData.obesityPct * 2)}%`, backgroundColor: '#EA580C' }} />
-                    </div>
-                    <span style={compactHealthCount}>{healthOverviewData.obesity}</span>
-                    <span style={compactHealthPct}>{healthOverviewData.obesityPct}%</span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1446,7 +1504,7 @@ export default function DashboardView() {
                       <option value={1000}>All ({schoolsList.length})</option>
                     </select>
                     <button
-                      onClick={() => setActiveNav('students')}
+                      onClick={() => handleNavigate('students')}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -1477,7 +1535,7 @@ export default function DashboardView() {
                         <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>School Name</th>
                         <th style={{ padding: '0 0 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8' }}>Cluster</th>
                         <th style={{ padding: '0 8px 4px 0', fontSize: '11px', fontWeight: 600, color: '#94A3B8', textAlign: 'right' }}>Students</th>
-                        <th style={{ padding: '0 0 4px 0', width: '80px' }}></th>
+                        <th style={{ padding: '0 0 4px 0', width: '56px' }}></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1497,35 +1555,8 @@ export default function DashboardView() {
                               {item.students}
                             </td>
                             <td style={{ padding: '5px 0' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '48px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
-                                  <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const fullSchool = rawSchools.find(s => String(s.id) === String(item.id)) || item;
-                                    setSchoolToEdit(fullSchool);
-                                  }}
-                                  title={`Edit ${item.name}`}
-                                  style={{
-                                    padding: '2px 6px',
-                                    borderRadius: '4px',
-                                    border: '1px solid #FED7AA',
-                                    backgroundColor: '#FFF7ED',
-                                    color: '#EA580C',
-                                    fontSize: '10.5px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '2px'
-                                  }}
-                                >
-                                  <Edit2 size={10} />
-                                  <span>Edit</span>
-                                </button>
+                              <div style={{ width: '48px', height: '6px', backgroundColor: '#F1F5F9', borderRadius: '99px', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${item.maxPct}%`, backgroundColor: '#EB5A1D', borderRadius: '99px' }} />
                               </div>
                             </td>
                           </tr>

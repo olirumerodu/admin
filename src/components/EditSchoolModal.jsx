@@ -9,7 +9,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
   const [clusterName, setClusterName] = useState('');
   const [clusters, setClusters] = useState([]);
   const [address, setAddress] = useState('');
-  const [manualClassesInput, setManualClassesInput] = useState('1-8');
+  const [manualClassesInput, setManualClassesInput] = useState('');
   const [manualSectionsInput, setManualSectionsInput] = useState('A, B, C');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -63,8 +63,8 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
     }
 
     setPlaceType(detectedType);
-    setManualClassesInput(classes || (detectedType === 'daycare' ? 'Pre-KG, LKG, UKG' : (detectedType === 'anganwadi' ? 'Anganwadi' : '1-8')));
-    setManualSectionsInput(sections || (detectedType === 'anganwadi' ? 'None' : 'A, B, C'));
+    setManualClassesInput(classes || (detectedType === 'daycare' ? 'Pre-KG, LKG, UKG' : (detectedType === 'anganwadi' ? 'Anganwadi' : (detectedType === 'custom' ? 'General' : ''))));
+    setManualSectionsInput(sections || (detectedType === 'anganwadi' || detectedType === 'custom' ? 'None' : 'A, B, C'));
     setError('');
   }, [school, isOpen]);
 
@@ -77,20 +77,19 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
       setManualClassesInput('Anganwadi');
       setManualSectionsInput('None');
     } else if (type === 'daycare') {
-      if (!manualClassesInput || manualClassesInput === 'Anganwadi' || manualClassesInput === '1-8') {
+      if (!manualClassesInput || manualClassesInput === 'Anganwadi' || manualClassesInput === 'General') {
         setManualClassesInput('Pre-KG, LKG, UKG');
       }
       if (manualSectionsInput === 'None' || !manualSectionsInput) {
         setManualSectionsInput('A');
       }
     } else if (type === 'custom') {
-      if (manualClassesInput === 'Anganwadi' || manualClassesInput.includes('Pre-KG')) {
-        setManualClassesInput('General');
-      }
+      setManualClassesInput('General');
+      setManualSectionsInput('None');
     } else {
-      // standard school
+      // standard school - no hardcoded 1-8
       if (manualClassesInput === 'Anganwadi' || manualClassesInput.includes('Pre-KG') || manualClassesInput === 'General') {
-        setManualClassesInput('1-8');
+        setManualClassesInput('');
       }
       if (manualSectionsInput === 'None' || !manualSectionsInput) {
         setManualSectionsInput('A, B, C');
@@ -112,10 +111,12 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
       // 1. Resolve classes range
       const finalClasses = placeType === 'anganwadi'
         ? 'Anganwadi'
-        : (manualClassesInput.trim() || (placeType === 'daycare' ? 'Pre-KG, LKG, UKG' : '1-8'));
+        : (placeType === 'custom'
+          ? 'General'
+          : (manualClassesInput.trim() || (placeType === 'daycare' ? 'Pre-KG, LKG, UKG' : 'All Classes')));
 
       // 2. Resolve sections
-      const finalSections = placeType === 'anganwadi'
+      const finalSections = (placeType === 'anganwadi' || placeType === 'custom')
         ? 'None'
         : (manualSectionsInput.trim() || 'None');
 
@@ -162,6 +163,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
           borderRadius: '16px',
           maxWidth: '600px',
           width: '100%',
+          height: '630px',
           maxHeight: '92vh',
           display: 'flex',
           flexDirection: 'column',
@@ -200,50 +202,53 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', flex: 1 }}>
-          {/* Institution / Place Type Selector */}
-          <div>
-            <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
-              Place / Center Type
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-              {[
-                { id: 'school', label: 'School', icon: School, desc: 'Class 1–8' },
-                { id: 'anganwadi', label: 'Anganwadi', icon: Home, desc: 'Early Childhood' },
-                { id: 'daycare', label: 'Daycare / Pre-KG', icon: Building, desc: 'Pre-primary' },
-                { id: 'custom', label: 'Custom Place', icon: Edit3, desc: 'Manual Entry' },
-              ].map(item => {
-                const isSelected = placeType === item.id;
-                const IconComponent = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleSelectPlaceType(item.id)}
-                    style={{
-                      padding: '8px 6px',
-                      borderRadius: '10px',
-                      border: isSelected ? '1.5px solid #EA580C' : '1px solid #E2E8F0',
-                      backgroundColor: isSelected ? '#FFF7ED' : '#FFFFFF',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '3px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      boxShadow: isSelected ? '0 1px 3px rgba(234, 88, 12, 0.15)' : 'none'
-                    }}
-                  >
-                    <IconComponent size={17} color={isSelected ? '#EA580C' : '#64748B'} />
-                    <span style={{ fontSize: '11.5px', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#C2410C' : '#334155' }}>
-                      {item.label}
-                    </span>
-                    <span style={{ fontSize: '9.5px', color: '#94A3B8' }}>{item.desc}</span>
-                  </button>
-                );
-              })}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', flex: 1 }}>
+            {/* Institution / Place Type Selector */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: '6px', display: 'block' }}>
+                Place / Center Type
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                {[
+                  { id: 'school', label: 'School', icon: School, desc: 'Class 1–8' },
+                  { id: 'anganwadi', label: 'Anganwadi', icon: Home, desc: 'Early Childhood' },
+                  { id: 'daycare', label: 'Daycare / Pre-KG', icon: Building, desc: 'Pre-primary' },
+                  { id: 'custom', label: 'Custom Place', icon: Edit3, desc: 'Manual Entry' },
+                ].map(item => {
+                  const isSelected = placeType === item.id;
+                  const IconComponent = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSelectPlaceType(item.id)}
+                      style={{
+                        height: '76px',
+                        padding: '8px 6px',
+                        borderRadius: '10px',
+                        border: isSelected ? '1.5px solid #EA580C' : '1px solid #E2E8F0',
+                        backgroundColor: isSelected ? '#FFF7ED' : '#FFFFFF',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '3px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? '0 1px 3px rgba(234, 88, 12, 0.15)' : 'none'
+                      }}
+                    >
+                      <IconComponent size={17} color={isSelected ? '#EA580C' : '#64748B'} />
+                      <span style={{ fontSize: '11.5px', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#C2410C' : '#334155' }}>
+                        {item.label}
+                      </span>
+                      <span style={{ fontSize: '9.5px', color: '#94A3B8' }}>{item.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
           {/* Place Name */}
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -312,8 +317,8 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
 
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ fontSize: '12px', fontWeight: 700, marginBottom: '4px', display: 'block', color: '#334155' }}>
-                {placeType === 'anganwadi' ? 'Center Code' : 'School / Place Code'}{' '}
-                <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>(Optional)</span>
+                {placeType === 'anganwadi' ? 'Unique Center Code' : 'Unique School Code'}{' '}
+                <span style={{ fontSize: '11px', color: '#EA580C', fontWeight: 600 }}>(Unique identifier)</span>
               </label>
               <div className="input-container" style={{ height: '42px' }}>
                 <span className="input-icon">
@@ -322,9 +327,9 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
                 <input
                   type="text"
                   className="form-input"
-                  placeholder={placeType === 'anganwadi' ? 'e.g. ANG-042' : 'e.g. SCH-042'}
+                  placeholder={placeType === 'anganwadi' ? 'e.g. ANG01' : 'e.g. GHS01, PUM01'}
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  onChange={(e) => setCode(e.target.value.toUpperCase())}
                   style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}
                 />
               </div>
@@ -351,7 +356,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
           </div>
 
           {/* CLASSES COVERED */}
-          {placeType !== 'anganwadi' && (
+          {placeType !== 'anganwadi' && placeType !== 'custom' && (
             <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -364,7 +369,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
                   </span>
                 </div>
                 <span style={{ fontSize: '11px', color: '#64748B' }}>
-                  {placeType === 'daycare' ? 'Select daycare / preschool level' : 'Enter classes manually (e.g. 1-8)'}
+                  {placeType === 'daycare' ? 'Select daycare / preschool level' : 'Enter classes covered (e.g. 1-10, 1-12, 1-8, 1-5)'}
                 </span>
               </div>
 
@@ -396,7 +401,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
                 ) : (
                   <input
                     type="text"
-                    placeholder="Enter classes manually (e.g. 1-8)..."
+                    placeholder="Enter classes (e.g. 1-10, 1-12, 1-8, 1-5)..."
                     value={manualClassesInput}
                     onChange={(e) => setManualClassesInput(e.target.value)}
                     style={{
@@ -419,7 +424,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
           )}
 
           {/* SECTIONS OFFERED */}
-          {placeType !== 'anganwadi' && (
+          {placeType !== 'anganwadi' && placeType !== 'custom' && (
             <div style={{ backgroundColor: '#F8FAFC', borderRadius: '12px', padding: '14px', border: '1px solid #E2E8F0' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -481,14 +486,32 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
               </div>
             </div>
           )}
+          </div>
 
           {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '12px', marginTop: '6px', borderTop: '1px solid #ECEEF2', paddingTop: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px', padding: '14px 20px', borderTop: '1px solid #ECEEF2', backgroundColor: '#FFFFFF', flexShrink: 0 }}>
             <button 
               type="button" 
               className="btn-secondary" 
               onClick={onClose} 
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={{
+                height: '38px',
+                padding: '0 20px',
+                minWidth: '95px',
+                borderRadius: '8px',
+                border: '1.5px solid #CBD5E1',
+                backgroundColor: '#FFFFFF',
+                color: '#475569',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F8FAFC')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
             >
               Cancel
             </button>
@@ -496,7 +519,27 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
               type="submit" 
               className="btn-primary" 
               disabled={loading}
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={{
+                height: '38px',
+                padding: '0 22px',
+                minWidth: '130px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: '#EA580C',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
+                boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#C2410C')}
+              onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#EA580C')}
             >
               {loading ? 'Saving...' : 'Save Changes'}
             </button>

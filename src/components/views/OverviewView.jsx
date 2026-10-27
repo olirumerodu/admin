@@ -216,7 +216,7 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
                     {school.name}
                   </div>
                   <div style={{ fontSize: '12px', color: '#64748B' }}>
-                    Cluster: {school.cluster_name || 'ERODE'} | Classes: {school.classes_range || '1-8'}
+                    Cluster: {school.cluster_name || 'ERODE'} | Classes: {school.classes_range || 'All Classes'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
