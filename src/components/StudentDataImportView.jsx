@@ -1663,34 +1663,70 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
         return;
       }
 
-      const payloadStudents = validRows.map(r => {
+      const schoolIdToUse = selectedSchoolObj?.id || selectedSchool;
+      if (!schoolIdToUse || schoolIdToUse === 'All Schools') {
+        alert('Please select a destination school before confirming import.');
+        setIsImporting(false);
+        return;
+      }
+
+      const payloadStudents = validRows.filter(r => r.name && String(r.name).trim().length > 0).map(r => {
         let dobStr = null;
-        if (r.dob && r.dob.includes('/')) {
-          const parts = r.dob.split('/');
-          if (parts.length === 3) {
-            dobStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        if (r.dob) {
+          const rawDobStr = String(r.dob).trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(rawDobStr)) {
+            dobStr = rawDobStr;
+          } else if (rawDobStr.includes('/')) {
+            const parts = rawDobStr.split('/');
+            if (parts.length === 3) {
+              if (parts[0].length === 4) {
+                dobStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              } else {
+                dobStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+            }
+          } else if (rawDobStr.includes('-')) {
+            const parts = rawDobStr.split('-');
+            if (parts.length === 3) {
+              if (parts[0].length === 4) {
+                dobStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              } else {
+                dobStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+            }
+          } else if (rawDobStr.includes('.')) {
+            const parts = rawDobStr.split('.');
+            if (parts.length === 3) {
+              if (parts[0].length === 4) {
+                dobStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+              } else {
+                dobStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+              }
+            }
           }
-        } else if (r.dob && r.dob.includes('-')) {
-          dobStr = r.dob;
         }
 
+        const parsedH = parseFloat(r.height);
+        const parsedW = parseFloat(r.weight);
+        const validH = (!isNaN(parsedH) && parsedH > 0) ? parsedH : null;
+        const validW = (!isNaN(parsedW) && parsedW > 0) ? parsedW : null;
+
         const isRowAbsent = String(r.attendance_status || '').toLowerCase() === 'absent' ||
-                            r.height === '-' || !r.height || isNaN(parseFloat(r.height)) ||
-                            r.weight === '-' || !r.weight || isNaN(parseFloat(r.weight));
+                            validH === null || validW === null;
+
         return {
-          name: r.name,
-          class_name: /^class/i.test(r.classVal) ? r.classVal : `Class ${r.classVal}`,
-          section: r.section || 'A',
+          name: String(r.name).trim(),
+          class_name: /^class/i.test(r.classVal) ? r.classVal : `Class ${r.classVal || '1'}`,
+          section: (r.section || 'A').trim().toUpperCase(),
           dob: dobStr,
-          gender: r.gender,
-          height_cm: isRowAbsent ? null : parseFloat(r.height),
-          weight_kg: isRowAbsent ? null : parseFloat(r.weight),
+          gender: r.gender || null,
+          height_cm: isRowAbsent ? null : validH,
+          weight_kg: isRowAbsent ? null : validW,
           attendance_status: isRowAbsent ? 'Absent' : 'Present',
           absent_reason: isRowAbsent ? (r.absent_reason || 'Absent on assessment date') : null,
         };
       });
 
-      const schoolIdToUse = selectedSchoolObj?.id || selectedSchool;
       const res = await api.bulkImportStudents(
         schoolIdToUse,
         payloadStudents,

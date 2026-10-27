@@ -523,23 +523,34 @@ export const api = {
    * Bulk Import Students directly to PostgreSQL Database
    */
   async bulkImportStudents(schoolId, students, fileName = 'Import_Data.xlsx', options = {}) {
+    const payload = {
+      school_id: schoolId || 'default-school',
+      students: Array.isArray(students) ? students : [],
+      file_name: fileName || 'Import_Data.xlsx',
+      academic_year: options.academicYear || '2026-2027',
+      assessment_date: options.assessmentDate || null,
+      auto_mark_absent: options.autoMarkAbsent !== false,
+    };
+
     const res = await fetch(`${API_BASE}/students/bulk-import`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({
-        school_id: schoolId,
-        students: students,
-        file_name: fileName,
-        academic_year: options.academicYear || '2026-2027',
-        assessment_date: options.assessmentDate || undefined,
-        auto_mark_absent: options.autoMarkAbsent !== false,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
-      let errorMsg = 'Failed to bulk import students';
+      let errorMsg = `Bulk import failed (Status: ${res.status})`;
       try {
         const err = await res.json();
-        errorMsg = err.detail || errorMsg;
+        if (typeof err.detail === 'string') {
+          errorMsg = err.detail;
+        } else if (Array.isArray(err.detail)) {
+          errorMsg = err.detail.map(d => {
+            const loc = Array.isArray(d.loc) ? d.loc.filter(l => l !== 'body').join('.') : '';
+            return loc ? `${loc}: ${d.msg}` : d.msg;
+          }).join('\n');
+        } else if (err.message) {
+          errorMsg = err.message;
+        }
       } catch (e) {
         try {
           const txt = await res.text();
