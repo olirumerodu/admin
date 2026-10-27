@@ -3907,29 +3907,6 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                       Showing {filteredCriticalStudents.length} students requiring upcoming monthly assessment
                     </p>
                   </div>
-                  <button
-                    onClick={handleSendUpcomingReminders}
-                    disabled={isSendingReminders || filteredCriticalStudents.length === 0}
-                    style={{
-                      backgroundColor: isSendingReminders ? '#94A3B8' : '#059669',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '8px 16px',
-                      fontSize: '12.5px',
-                      fontWeight: 700,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      cursor: isSendingReminders || filteredCriticalStudents.length === 0 ? 'not-allowed' : 'pointer',
-                      boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
-                      transition: 'all 0.2s ease'
-                    }}
-                    title="Send monthly assessment reminder email to health officers and broadcast alert to mobile app"
-                  >
-                    <Mail size={14} />
-                    <span>{isSendingReminders ? 'Sending Reminders...' : 'Send Schedule Reminders'}</span>
-                  </button>
                 </div>
 
                 <div style={{ overflowX: 'auto', border: '1px solid #F1F5F9', borderRadius: '8px' }}>
