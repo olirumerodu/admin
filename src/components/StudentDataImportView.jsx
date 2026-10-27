@@ -127,10 +127,20 @@ function validateStudentRow(row) {
     errors.push('DOB missing');
   }
 
-  const isAbsent = row.attendance_status === 'Absent';
+  const rawH = String(row.height || '').trim();
+  const rawW = String(row.weight || '').trim();
+  const rawAtt = String(row.attendance_status || '').trim();
+
+  // Dynamically detect if student is absent (from attendance column, or if height/weight says 'Absent' / 'AB' / 'A' / 'Leave')
+  const isAbsentCell = (val) => {
+    if (!val) return false;
+    const s = String(val).trim();
+    return /^(absent|absentee|ab|a|leave)$/i.test(s) || /absent/i.test(s);
+  };
+
+  const isAbsent = isAbsentCell(rawAtt) || isAbsentCell(rawH) || isAbsentCell(rawW);
+
   if (!isAbsent) {
-    const rawH = String(row.height || '').trim();
-    const rawW = String(row.weight || '').trim();
     const h = parseFloat(rawH);
     const w = parseFloat(rawW);
 
@@ -148,6 +158,10 @@ function validateStudentRow(row) {
     name: cleanName,
     classVal: cleanClass,
     gender: cleanGender ? (cleanGender.charAt(0).toUpperCase() + cleanGender.slice(1)) : '',
+    attendance_status: isAbsent ? 'Absent' : 'Present',
+    height: isAbsent ? '-' : rawH,
+    weight: isAbsent ? '-' : rawW,
+    absent_reason: isAbsent ? (row.absent_reason || (isAbsentCell(rawAtt) ? rawAtt : (isAbsentCell(rawH) ? rawH : 'Marked absent in spreadsheet'))) : null,
     status: isValid ? 'Valid' : 'Invalid',
     error: isValid ? '-' : errors.join(', ')
   };
@@ -161,9 +175,12 @@ function EditImportRowModal({ row, onClose, onSave }) {
   const [section, setSection] = useState(row.section || 'A');
   const [gender, setGender] = useState(row.gender || '');
   const [dob, setDob] = useState(row.dob === '-' ? '' : (row.dob || ''));
-  const [attendance, setAttendance] = useState(row.attendance_status || 'Present');
-  const [height, setHeight] = useState(row.height === '-' ? '' : (row.height || ''));
-  const [weight, setWeight] = useState(row.weight === '-' ? '' : (row.weight || ''));
+  const isAbsentInit = String(row.attendance_status || '').toLowerCase() === 'absent' ||
+                       /absent|^ab$|^a$/i.test(String(row.height || '')) ||
+                       /absent|^ab$|^a$/i.test(String(row.weight || ''));
+  const [attendance, setAttendance] = useState(isAbsentInit ? 'Absent' : (row.attendance_status || 'Present'));
+  const [height, setHeight] = useState(isAbsentInit || row.height === '-' ? '' : (row.height || ''));
+  const [weight, setWeight] = useState(isAbsentInit || row.weight === '-' ? '' : (row.weight || ''));
   const [absentReason, setAbsentReason] = useState(row.absent_reason || '');
   const [validationError, setValidationError] = useState('');
 
@@ -1480,7 +1497,13 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
         const rawWeight = weightKey && r[weightKey] !== undefined && String(r[weightKey]).trim() !== '' ? String(r[weightKey]).trim() : '';
         const rawAttend = attendKey && r[attendKey] !== undefined ? String(r[attendKey]).trim() : '';
 
-        const isAbsent = /absent|^ab$/i.test(rawAttend);
+        const isAbsentCell = (val) => {
+          if (!val) return false;
+          const s = String(val).trim();
+          return /^(absent|absentee|ab|a|leave)$/i.test(s) || /absent/i.test(s);
+        };
+
+        const isAbsent = isAbsentCell(rawAttend) || isAbsentCell(rawHeight) || isAbsentCell(rawWeight);
 
         const initialRow = {
           row: index + 1,
@@ -1492,7 +1515,7 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
           height: isAbsent ? '-' : rawHeight,
           weight: isAbsent ? '-' : rawWeight,
           attendance_status: isAbsent ? 'Absent' : 'Present',
-          absent_reason: isAbsent ? (rawAttend || 'Marked absent in spreadsheet') : null,
+          absent_reason: isAbsent ? (rawAttend || (isAbsentCell(rawHeight) ? rawHeight : (isAbsentCell(rawWeight) ? rawWeight : 'Marked absent in spreadsheet'))) : null,
         };
 
         return validateStudentRow(initialRow);
@@ -1651,15 +1674,17 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
           dobStr = r.dob;
         }
 
-        const isRowAbsent = r.attendance_status === 'Absent';
+        const isRowAbsent = String(r.attendance_status || '').toLowerCase() === 'absent' ||
+                            r.height === '-' || !r.height || isNaN(parseFloat(r.height)) ||
+                            r.weight === '-' || !r.weight || isNaN(parseFloat(r.weight));
         return {
           name: r.name,
-          class_name: `Class ${r.classVal}`,
+          class_name: /^class/i.test(r.classVal) ? r.classVal : `Class ${r.classVal}`,
           section: r.section || 'A',
           dob: dobStr,
           gender: r.gender,
-          height_cm: isRowAbsent || !r.height || r.height === '-' ? null : parseFloat(r.height),
-          weight_kg: isRowAbsent || !r.weight || r.weight === '-' ? null : parseFloat(r.weight),
+          height_cm: isRowAbsent ? null : parseFloat(r.height),
+          weight_kg: isRowAbsent ? null : parseFloat(r.weight),
           attendance_status: isRowAbsent ? 'Absent' : 'Present',
           absent_reason: isRowAbsent ? (r.absent_reason || 'Absent on assessment date') : null,
         };
