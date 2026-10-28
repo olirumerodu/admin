@@ -1489,33 +1489,19 @@ export default function StudentsManagementView({ initialSearch = '' }) {
               (statusLower === 'wasted' || nutrLower === 'wasted' || statusLower.includes('thinness') || nutrLower.includes('thinness') || (typeof s.bmiZScore === 'number' && s.bmiZScore < -2.0 && s.bmiZScore >= -3.0)) &&
               !statusLower.includes('severe') && !nutrLower.includes('severe')
             );
-          } else if (statusFilter === 'Severely Stunted') {
+          } else if (statusFilter === 'Stunted' || statusFilter === 'Severely Stunted') {
             matchesHealth = (
-              statusLower.includes('severely stunted') ||
-              statusLower.includes('severe stunting') ||
-              nutrLower.includes('severely stunted') ||
-              nutrLower.includes('severe stunting') ||
-              (heightClassLower.includes('severe') && heightClassLower.includes('stunt')) ||
-              (typeof s.heightZScore === 'number' && s.heightZScore < -3.0)
+              statusLower.includes('stunt') ||
+              nutrLower.includes('stunt') ||
+              heightClassLower.includes('stunt') ||
+              (typeof s.heightZScore === 'number' && s.heightZScore < -2.0)
             );
-          } else if (statusFilter === 'Stunted') {
+          } else if (statusFilter === 'Underweight' || statusFilter === 'Severely Underweight') {
             matchesHealth = (
-              (statusLower.includes('stunted') || statusLower.includes('stunting') || nutrLower.includes('stunted') || nutrLower.includes('stunting') || heightClassLower.includes('stunt') || (typeof s.heightZScore === 'number' && s.heightZScore < -2.0 && s.heightZScore >= -3.0)) &&
-              !statusLower.includes('severe') && !nutrLower.includes('severe') && !heightClassLower.includes('severe')
-            );
-          } else if (statusFilter === 'Severely Underweight') {
-            matchesHealth = (
-              statusLower.includes('severely underweight') ||
-              statusLower.includes('severe underweight') ||
-              nutrLower.includes('severely underweight') ||
-              nutrLower.includes('severe underweight') ||
-              (weightClassLower.includes('severe') && weightClassLower.includes('underweight')) ||
-              (typeof s.weightZScore === 'number' && s.weightZScore < -3.0)
-            );
-          } else if (statusFilter === 'Underweight') {
-            matchesHealth = (
-              (statusLower.includes('underweight') || nutrLower.includes('underweight') || weightClassLower.includes('underweight') || (typeof s.weightZScore === 'number' && s.weightZScore < -2.0 && s.weightZScore >= -3.0)) &&
-              !statusLower.includes('severe') && !nutrLower.includes('severe') && !weightClassLower.includes('severe')
+              statusLower.includes('underweight') ||
+              nutrLower.includes('underweight') ||
+              weightClassLower.includes('underweight') ||
+              (typeof s.weightZScore === 'number' && s.weightZScore < -2.0)
             );
           } else if (statusFilter === 'Pending Assessment') {
             matchesHealth = (
@@ -4560,9 +4546,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                     <option value="Wasted">Wasted</option>
                     <option value="Severely Wasted">Severely Wasted</option>
                     <option value="Stunted">Stunted</option>
-                    <option value="Severely Stunted">Severely Stunted</option>
                     <option value="Underweight">Underweight</option>
-                    <option value="Severely Underweight">Severely Underweight</option>
                     <option value="Overweight">Overweight (incl. Obesity)</option>
                     <option value="Pending Assessment">Pending Assessment</option>
                     <option value="Absent">Absent</option>
