@@ -206,8 +206,12 @@ export default function ReportsAnalyticsView() {
         const nut = String(st.nutrition_status || '').toLowerCase();
         const cat = selectedHealthCategory.toLowerCase();
         if (cat === 'normal' && !nut.includes('normal')) return false;
-        if (cat === 'severely wasted' && !nut.includes('severe')) return false;
+        if (cat === 'severely wasted' && (!nut.includes('severe') || (!nut.includes('wasted') && !nut.includes('thinness')))) return false;
         if (cat === 'wasted' && (!nut.includes('wasted') && !nut.includes('thinness') || nut.includes('severe'))) return false;
+        if (cat === 'severely stunted' && (!nut.includes('severe') || !nut.includes('stunt'))) return false;
+        if (cat === 'stunted' && (!nut.includes('stunt') || nut.includes('severe'))) return false;
+        if (cat === 'severely underweight' && (!nut.includes('severe') || !nut.includes('underweight'))) return false;
+        if (cat === 'underweight' && (!nut.includes('underweight') || nut.includes('severe'))) return false;
         if (cat === 'overweight' && (!nut.includes('overweight') && !nut.includes('obese') && !nut.includes('obesity'))) return false;
       }
       return true;
@@ -829,7 +833,11 @@ export default function ReportsAnalyticsView() {
                   <option value="Normal">Normal</option>
                   <option value="Wasted">Wasted</option>
                   <option value="Severely Wasted">Severely Wasted</option>
-                  <option value="Overweight">Overweight</option>
+                  <option value="Stunted">Stunted</option>
+                  <option value="Severely Stunted">Severely Stunted</option>
+                  <option value="Underweight">Underweight</option>
+                  <option value="Severely Underweight">Severely Underweight</option>
+                  <option value="Overweight">Overweight (incl. Obesity)</option>
                 </select>
               </div>
             </div>

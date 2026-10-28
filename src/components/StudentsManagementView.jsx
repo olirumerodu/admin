@@ -58,45 +58,54 @@ import EditStudentModal from './EditStudentModal';
 
 // Authoritative WHO Nutrition Status Styling Helpers
 export const getNutritionStatusColor = (status) => {
-  switch (status) {
-    case 'Severely Wasted': return '#DC2626';
-    case 'Wasted': return '#EA580C';
-    case 'Overweight': return '#D97706';
-    case 'Obesity': return '#D97706';
-    case 'Normal': return '#16A34A';
-    case 'Absent': return '#D97706';
-    case 'TC Issued': return '#DC2626';
-    case 'Graduated': return '#7C3AED';
-    default: return '#64748B';
-  }
+  const s = String(status || '').toLowerCase().trim();
+  if (s.includes('severely wasted') || s.includes('severe thinness')) return '#DC2626';
+  if (s.includes('wasted') || s.includes('thinness')) return '#EA580C';
+  
+  if (s.includes('stunted') || s.includes('stunting')) return '#D97706';
+  
+  if (s.includes('underweight')) return '#EA580C';
+  if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) return '#D97706';
+  if (s.includes('normal')) return '#16A34A';
+  if (s.includes('absent')) return '#D97706';
+  if (s.includes('tc issued')) return '#DC2626';
+  if (s.includes('graduated')) return '#7C3AED';
+  if (s.includes('pending')) return '#64748B';
+  return '#64748B';
 };
 
 export const getNutritionStatusBg = (status) => {
-  switch (status) {
-    case 'Severely Wasted': return '#FEE2E2';
-    case 'Wasted': return '#FFEDD5';
-    case 'Overweight': return '#FEF3C7';
-    case 'Obesity': return '#FEF3C7';
-    case 'Normal': return '#DCFCE7';
-    case 'Absent': return '#FEF3C7';
-    case 'TC Issued': return '#FEF2F2';
-    case 'Graduated': return '#F5F3FF';
-    default: return '#F1F5F9';
-  }
+  const s = String(status || '').toLowerCase().trim();
+  if (s.includes('severely wasted') || s.includes('severe thinness')) return '#FEE2E2';
+  if (s.includes('wasted') || s.includes('thinness')) return '#FFEDD5';
+  if (s.includes('severely stunted') || s.includes('severe stunting')) return '#FEE2E2';
+  if (s.includes('stunted') || s.includes('stunting')) return '#FEF3C7';
+  if (s.includes('severely underweight')) return '#FEE2E2';
+  if (s.includes('underweight')) return '#FFEDD5';
+  if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) return '#FEF3C7';
+  if (s.includes('normal')) return '#DCFCE7';
+  if (s.includes('absent')) return '#FEF3C7';
+  if (s.includes('tc issued')) return '#FEF2F2';
+  if (s.includes('graduated')) return '#F5F3FF';
+  if (s.includes('pending')) return '#F1F5F9';
+  return '#F1F5F9';
 };
 
 export const getNutritionStatusBorder = (status) => {
-  switch (status) {
-    case 'Severely Wasted': return '#FCA5A5';
-    case 'Wasted': return '#FDBA74';
-    case 'Overweight': return '#FCD34D';
-    case 'Obesity': return '#FCD34D';
-    case 'Normal': return '#86EFAC';
-    case 'Absent': return '#FCD34D';
-    case 'TC Issued': return '#FECACA';
-    case 'Graduated': return '#DDD6FE';
-    default: return '#CBD5E1';
-  }
+  const s = String(status || '').toLowerCase().trim();
+  if (s.includes('severely wasted') || s.includes('severe thinness')) return '#FCA5A5';
+  if (s.includes('wasted') || s.includes('thinness')) return '#FDBA74';
+  if (s.includes('severely stunted') || s.includes('severe stunting')) return '#FCA5A5';
+  if (s.includes('stunted') || s.includes('stunting')) return '#FCD34D';
+  if (s.includes('severely underweight')) return '#FCA5A5';
+  if (s.includes('underweight')) return '#FDBA74';
+  if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) return '#FCD34D';
+  if (s.includes('normal')) return '#86EFAC';
+  if (s.includes('absent')) return '#FCD34D';
+  if (s.includes('tc issued')) return '#FECACA';
+  if (s.includes('graduated')) return '#DDD6FE';
+  if (s.includes('pending')) return '#CBD5E1';
+  return '#CBD5E1';
 };
 
 // Responsive width hook
@@ -624,6 +633,14 @@ export default function StudentsManagementView({ initialSearch = '' }) {
             authoritativeStatus = 'Severely Wasted';
           } else if (scLower.includes('wasted') || scLower.includes('thinness')) {
             authoritativeStatus = 'Wasted';
+          } else if (scLower.includes('severely stunted') || scLower.includes('severe stunting')) {
+            authoritativeStatus = 'Severely Stunted';
+          } else if (scLower.includes('stunted') || scLower.includes('stunting')) {
+            authoritativeStatus = 'Stunted';
+          } else if (scLower.includes('severely underweight') || scLower.includes('severe underweight')) {
+            authoritativeStatus = 'Severely Underweight';
+          } else if (scLower.includes('underweight')) {
+            authoritativeStatus = 'Underweight';
           } else if (scLower.includes('obesity') || scLower.includes('obese') || scLower.includes('overweight')) {
             authoritativeStatus = 'Overweight';
           } else if (scLower.includes('normal') || scLower.includes('healthy')) {
@@ -724,6 +741,8 @@ export default function StudentsManagementView({ initialSearch = '' }) {
         bmiZScore: bmiZ,
         heightZScore: heightZ,
         weightZScore: weightZ,
+        heightClassification: s.latest_height_for_age_classification || s.height_classification || latestA?.height_for_age_classification || latestA?.height_classification || '',
+        weightClassification: s.latest_weight_for_age_classification || s.weight_classification || latestA?.weight_for_age_classification || latestA?.weight_classification || '',
         ageDisplay: s.age_string || s.latest_age_display || '',
         enrollmentStatus: s.enrollment_status || 'Active',
         academicYear: s.academic_year || `${currentDate.getFullYear()}-${currentDate.getFullYear() + 1}`,
@@ -1380,18 +1399,39 @@ export default function StudentsManagementView({ initialSearch = '' }) {
   };
 
   const getStatusBadge = (status) => {
-    const s = String(status || 'Normal').toLowerCase();
+    const s = String(status || 'Normal').toLowerCase().trim();
     if (s.includes('severely wasted') || s.includes('severe thinness')) {
       return { bg: '#FEF2F2', text: '#DC2626', label: 'Severely Wasted' };
     }
     if (s.includes('wasted') || s.includes('thinness')) {
-      return { bg: '#FFF7ED', text: '#D97706', label: 'Wasted' };
+      return { bg: '#FFF7ED', text: '#EA580C', label: 'Wasted' };
+    }
+    if (s.includes('severely stunted') || s.includes('severe stunting')) {
+      return { bg: '#FEF2F2', text: '#DC2626', label: 'Severely Stunted' };
+    }
+    if (s.includes('stunted') || s.includes('stunting')) {
+      return { bg: '#FEF3C7', text: '#D97706', label: 'Stunted' };
+    }
+    if (s.includes('severely underweight')) {
+      return { bg: '#FEF2F2', text: '#DC2626', label: 'Severely Underweight' };
+    }
+    if (s.includes('underweight')) {
+      return { bg: '#FFEDD5', text: '#EA580C', label: 'Underweight' };
     }
     if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) {
       return { bg: '#FEF3C7', text: '#D97706', label: 'Overweight' };
     }
     if (s.includes('absent')) {
-      return { bg: '#F1F5F9', text: '#64748B', label: 'Absent' };
+      return { bg: '#FEF3C7', text: '#D97706', label: 'Absent' };
+    }
+    if (s.includes('pending')) {
+      return { bg: '#F1F5F9', text: '#64748B', label: 'Pending Assessment' };
+    }
+    if (s.includes('tc issued')) {
+      return { bg: '#FEF2F2', text: '#DC2626', label: 'TC Issued' };
+    }
+    if (s.includes('graduated')) {
+      return { bg: '#F5F3FF', text: '#7C3AED', label: 'Graduated' };
     }
     return { bg: '#ECFDF5', text: '#059669', label: 'Normal' };
   };
@@ -1417,11 +1457,93 @@ export default function StudentsManagementView({ initialSearch = '' }) {
           // Non-active students (Graduated or TC Issued) must NEVER appear under active health categories!
           if (s.enrollmentStatus === 'Graduated' || s.enrollmentStatus === 'TC Issued') return false;
 
-          const matchesHealth =
-            (statusFilter === 'Overweight' && (s.currentStatus === 'Overweight' || s.currentStatus === 'Obesity' || s.nutritionStatus === 'Overweight' || s.nutritionStatus === 'Obesity')) ||
-            s.currentStatus === statusFilter ||
-            s.healthStatus === statusFilter ||
-            s.nutritionStatus === statusFilter;
+          let matchesHealth = false;
+          const statusLower = String(s.currentStatus || '').toLowerCase().trim();
+          const nutrLower = String(s.nutritionStatus || '').toLowerCase().trim();
+          const heightClassLower = String(s.heightClassification || '').toLowerCase().trim();
+          const weightClassLower = String(s.weightClassification || '').toLowerCase().trim();
+
+          if (statusFilter === 'Overweight') {
+            // Note: obesity comes in overweight category
+            matchesHealth = (
+              statusLower.includes('overweight') ||
+              statusLower.includes('obesity') ||
+              statusLower.includes('obese') ||
+              nutrLower.includes('overweight') ||
+              nutrLower.includes('obesity') ||
+              nutrLower.includes('obese') ||
+              (typeof s.bmiZScore === 'number' && s.bmiZScore > 1.0)
+            );
+          } else if (statusFilter === 'Severely Wasted') {
+            matchesHealth = (
+              s.isSeverelyWasted ||
+              statusLower.includes('severely wasted') ||
+              statusLower.includes('severe thinness') ||
+              nutrLower.includes('severely wasted') ||
+              nutrLower.includes('severe thinness') ||
+              (typeof s.bmiZScore === 'number' && s.bmiZScore < -3.0)
+            );
+          } else if (statusFilter === 'Wasted') {
+            matchesHealth = (
+              !s.isSeverelyWasted &&
+              (statusLower === 'wasted' || nutrLower === 'wasted' || statusLower.includes('thinness') || nutrLower.includes('thinness') || (typeof s.bmiZScore === 'number' && s.bmiZScore < -2.0 && s.bmiZScore >= -3.0)) &&
+              !statusLower.includes('severe') && !nutrLower.includes('severe')
+            );
+          } else if (statusFilter === 'Severely Stunted') {
+            matchesHealth = (
+              statusLower.includes('severely stunted') ||
+              statusLower.includes('severe stunting') ||
+              nutrLower.includes('severely stunted') ||
+              nutrLower.includes('severe stunting') ||
+              (heightClassLower.includes('severe') && heightClassLower.includes('stunt')) ||
+              (typeof s.heightZScore === 'number' && s.heightZScore < -3.0)
+            );
+          } else if (statusFilter === 'Stunted') {
+            matchesHealth = (
+              (statusLower.includes('stunted') || statusLower.includes('stunting') || nutrLower.includes('stunted') || nutrLower.includes('stunting') || heightClassLower.includes('stunt') || (typeof s.heightZScore === 'number' && s.heightZScore < -2.0 && s.heightZScore >= -3.0)) &&
+              !statusLower.includes('severe') && !nutrLower.includes('severe') && !heightClassLower.includes('severe')
+            );
+          } else if (statusFilter === 'Severely Underweight') {
+            matchesHealth = (
+              statusLower.includes('severely underweight') ||
+              statusLower.includes('severe underweight') ||
+              nutrLower.includes('severely underweight') ||
+              nutrLower.includes('severe underweight') ||
+              (weightClassLower.includes('severe') && weightClassLower.includes('underweight')) ||
+              (typeof s.weightZScore === 'number' && s.weightZScore < -3.0)
+            );
+          } else if (statusFilter === 'Underweight') {
+            matchesHealth = (
+              (statusLower.includes('underweight') || nutrLower.includes('underweight') || weightClassLower.includes('underweight') || (typeof s.weightZScore === 'number' && s.weightZScore < -2.0 && s.weightZScore >= -3.0)) &&
+              !statusLower.includes('severe') && !nutrLower.includes('severe') && !weightClassLower.includes('severe')
+            );
+          } else if (statusFilter === 'Pending Assessment') {
+            matchesHealth = (
+              statusLower.includes('pending') ||
+              nutrLower.includes('pending') ||
+              !s.latestAssessment ||
+              s.latestAssessment === 'Pending' ||
+              s.latestAssessment === 'None' ||
+              (!s.height && !s.weight)
+            ) && !s.isAbsentRecord && statusLower !== 'absent';
+          } else if (statusFilter === 'Absent') {
+            matchesHealth = (
+              s.isAbsentRecord ||
+              statusLower === 'absent' ||
+              nutrLower === 'absent'
+            );
+          } else if (statusFilter === 'Normal') {
+            matchesHealth = (
+              (statusLower === 'normal' || nutrLower === 'normal' || (typeof s.bmiZScore === 'number' && s.bmiZScore >= -2.0 && s.bmiZScore <= 1.0)) &&
+              !s.isAbsentRecord && statusLower !== 'absent'
+            );
+          } else {
+            matchesHealth = (
+              s.currentStatus === statusFilter ||
+              s.healthStatus === statusFilter ||
+              s.nutritionStatus === statusFilter
+            );
+          }
           if (!matchesHealth) return false;
 
           if (enrollmentStatusFilter !== 'All' && (s.enrollmentStatus || 'Active') !== enrollmentStatusFilter) return false;
@@ -4437,7 +4559,12 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                     <option value="Normal">Normal</option>
                     <option value="Wasted">Wasted</option>
                     <option value="Severely Wasted">Severely Wasted</option>
-                    <option value="Overweight">Overweight</option>
+                    <option value="Stunted">Stunted</option>
+                    <option value="Severely Stunted">Severely Stunted</option>
+                    <option value="Underweight">Underweight</option>
+                    <option value="Severely Underweight">Severely Underweight</option>
+                    <option value="Overweight">Overweight (incl. Obesity)</option>
+                    <option value="Pending Assessment">Pending Assessment</option>
                     <option value="Absent">Absent</option>
                     <option value="TC Issued">TC Issued</option>
                     <option value="Graduated">Graduated</option>
