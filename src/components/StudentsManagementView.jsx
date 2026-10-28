@@ -613,9 +613,13 @@ export default function StudentsManagementView({ initialSearch = '' }) {
       // Authoritative WHO classification strictly from assessment data and database
       const rawStatus = s.nutrition_status || latestA?.nutrition_status || null;
       const rawClassification = s.latest_bmi_for_age_classification || latestA?.bmi_for_age_classification || null;
+      const rawHeightClass = s.latest_height_classification || s.height_classification || latestA?.height_for_age_classification || latestA?.height_classification || '';
+      const rawWeightClass = s.latest_weight_classification || s.weight_classification || latestA?.weight_for_age_classification || latestA?.weight_classification || '';
       const rawZ = typeof s.latest_bmi_for_age_zscore === 'number'
         ? s.latest_bmi_for_age_zscore
         : (typeof latestA?.bmi_for_age_zscore === 'number' ? latestA.bmi_for_age_zscore : null);
+      const heightZ = typeof s.latest_height_for_age_zscore === 'number' ? s.latest_height_for_age_zscore : (typeof latestA?.height_for_age_zscore === 'number' ? latestA.height_for_age_zscore : null);
+      const weightZ = typeof s.latest_weight_for_age_zscore === 'number' ? s.latest_weight_for_age_zscore : (typeof latestA?.weight_for_age_zscore === 'number' ? latestA.weight_for_age_zscore : null);
 
       const isAbsentRecord = (s.latest_attendance_status && s.latest_attendance_status.toLowerCase() === 'absent') ||
         (latestA?.attendance_status && latestA.attendance_status.toLowerCase() === 'absent') ||
@@ -625,49 +629,74 @@ export default function StudentsManagementView({ initialSearch = '' }) {
       if (isAbsentRecord) {
         authoritativeStatus = 'Absent';
       } else {
-        const statusCandidate = rawClassification || rawStatus;
+        const scLower = String(rawClassification || rawStatus || '').toLowerCase().trim();
+        const rsLower = String(rawStatus || '').toLowerCase().trim();
+        const hcLower = String(rawHeightClass || '').toLowerCase().trim();
+        const wcLower = String(rawWeightClass || '').toLowerCase().trim();
+        const hasZ = typeof rawZ === 'number' && !isNaN(rawZ);
+        const hasHZ = typeof heightZ === 'number' && !isNaN(heightZ);
+        const hasWZ = typeof weightZ === 'number' && !isNaN(weightZ);
+        const hasMeasurements = (s.height_cm > 0 && s.weight_kg > 0) || (latestA?.height_cm > 0 && latestA?.weight_kg > 0);
 
-        if (statusCandidate && statusCandidate !== 'Pending Calculation' && statusCandidate !== 'Pending Assessment') {
-          const scLower = statusCandidate.toLowerCase().trim();
-          if (scLower.includes('severely wasted') || scLower.includes('severe thinness')) {
-            authoritativeStatus = 'Severely Wasted';
-          } else if (scLower.includes('wasted') || scLower.includes('thinness')) {
-            authoritativeStatus = 'Wasted';
-          } else if (scLower.includes('severely stunted') || scLower.includes('severe stunting')) {
-            authoritativeStatus = 'Severely Stunted';
-          } else if (scLower.includes('stunted') || scLower.includes('stunting')) {
-            authoritativeStatus = 'Stunted';
-          } else if (scLower.includes('severely underweight') || scLower.includes('severe underweight')) {
-            authoritativeStatus = 'Severely Underweight';
-          } else if (scLower.includes('underweight')) {
-            authoritativeStatus = 'Underweight';
-          } else if (scLower.includes('obesity') || scLower.includes('obese') || scLower.includes('overweight')) {
-            authoritativeStatus = 'Overweight';
-          } else if (scLower.includes('normal') || scLower.includes('healthy')) {
-            authoritativeStatus = 'Normal';
-          }
+        // 1. Acute malnutrition (Severe): Severely Wasted
+        if (
+          scLower.includes('severely wasted') || scLower.includes('severe thinness') ||
+          (hasZ && rawZ < -3.0)
+        ) {
+          authoritativeStatus = 'Severely Wasted';
         }
-
-        // If status candidate didn't resolve to a standard category or we have a z-score
-        if (typeof rawZ === 'number' && !isNaN(rawZ)) {
-          if (rawZ < -3.0) authoritativeStatus = 'Severely Wasted';
-          else if (rawZ < -2.0) authoritativeStatus = 'Wasted';
-          else if (rawZ <= 1.0) authoritativeStatus = 'Normal';
-          else authoritativeStatus = 'Overweight';
-        } else if (authoritativeStatus === 'Pending Assessment' && (hasAssessments || (assessDate && assessDate !== 'Pending' && assessDate !== 'None'))) {
+        // 2. Acute malnutrition (Moderate): Wasted
+        else if (
+          scLower.includes('wasted') || scLower.includes('thinness') ||
+          (hasZ && rawZ < -2.0)
+        ) {
+          authoritativeStatus = 'Wasted';
+        }
+        // 3. Chronic malnutrition: Stunted (includes Severely Stunted, since severely stunted is grouped/hidden)
+        else if (
+          rsLower.includes('stunt') || scLower.includes('stunt') || hcLower.includes('stunt') ||
+          (hasHZ && heightZ < -2.0)
+        ) {
+          authoritativeStatus = 'Stunted';
+        }
+        // 4. Underweight (includes Severely Underweight, since severely underweight is grouped/hidden)
+        else if (
+          rsLower.includes('underweight') || scLower.includes('underweight') || wcLower.includes('underweight') ||
+          (hasWZ && weightZ < -2.0)
+        ) {
+          authoritativeStatus = 'Underweight';
+        }
+        // 5. Overweight & Obesity (grouped under Overweight as requested: "obesity comes in overweight category")
+        else if (
+          rsLower.includes('obesity') || rsLower.includes('obese') || rsLower.includes('overweight') ||
+          scLower.includes('obesity') || scLower.includes('obese') || scLower.includes('overweight') ||
+          (hasZ && rawZ > 1.0)
+        ) {
+          authoritativeStatus = 'Overweight';
+        }
+        // 6. Normal (measurements or assessment present, and none of the malnutrition or overweight criteria met)
+        else if (
+          hasZ || hasMeasurements || hasAssessments ||
+          (assessDate && assessDate !== 'Pending' && assessDate !== 'None') ||
+          rsLower.includes('normal') || scLower.includes('normal')
+        ) {
           authoritativeStatus = 'Normal';
+        }
+        // 7. Otherwise: Pending Assessment
+        else {
+          authoritativeStatus = 'Pending Assessment';
         }
       }
 
       const currentStatus = authoritativeStatus;
       const healthStatus = authoritativeStatus;
       const bmiZ = typeof rawZ === 'number' ? rawZ : null;
-      const heightZ = typeof s.latest_height_for_age_zscore === 'number' ? s.latest_height_for_age_zscore : (typeof latestA?.height_for_age_zscore === 'number' ? latestA.height_for_age_zscore : null);
-      const weightZ = typeof s.latest_weight_for_age_zscore === 'number' ? s.latest_weight_for_age_zscore : (typeof latestA?.weight_for_age_zscore === 'number' ? latestA.weight_for_age_zscore : null);
 
       const isSeverelyWasted = authoritativeStatus === 'Severely Wasted';
       const isWasted = authoritativeStatus === 'Wasted';
-      const isOverweight = authoritativeStatus === 'Overweight';
+      const isStunted = authoritativeStatus === 'Stunted' || authoritativeStatus === 'Severely Stunted';
+      const isUnderweight = authoritativeStatus === 'Underweight' || authoritativeStatus === 'Severely Underweight';
+      const isOverweight = authoritativeStatus === 'Overweight' || authoritativeStatus === 'Obesity';
       const isObesity = authoritativeStatus === 'Obesity';
       const isNormal = authoritativeStatus === 'Normal';
       const isCritical = isSeverelyWasted || isWasted;
@@ -1460,74 +1489,61 @@ export default function StudentsManagementView({ initialSearch = '' }) {
           let matchesHealth = false;
           const statusLower = String(s.currentStatus || '').toLowerCase().trim();
           const nutrLower = String(s.nutritionStatus || '').toLowerCase().trim();
-          const heightClassLower = String(s.heightClassification || '').toLowerCase().trim();
-          const weightClassLower = String(s.weightClassification || '').toLowerCase().trim();
 
           if (statusFilter === 'Overweight') {
             // Note: obesity comes in overweight category
             matchesHealth = (
-              statusLower.includes('overweight') ||
-              statusLower.includes('obesity') ||
+              statusLower === 'overweight' ||
+              statusLower === 'obesity' ||
               statusLower.includes('obese') ||
-              nutrLower.includes('overweight') ||
-              nutrLower.includes('obesity') ||
-              nutrLower.includes('obese') ||
-              (typeof s.bmiZScore === 'number' && s.bmiZScore > 1.0)
+              statusLower.includes('overweight')
             );
           } else if (statusFilter === 'Severely Wasted') {
             matchesHealth = (
               s.isSeverelyWasted ||
+              statusLower === 'severely wasted' ||
               statusLower.includes('severely wasted') ||
-              statusLower.includes('severe thinness') ||
-              nutrLower.includes('severely wasted') ||
-              nutrLower.includes('severe thinness') ||
-              (typeof s.bmiZScore === 'number' && s.bmiZScore < -3.0)
+              statusLower.includes('severe thinness')
             );
           } else if (statusFilter === 'Wasted') {
             matchesHealth = (
-              !s.isSeverelyWasted &&
-              (statusLower === 'wasted' || nutrLower === 'wasted' || statusLower.includes('thinness') || nutrLower.includes('thinness') || (typeof s.bmiZScore === 'number' && s.bmiZScore < -2.0 && s.bmiZScore >= -3.0)) &&
-              !statusLower.includes('severe') && !nutrLower.includes('severe')
-            );
+              s.isWasted ||
+              statusLower === 'wasted' ||
+              (statusLower.includes('thinness') && !statusLower.includes('severe'))
+            ) && !statusLower.includes('severely');
           } else if (statusFilter === 'Stunted' || statusFilter === 'Severely Stunted') {
             matchesHealth = (
-              statusLower.includes('stunt') ||
-              nutrLower.includes('stunt') ||
-              heightClassLower.includes('stunt') ||
-              (typeof s.heightZScore === 'number' && s.heightZScore < -2.0)
+              s.isStunted ||
+              statusLower === 'stunted' ||
+              statusLower === 'severely stunted' ||
+              statusLower.includes('stunt')
             );
           } else if (statusFilter === 'Underweight' || statusFilter === 'Severely Underweight') {
             matchesHealth = (
-              statusLower.includes('underweight') ||
-              nutrLower.includes('underweight') ||
-              weightClassLower.includes('underweight') ||
-              (typeof s.weightZScore === 'number' && s.weightZScore < -2.0)
+              s.isUnderweight ||
+              statusLower === 'underweight' ||
+              statusLower === 'severely underweight' ||
+              statusLower.includes('underweight')
             );
           } else if (statusFilter === 'Pending Assessment') {
             matchesHealth = (
-              statusLower.includes('pending') ||
-              nutrLower.includes('pending') ||
-              !s.latestAssessment ||
-              s.latestAssessment === 'Pending' ||
-              s.latestAssessment === 'None' ||
-              (!s.height && !s.weight)
+              statusLower === 'pending assessment' ||
+              statusLower.includes('pending')
             ) && !s.isAbsentRecord && statusLower !== 'absent';
           } else if (statusFilter === 'Absent') {
             matchesHealth = (
               s.isAbsentRecord ||
-              statusLower === 'absent' ||
-              nutrLower === 'absent'
+              statusLower === 'absent'
             );
           } else if (statusFilter === 'Normal') {
             matchesHealth = (
-              (statusLower === 'normal' || nutrLower === 'normal' || (typeof s.bmiZScore === 'number' && s.bmiZScore >= -2.0 && s.bmiZScore <= 1.0)) &&
-              !s.isAbsentRecord && statusLower !== 'absent'
-            );
+              statusLower === 'normal'
+            ) && !s.isAbsentRecord && statusLower !== 'absent';
           } else {
             matchesHealth = (
+              statusLower === String(statusFilter).toLowerCase().trim() ||
               s.currentStatus === statusFilter ||
-              s.healthStatus === statusFilter ||
-              s.nutritionStatus === statusFilter
+              s.healthStatus === statusFilter
             );
           }
           if (!matchesHealth) return false;
@@ -5001,31 +5017,41 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="11" style={{ textAlign: 'center', padding: '40px 28px', color: '#64748B' }}>
+                        <td colSpan="11" style={{ textAlign: 'center', padding: '44px 28px', color: '#64748B' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-                            <span style={{ fontSize: '28px' }}>🔍</span>
-                            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0F172A' }}>
-                              No students match the current filter
+                            <span style={{ fontSize: '32px' }}>🔍</span>
+                            <div style={{ fontWeight: 800, fontSize: '16px', color: '#0F172A' }}>
+                              {statusFilter !== 'All Status' ? `No ${statusFilter} Students Found` : 'No students match the current filters'}
                             </div>
-                            {statusFilter !== 'All Status' && (
-                              <div style={{ fontSize: '12px', color: '#94A3B8' }}>
-                                You're filtering by <strong style={{ color: '#EA580C' }}>{statusFilter}</strong>.
-                                {' '}No students have this status in this school.
+                            {statusFilter !== 'All Status' ? (
+                              <div style={{ fontSize: '13px', color: '#64748B', maxWidth: '460px', lineHeight: 1.5 }}>
+                                There are no students in the <strong style={{ color: '#EA580C' }}>{statusFilter}</strong> category on the uploaded excel sheet or records for this school.
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: '13px', color: '#64748B', maxWidth: '460px', lineHeight: 1.5 }}>
+                                Try adjusting your search query or clear the active filters.
                               </div>
                             )}
                             <button
                               type="button"
                               onClick={handleClearStudentFilters}
                               style={{
-                                marginTop: '6px',
+                                marginTop: '8px',
                                 backgroundColor: '#FFF7ED',
                                 color: '#EA580C',
                                 border: '1px solid #FFEDD5',
                                 borderRadius: '8px',
-                                padding: '7px 16px',
+                                padding: '8px 18px',
                                 fontSize: '12px',
-                                fontWeight: 600,
-                                cursor: 'pointer'
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FFEDD5';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = '#FFF7ED';
                               }}
                             >
                               Clear All Filters — Show All {studentsData.length} Students
