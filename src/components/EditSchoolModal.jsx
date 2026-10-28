@@ -273,7 +273,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
                     : 'e.g. Government Higher Secondary School'
                 }
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s]/g, ''))}
                 style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}
                 required
               />
@@ -317,8 +317,7 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
 
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" style={{ fontSize: '12px', fontWeight: 700, marginBottom: '4px', display: 'block', color: '#334155' }}>
-                {placeType === 'anganwadi' ? 'Center Code / ID (Student ID Prefix)' : 'School Code / ID (Student ID Prefix)'}{' '}
-                <span style={{ fontSize: '11px', color: '#EA580C', fontWeight: 600 }}>(Student ID Prefix)</span>
+                {placeType === 'anganwadi' ? 'Center Code / ID' : 'School Code / ID'}
               </label>
               <div className="input-container" style={{ height: '42px' }}>
                 <span className="input-icon">
@@ -333,12 +332,6 @@ export default function EditSchoolModal({ isOpen, onClose, onSuccess, school }) 
                   style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}
                 />
               </div>
-              <span style={{ fontSize: '11px', color: '#64748B', display: 'block', marginTop: '4px' }}>
-                Student IDs will update to:{' '}
-                <strong style={{ color: '#EA580C' }}>
-                  {(code.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 10).toUpperCase() || (name.trim().replace(/[^A-Za-z0-9]/g, '').slice(0, 5).toUpperCase() || 'SCH'))}-001, -002...
-                </strong>
-              </span>
             </div>
           </div>
 

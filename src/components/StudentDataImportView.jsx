@@ -1357,7 +1357,6 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
     try {
       const res = await api.createCluster({
         name: newClusterName.trim(),
-        description: `${newClusterName.trim()} Cluster`,
       });
       showToast(`Cluster "${res.name}" created successfully!`);
       setNewClusterName('');
@@ -3769,7 +3768,7 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
                   type="text"
                   placeholder="e.g. South Zone / District 2"
                   value={newClusterName}
-                  onChange={e => setNewClusterName(e.target.value)}
+                  onChange={e => setNewClusterName(e.target.value.replace(/[^a-zA-Z\s]/g, ''))}
                   autoFocus
                   style={{ width: '100%', height: '40px', borderRadius: '8px', border: '1.5px solid #CBD5E1', padding: '0 12px', fontSize: '13.5px', outline: 'none', boxSizing: 'border-box' }}
                 />
@@ -3920,7 +3919,7 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
                           : 'e.g. Government Higher Secondary School'
                   }
                   value={newSchoolName}
-                  onChange={e => setNewSchoolName(e.target.value)}
+                  onChange={e => setNewSchoolName(e.target.value.replace(/[^a-zA-Z\s]/g, ''))}
                   style={{ width: '100%', height: '38px', borderRadius: '8px', border: '1.5px solid #CBD5E1', padding: '0 12px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
@@ -3929,8 +3928,7 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '5px' }}>
-                    {newSchoolPlaceType === 'anganwadi' ? 'Center Code' : 'School Code'}{' '}
-                    <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>(Optional)</span>
+                    {newSchoolPlaceType === 'anganwadi' ? 'Center Code / ID' : 'School Code / ID'}
                   </label>
                   <input
                     type="text"

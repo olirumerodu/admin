@@ -197,7 +197,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
                     : 'e.g. Government Higher Secondary School'
                 }
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value.replace(/[^a-zA-Z\s]/g, ''))}
                 required
               />
             </div>
@@ -230,8 +230,7 @@ export default function AddSchoolModal({ isOpen, onClose, onSuccess }) {
 
             <div className="form-group">
               <label className="form-label" style={{ fontSize: '12px', fontWeight: 700 }}>
-                {placeType === 'anganwadi' ? 'Unique Center Code' : 'Unique School Code'}{' '}
-                <span style={{ fontSize: '11px', color: '#EA580C', fontWeight: 500 }}>(Auto-generated if blank)</span>
+                {placeType === 'anganwadi' ? 'Center Code / ID' : 'School Code / ID'}
               </label>
               <div className="input-container">
                 <span className="input-icon"><Hash size={18} /></span>

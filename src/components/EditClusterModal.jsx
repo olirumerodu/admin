@@ -4,14 +4,12 @@ import { api } from '../services/api';
 
 export default function EditClusterModal({ isOpen, onClose, onSuccess, cluster }) {
   const [clusterName, setClusterName] = useState('');
-  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (cluster) {
       setClusterName(cluster.name || '');
-      setDescription(cluster.description || '');
       setError('');
     }
   }, [cluster, isOpen]);
@@ -32,9 +30,8 @@ export default function EditClusterModal({ isOpen, onClose, onSuccess, cluster }
       const clusterId = cluster.id || cluster.name;
       const res = await api.updateCluster(clusterId, {
         name: clusterName.trim(),
-        description: description.trim() || `${clusterName.trim()} Cluster`,
       });
-      if (onSuccess) onSuccess(res || { ...cluster, name: clusterName.trim(), description: description.trim() });
+      if (onSuccess) onSuccess(res || { ...cluster, name: clusterName.trim() });
       onClose();
     } catch (err) {
       setError(err.message || 'Failed to update cluster.');
@@ -110,7 +107,7 @@ export default function EditClusterModal({ isOpen, onClose, onSuccess, cluster }
               <input
                 type="text"
                 value={clusterName}
-                onChange={(e) => setClusterName(e.target.value)}
+                onChange={(e) => setClusterName(e.target.value.replace(/[^a-zA-Z\s]/g, ''))}
                 placeholder="e.g. Erode Cluster, Bhavani Block"
                 style={{
                   width: '100%',
@@ -128,29 +125,6 @@ export default function EditClusterModal({ isOpen, onClose, onSuccess, cluster }
                 autoFocus
               />
             </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B', display: 'block', marginBottom: '6px' }}>
-              Description / Notes <span style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 400 }}>(Optional)</span>
-            </label>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Educational District Region"
-              style={{
-                width: '100%',
-                height: '40px',
-                borderRadius: '8px',
-                border: '1.5px solid #CBD5E1',
-                padding: '0 12px',
-                fontSize: '13px',
-                color: '#0F172A',
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
           </div>
 
           {/* Modal Actions */}
