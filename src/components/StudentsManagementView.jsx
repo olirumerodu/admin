@@ -286,6 +286,8 @@ export default function StudentsManagementView({ initialSearch = '' }) {
   // Deletion & Editing Modals State
   const [clusterToDelete, setClusterToDelete] = useState(null);
   const [schoolToDelete, setSchoolToDelete] = useState(null);
+  const [studentToDelete, setStudentToDelete] = useState(null);
+  const [showDeleteAllSchoolStudentsModal, setShowDeleteAllSchoolStudentsModal] = useState(false);
   const [clusterToEdit, setClusterToEdit] = useState(null);
   const [schoolToEdit, setSchoolToEdit] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -347,6 +349,45 @@ export default function StudentsManagementView({ initialSearch = '' }) {
       }
     } catch (err) {
       alert(`Failed to delete school: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmDeleteStudent = async () => {
+    if (!studentToDelete) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteStudent(studentToDelete.id);
+      showToast(`Student "${studentToDelete.name}" deleted successfully.`);
+      const deletedId = studentToDelete.id;
+      setStudentToDelete(null);
+      await loadLiveStudentsData();
+      if (selectedStudentId === deletedId) {
+        setSelectedStudentId('');
+        setViewLevel('students');
+      }
+    } catch (err) {
+      alert(`Failed to delete student: ${err.message}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmDeleteAllSchoolStudents = async () => {
+    if (!activeSchool) return;
+    setIsDeleting(true);
+    try {
+      const res = await api.deleteAllSchoolStudents(activeSchool.id);
+      showToast(res.message || `All students in "${activeSchool.name}" deleted successfully.`);
+      setShowDeleteAllSchoolStudentsModal(false);
+      await loadLiveStudentsData();
+      if (viewLevel === 'student_details' || viewLevel === 'health_history') {
+        setSelectedStudentId('');
+        setViewLevel('students');
+      }
+    } catch (err) {
+      alert(`Failed to delete students: ${err.message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -3813,6 +3854,37 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                 <span>Delete School</span>
               </button>
 
+              {/* Delete All Students in School Button */}
+              <button
+                type="button"
+                onClick={() => setShowDeleteAllSchoolStudentsModal(true)}
+                disabled={!studentsData || studentsData.length === 0}
+                style={{
+                  backgroundColor: (!studentsData || studentsData.length === 0) ? '#F8FAFC' : '#FEF2F2',
+                  color: (!studentsData || studentsData.length === 0) ? '#94A3B8' : '#DC2626',
+                  border: (!studentsData || studentsData.length === 0) ? '1px solid #E2E8F0' : '1px solid #FECACA',
+                  borderRadius: '10px',
+                  padding: '11px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: (!studentsData || studentsData.length === 0) ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title={studentsData && studentsData.length > 0 ? `Delete all ${studentsData.length} uploaded students in ${activeSchool.name}` : 'No students to delete in this school'}
+                onMouseEnter={(e) => {
+                  if (studentsData && studentsData.length > 0) e.currentTarget.style.backgroundColor = '#FEE2E2';
+                }}
+                onMouseLeave={(e) => {
+                  if (studentsData && studentsData.length > 0) e.currentTarget.style.backgroundColor = '#FEF2F2';
+                }}
+              >
+                <Trash2 size={15} color={(!studentsData || studentsData.length === 0) ? '#94A3B8' : '#DC2626'} />
+                <span>Delete All Students</span>
+              </button>
+
 
             </div>
           </div>
@@ -5009,6 +5081,37 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                                     <Eye size={14} color="#0F172A" />
                                     <span>View</span>
                                   </button>
+
+                                  {/* Delete Student */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveActionMenuId(null);
+                                      setStudentToDelete(item);
+                                    }}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '9px',
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      backgroundColor: 'transparent',
+                                      cursor: 'pointer',
+                                      fontSize: '12px',
+                                      fontWeight: 600,
+                                      color: '#DC2626',
+                                      transition: 'background-color 0.15s ease'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    title={`Delete Student ${item.name}`}
+                                  >
+                                    <Trash2 size={14} color="#DC2626" />
+                                    <span>Delete</span>
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -5275,6 +5378,31 @@ export default function StudentsManagementView({ initialSearch = '' }) {
               >
                 <FileText size={14} />
                 <span>Growth Chart (PDF)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStudentToDelete(activeStudent)}
+                style={{
+                  backgroundColor: '#FFF5F5',
+                  color: '#DC2626',
+                  border: '1px solid #FEE2E2',
+                  borderRadius: '8px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title={`Delete Student ${activeStudent.name}`}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF5F5'}
+              >
+                <Trash2 size={14} color="#DC2626" />
+                <span>Delete Student</span>
               </button>
             </div>
           </div>
@@ -6430,6 +6558,106 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                 style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#DC2626', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: isDeleting ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: isDeleting ? 0.7 : 1 }}
               >
                 {isDeleting ? 'Deleting...' : 'Yes, Delete School'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= DELETE SINGLE STUDENT CONFIRMATION MODAL ================= */}
+      {Boolean(studentToDelete) && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', maxWidth: '460px', width: '100%', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
+                <Trash2 size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Delete Student</h3>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>Permanent removal from database</p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '13.5px', color: '#334155', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+              Are you sure you want to delete student <strong style={{ color: '#0F172A' }}>"{studentToDelete.name}"</strong> ({studentToDelete.id})?
+            </p>
+
+            <div style={{ backgroundColor: '#FFF7ED', border: '1px solid #FFEDD5', borderRadius: '10px', padding: '12px 14px', marginBottom: '18px' }}>
+              <div style={{ fontSize: '12px', color: '#C2410C', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertTriangle size={15} color="#EA580C" />
+                <span>Associated Data Impact:</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#9A3412', marginTop: '4px', lineHeight: 1.4 }}>
+                This will delete the student profile, growth metrics, and all health assessment records. This action cannot be undone.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setStudentToDelete(null)}
+                style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteStudent}
+                style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#DC2626', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: isDeleting ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: isDeleting ? 0.7 : 1 }}
+              >
+                {isDeleting ? 'Deleting...' : 'Yes, Delete Student'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= DELETE ALL SCHOOL STUDENTS CONFIRMATION MODAL ================= */}
+      {showDeleteAllSchoolStudentsModal && activeSchool && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <div style={{ backgroundColor: '#FFFFFF', borderRadius: '16px', maxWidth: '480px', width: '100%', padding: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', backgroundColor: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#DC2626', flexShrink: 0 }}>
+                <Trash2 size={22} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '17px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Delete All Students in School</h3>
+                <p style={{ fontSize: '12px', color: '#64748B', margin: '2px 0 0 0' }}>Clear all uploaded student records for this school</p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '13.5px', color: '#334155', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+              Are you sure you want to delete <strong style={{ color: '#DC2626' }}>ALL {studentsData.length} students</strong> currently in <strong style={{ color: '#0F172A' }}>"{activeSchool.name}"</strong>?
+            </p>
+
+            <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FEE2E2', borderRadius: '10px', padding: '14px', marginBottom: '18px' }}>
+              <div style={{ fontSize: '12.5px', color: '#B91C1C', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertTriangle size={16} color="#DC2626" />
+                <span>Wrong Excel Upload Recovery:</span>
+              </div>
+              <div style={{ fontSize: '12px', color: '#991B1B', marginTop: '6px', lineHeight: 1.45 }}>
+                Use this if an Excel sheet was wrongly uploaded for this school. All student profiles, measurements, and health assessments for this school will be permanently wiped from the database so you can re-upload fresh data.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setShowDeleteAllSchoolStudentsModal(false)}
+                style={{ padding: '9px 18px', borderRadius: '8px', border: '1px solid #CBD5E1', backgroundColor: '#FFFFFF', color: '#475569', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteAllSchoolStudents}
+                style={{ padding: '9px 20px', borderRadius: '8px', border: 'none', backgroundColor: '#DC2626', color: '#FFFFFF', fontSize: '13px', fontWeight: 700, cursor: isDeleting ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', opacity: isDeleting ? 0.7 : 1 }}
+              >
+                {isDeleting ? 'Deleting All Students...' : 'Yes, Delete All Students'}
               </button>
             </div>
           </div>

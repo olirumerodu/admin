@@ -257,6 +257,21 @@ export const api = {
   },
 
   /**
+   * Delete All Students in a School
+   */
+  async deleteAllSchoolStudents(schoolId) {
+    const res = await fetch(`${API_BASE}/schools/${encodeURIComponent(schoolId)}/students`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || 'Failed to delete students for school');
+    }
+    return await res.json();
+  },
+
+  /**
    * 1-Click Academic Year Promotion for School
    */
   async promoteAcademicYear(schoolId, promoData) {
