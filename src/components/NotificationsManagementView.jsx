@@ -722,19 +722,19 @@ export default function NotificationsManagementView() {
                 <thead>
                   <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                     <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                      Title ↕
+                      Title
                     </th>
                     <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                      Target ↕
+                      Target
                     </th>
                     <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                      Type ↕
+                      Type
                     </th>
                     <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                      Scheduled Date ↕
+                      Scheduled Date
                     </th>
                     <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                      Status ↕
+                      Status
                     </th>
                     <th style={{ padding: '11px 16px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>
                       Actions
@@ -2407,22 +2407,22 @@ export default function NotificationsManagementView() {
                   <thead>
                     <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                        Title ↕
+                        Title
                       </th>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                        Target ↕
+                        Target
                       </th>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                        Type ↕
+                        Type
                       </th>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                        Sent / Scheduled Date ↕
+                        Sent / Scheduled Date
                       </th>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                        Recipients ↕
+                        Recipients
                       </th>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>
-                        Status ↕
+                        Status
                       </th>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>
                         Actions

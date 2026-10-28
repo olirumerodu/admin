@@ -2531,12 +2531,12 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                     </tr>
                   ) : (
                     <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1px solid #E2E8F0' }}>
-                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>School Name ↕</th>
-                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>School Code ↕</th>
-                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Students ↕</th>
-                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Assessed ↕</th>
-                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Pending ↕</th>
-                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Current Status ↕</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>School Name</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>School Code</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Students</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Assessed</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Pending</th>
+                      <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', whiteSpace: 'nowrap' }}>Current Status</th>
                       <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center', whiteSpace: 'nowrap' }}>Actions</th>
                     </tr>
                   )}
@@ -4665,14 +4665,14 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                           style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'id' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
                           title="Click to sort by Student ID"
                         >
-                          Student ID {sortField === 'id' ? (sortAsc ? '↑' : '↓') : '↕'}
+                          Student ID
                         </th>
                         <th
                           onClick={() => handleSort('name')}
                           style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'name' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
                           title="Click to sort by Student Name"
                         >
-                          Student Name {sortField === 'name' ? (sortAsc ? '↑' : '↓') : ''}
+                          Student Name
                         </th>
                         <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Gender</th>
                         <th
@@ -4680,30 +4680,30 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                           style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'class' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
                           title="Click to sort by Class"
                         >
-                          Class {sortField === 'class' ? (sortAsc ? '↑' : '↓') : '↕'}
+                          Class
                         </th>
                         <th
                           onClick={() => handleSort('section')}
                           style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'section' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
                           title="Click to sort by Section"
                         >
-                          Section {sortField === 'section' ? (sortAsc ? '↑' : '↓') : '↕'}
+                          Section
                         </th>
                         <th
                           onClick={() => handleSort('dob')}
                           style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'dob' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
                           title="Click to sort by DOB"
                         >
-                          DOB {sortField === 'dob' ? (sortAsc ? '↑' : '↓') : '↕'}
+                          DOB
                         </th>
-                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Latest Assessment ↕</th>
+                        <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Latest Assessment</th>
                         <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569' }}>Assessed By</th>
                         <th
                           onClick={() => handleSort('status')}
                           style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: sortField === 'status' ? '#EA580C' : '#475569', cursor: 'pointer', userSelect: 'none' }}
                           title="Click to sort by Status"
                         >
-                          Status {sortField === 'status' ? (sortAsc ? '↑' : '↓') : '↕'}
+                          Status
                         </th>
                         <th style={{ padding: '10px 14px', fontSize: '12px', fontWeight: 600, color: '#475569', textAlign: 'center' }}>Action</th>
                       </tr>
