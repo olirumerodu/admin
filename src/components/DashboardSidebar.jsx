@@ -14,14 +14,14 @@ import StudentHealthLogo from './StudentHealthLogo';
 import sidebarBg from '../assets/sidebar-bg.png';
 
 export default function DashboardSidebar({ activeTab, onTabSelect, mobileOpen, onCloseMobile }) {
-  const { user } = useAuth();
+  const { user, isSuperAdmin, isClusterAdmin } = useAuth();
 
   const navItems = [
     { id: 'overview', label: 'Dashboard Overview', icon: LayoutDashboard },
     { id: 'students', label: 'Students Directory', icon: Users },
     { id: 'assessments', label: 'Health Assessments', icon: HeartPulse },
     { id: 'staff', label: 'Staff & Access', icon: UserCheck },
-    // { id: 'reports', label: 'Analytics & Reports', icon: BarChart3 },
+    { id: 'reports', label: 'Reports', icon: BarChart3 },
   ];
 
   return (
@@ -90,7 +90,9 @@ export default function DashboardSidebar({ activeTab, onTabSelect, mobileOpen, o
             </div>
             <div className="user-info-text">
               <span className="user-name">{user?.name || 'Administrator'}</span>
-              <span className="user-role-tag">{user?.role || 'Super Admin'}</span>
+              <span className="user-role-tag">
+                {isClusterAdmin ? 'Cluster Admin' : (isSuperAdmin ? 'Super Admin' : (user?.role || 'Staff'))}
+              </span>
             </div>
           </div>
         </div>

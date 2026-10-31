@@ -77,6 +77,84 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
   // Chronological assessments for real SVG curve
   const chronologicalAssessments = [...assessments].sort((a, b) => new Date(a.assessment_date || 0) - new Date(b.assessment_date || 0));
 
+  // Dynamic age calculation from Date of Birth (DOB) and assessment/report date
+  const computeDynamicAge = () => {
+    const candidateAge = student.age_string || student.raw?.age_string || latestAssessment?.age_display || student.latest_age_display || (student.ageDisplay && student.ageDisplay !== '9 yrs' ? student.ageDisplay : null);
+
+    const rawDob = student.dob || student.raw?.dob || student.dobFormatted;
+    let dDob = null;
+    if (rawDob) {
+      if (typeof rawDob === 'string') {
+        const clean = rawDob.trim().split('T')[0];
+        if (clean.includes('-')) {
+          const parts = clean.split('-');
+          if (parts[0].length === 4) {
+            dDob = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          } else if (parts[2].length === 4) {
+            dDob = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+          }
+        } else if (clean.includes('/')) {
+          const parts = clean.split('/');
+          if (parts[2].length === 4) {
+            dDob = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+          } else if (parts[0].length === 4) {
+            dDob = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          }
+        }
+      } else if (rawDob instanceof Date) {
+        dDob = rawDob;
+      }
+    }
+
+    if (!dDob || isNaN(dDob.getTime())) {
+      const fallbackMonths = latestAssessment?.age_months ?? student.age_months ?? null;
+      return {
+        ageMonths: fallbackMonths,
+        ageDisplay: candidateAge || (fallbackMonths ? `${Math.floor(fallbackMonths / 12)} Years ${fallbackMonths % 12 > 0 ? `${fallbackMonths % 12} Months` : ''}`.trim() : '—'),
+        isWeightApplicable: fallbackMonths != null ? (fallbackMonths >= 60 && fallbackMonths <= 120) : false
+      };
+    }
+
+    // Reference assessment or report date
+    let dRef = new Date();
+    const rawRefDate = latestAssessment?.assessment_date || student.latestAssessmentDate;
+    if (rawRefDate && typeof rawRefDate === 'string' && rawRefDate.includes('-')) {
+      const parts = rawRefDate.trim().split('T')[0].split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        dRef = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      }
+    }
+
+    let months = (dRef.getFullYear() - dDob.getFullYear()) * 12 + (dRef.getMonth() - dDob.getMonth());
+    if (dRef.getDate() < dDob.getDate()) {
+      months -= 1;
+    }
+    if (months < 0) months = 0;
+
+    const years = Math.floor(months / 12);
+    const remMonths = months % 12;
+    const computedDisplay = remMonths > 0 ? `${years} Years ${remMonths} Months` : `${years} Years`;
+
+    const isWeightApplicable = (student.latest_weight_for_age_applicable !== undefined && student.latest_weight_for_age_applicable !== null)
+      ? student.latest_weight_for_age_applicable
+      : (latestAssessment?.weight_for_age_applicable !== undefined && latestAssessment?.weight_for_age_applicable !== null)
+      ? latestAssessment.weight_for_age_applicable
+      : (student.isWeightApplicable !== undefined && student.isWeightApplicable !== null)
+      ? student.isWeightApplicable
+      : (months <= 120);
+
+    return {
+      ageMonths: months,
+      ageDisplay: candidateAge || computedDisplay,
+      isWeightApplicable: Boolean(isWeightApplicable && months <= 120)
+    };
+  };
+
+  const dynamicAge = computeDynamicAge();
+  const weightZVal = (typeof student.weightZScore === 'number')
+    ? student.weightZScore
+    : (typeof latestAssessment?.weight_for_age_zscore === 'number' ? latestAssessment.weight_for_age_zscore : null);
+
   const handlePrint = () => {
     const printContent = printContentRef.current;
     if (!printContent) return;
@@ -347,7 +425,7 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
                         Grade {student.classVal} • Section {student.section}
                       </span>
                       <span style={{ backgroundColor: '#F3E8FF', color: '#6B21A8', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
-                        {student.gender || 'Female'} • Age: {student.ageDisplay || '9 yrs'}
+                        {student.gender || 'Male'} • Age: {dynamicAge.ageDisplay}
                       </span>
                       <span style={{ backgroundColor: '#E2E8F0', color: '#334155', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
                         DOB: {student.dobFormatted || student.dob || '—'}
@@ -399,13 +477,24 @@ export default function StudentGrowthChartModal({ isOpen, onClose, student, scho
                 </div>
 
                 {/* Weight-for-Age */}
-                <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '10px 12px', backgroundColor: '#F8FAFC' }}>
+                <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', padding: '10px 12px', backgroundColor: dynamicAge.isWeightApplicable === false ? '#F1F5F9' : '#F8FAFC' }}>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>Weight-for-Age Z-Score</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: (typeof student.weightZScore === 'number' && student.weightZScore < -2) ? '#EA580C' : '#0F172A', marginTop: '2px' }}>
-                    {typeof student.weightZScore === 'number' ? `${student.weightZScore.toFixed(2)} SD` : (typeof latestAssessment?.weight_for_age_zscore === 'number' ? `${latestAssessment.weight_for_age_zscore.toFixed(2)} SD` : '—')}
+                  <div style={{
+                    fontSize: dynamicAge.isWeightApplicable === false ? '14px' : '18px',
+                    fontWeight: 800,
+                    color: dynamicAge.isWeightApplicable === false ? '#64748B' : ((typeof weightZVal === 'number' && weightZVal < -2) ? '#EA580C' : '#0F172A'),
+                    marginTop: '2px'
+                  }}>
+                    {dynamicAge.isWeightApplicable === false
+                      ? 'Not applicable (>10 yrs)'
+                      : (typeof weightZVal === 'number'
+                          ? `${weightZVal >= 0 ? '+' : ''}${weightZVal.toFixed(2)} SD`
+                          : 'Pending')}
                   </div>
                   <div style={{ fontSize: '11px', color: '#475569', marginTop: '2px' }}>
-                    Current Weight: <strong>{student.weight ? `${student.weight} kg` : (latestAssessment?.weight_kg ? `${latestAssessment.weight_kg} kg` : '—')}</strong>
+                    {dynamicAge.isWeightApplicable === false
+                      ? <span style={{ color: '#64748B', fontStyle: 'italic', fontSize: '10.5px' }}>WHO 2007 standard applies to 5–10 yrs</span>
+                      : <>Current Weight: <strong>{wVal > 0 ? `${wVal} kg` : (student.weight ? `${student.weight} kg` : (latestAssessment?.weight_kg ? `${latestAssessment.weight_kg} kg` : '—'))}</strong></>}
                   </div>
                 </div>
               </div>

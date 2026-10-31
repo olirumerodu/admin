@@ -27,12 +27,14 @@ import {
   AlertCircle,
   AlertTriangle,
   UserCheck,
-  X,
   Key,
   ShieldCheck,
-  ArrowLeft
+  ArrowLeft,
+  Plus,
+  X
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1440);
@@ -47,6 +49,7 @@ function useWindowWidth() {
 }
 
 export default function CreateUserView({ onNavigateBack, onUserCreated }) {
+  const { isClusterAdmin: isCallerClusterAdmin, assignedClusterIds, assignedSchoolIds } = useAuth();
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
@@ -74,7 +77,19 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
   const [cluster, setCluster] = useState('');
   const [school, setSchool] = useState('');
   const [scopeType, setScopeType] = useState('cluster'); // 'cluster' or 'school'
-  const [role, setRole] = useState('School Staff');
+  // Role: 'Cluster Administrator' | 'School Staff'
+  const [role, setRole] = useState('Cluster Administrator');
+
+  // Multi-cluster & schools manual selection state for Cluster Administrator
+  const [selectedClusterIds, setSelectedClusterIds] = useState([]);
+  const [clusterSchoolsScope, setClusterSchoolsScope] = useState({});
+  const [assignClustersLater, setAssignClustersLater] = useState(false);
+
+  // Quick cluster creation modal state
+  const [showQuickCreateClusterModal, setShowQuickCreateClusterModal] = useState(false);
+  const [quickClusterName, setQuickClusterName] = useState('');
+  const [quickClusterError, setQuickClusterError] = useState('');
+  const [isCreatingQuickCluster, setIsCreatingQuickCluster] = useState(false);
 
   // Confirmation Pop-up states
   const [showCreateConfirm, setShowCreateConfirm] = useState(false);
@@ -82,45 +97,189 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
   const [showLeaveConfirmModal, setShowLeaveConfirmModal] = useState(false);
   const [createdUserData, setCreatedUserData] = useState(null);
 
-  useEffect(() => {
-    async function loadScope() {
-      try {
-        const [cData, sData, nextIdData] = await Promise.allSettled([
-          api.getClusters(),
-          api.getSchools(),
-          api.getNextUserId()
-        ]);
-        if (cData.status === 'fulfilled' && Array.isArray(cData.value) && cData.value.length > 0) {
-          setClustersList(cData.value);
-          setCluster(cData.value[0].name || cData.value[0].id);
+  const loadScope = async () => {
+    try {
+      const [cData, sData, nextIdData] = await Promise.allSettled([
+        api.getClusters(),
+        api.getSchools(),
+        api.getNextUserId(role === 'Cluster Administrator' ? 'admin' : 'health_officer')
+      ]);
+      if (cData.status === 'fulfilled' && Array.isArray(cData.value)) {
+        let availableClusters = cData.value;
+        if (isCallerClusterAdmin && assignedClusterIds.length > 0) {
+          const normAllowed = new Set(assignedClusterIds.map(x => String(x).toLowerCase().trim()));
+          availableClusters = availableClusters.filter(c =>
+            normAllowed.has(String(c.id).toLowerCase().trim()) || normAllowed.has(String(c.name).toLowerCase().trim())
+          );
         }
-        if (sData.status === 'fulfilled' && Array.isArray(sData.value) && sData.value.length > 0) {
-          setSchoolsList(sData.value);
+        setClustersList(availableClusters);
+        if (cData.value.length > 0 && selectedClusterIds.length === 0 && !assignClustersLater) {
+          const firstClusterName = cData.value[0].name || cData.value[0].id;
+          setCluster(firstClusterName);
+          setSelectedClusterIds([firstClusterName]);
+          setClusterSchoolsScope({ [firstClusterName]: { all: true, schools: [] } });
+        }
+      }
+      if (sData.status === 'fulfilled' && Array.isArray(sData.value)) {
+        let availableSchools = sData.value;
+        if (isCallerClusterAdmin) {
+          if (assignedSchoolIds.length > 0) {
+            const normSchools = new Set(assignedSchoolIds.map(x => String(x).toLowerCase().trim()));
+            availableSchools = availableSchools.filter(s =>
+              normSchools.has(String(s.id).toLowerCase().trim()) ||
+              normSchools.has(String(s.name).toLowerCase().trim()) ||
+              (s.code && normSchools.has(String(s.code).toLowerCase().trim()))
+            );
+          } else if (assignedClusterIds.length > 0) {
+            const normClusters = new Set(assignedClusterIds.map(x => String(x).toLowerCase().trim()));
+            availableSchools = availableSchools.filter(s => {
+              const sc = String(s.cluster_name || s.cluster || s.cluster_id || '').toLowerCase().trim();
+              const sCId = String(s.cluster_id || '').toLowerCase().trim();
+              return normClusters.has(sc) || normClusters.has(sCId);
+            });
+          }
+        }
+        setSchoolsList(availableSchools);
+        if (sData.value.length > 0 && !school) {
           setSchool('All Assigned Schools');
         }
-        // Pre-fill User ID with next sequential USR-format ID
-        if (nextIdData.status === 'fulfilled' && nextIdData.value?.next_user_id) {
-          setUserId(nextIdData.value.next_user_id);
-        } else {
-          setUserId('USR001');
-        }
-      } catch (err) {
-        console.warn('Scope loading notice:', err);
-        setUserId('USR001');
       }
+      // Pre-fill ID with next sequential format (ADM001... for admin, USR001... for staff)
+      if (nextIdData.status === 'fulfilled' && nextIdData.value?.next_user_id) {
+        setUserId(nextIdData.value.next_user_id);
+      } else if (!userId) {
+        setUserId(role === 'Cluster Administrator' ? 'ADM001' : 'USR001');
+      }
+    } catch (err) {
+      console.warn('Scope loading notice:', err);
+      if (!userId) setUserId(role === 'Cluster Administrator' ? 'ADM001' : 'USR001');
     }
+  };
+
+  useEffect(() => {
     loadScope();
   }, []);
 
+  const handleRoleChange = async (newRole) => {
+    setRole(newRole);
+    setFieldErrors(prev => ({ ...prev, cluster: '', school: '', userId: '' }));
+    try {
+      const backendRole = newRole === 'Cluster Administrator' ? 'admin' : 'health_officer';
+      const idRes = await api.getNextUserId(backendRole);
+      if (idRes?.next_user_id) {
+        setUserId(idRes.next_user_id);
+      } else {
+        setUserId(newRole === 'Cluster Administrator' ? 'ADM001' : 'USR001');
+      }
+    } catch (err) {
+      console.warn('Failed to refresh next ID for role:', err);
+      setUserId(newRole === 'Cluster Administrator' ? 'ADM001' : 'USR001');
+    }
+  };
+
+  const handleQuickCreateCluster = async (e) => {
+    if (e) e.preventDefault();
+    const cleanName = quickClusterName.trim();
+    if (!cleanName) {
+      setQuickClusterError('Cluster name is required.');
+      return;
+    }
+    if (!/^[a-zA-Z\s]+$/.test(cleanName)) {
+      setQuickClusterError('Cluster name can only contain alphabetic letters.');
+      return;
+    }
+    setIsCreatingQuickCluster(true);
+    setQuickClusterError('');
+    try {
+      const newCluster = await api.createCluster({ name: cleanName });
+      await loadScope();
+      const cName = newCluster.name || cleanName;
+      setSelectedClusterIds([cName]);
+      setClusterSchoolsScope({ [cName]: { all: true, schools: [] } });
+      setCluster(cName);
+      setAssignClustersLater(false);
+      setShowQuickCreateClusterModal(false);
+      setQuickClusterName('');
+      setFieldErrors((prev) => ({ ...prev, cluster: '', school: '' }));
+    } catch (err) {
+      setQuickClusterError(err.message || 'Failed to create cluster.');
+    } finally {
+      setIsCreatingQuickCluster(false);
+    }
+  };
+
+  // Handlers for manual cluster & school selection for Cluster Administrator
+  const handleToggleCluster = (clusterName) => {
+    setSelectedClusterIds((prev) => {
+      const exists = prev.includes(clusterName);
+      if (exists) {
+        return prev.filter(c => c !== clusterName);
+      } else {
+        return [...prev, clusterName];
+      }
+    });
+    setClusterSchoolsScope((prev) => {
+      if (prev[clusterName]) {
+        const copy = { ...prev };
+        delete copy[clusterName];
+        return copy;
+      } else {
+        return {
+          ...prev,
+          [clusterName]: { all: true, schools: [] }
+        };
+      }
+    });
+  };
+
+  const handleToggleAllSchoolsForCluster = (clusterName) => {
+    setClusterSchoolsScope((prev) => {
+      const current = prev[clusterName] || { all: true, schools: [] };
+      return {
+        ...prev,
+        [clusterName]: {
+          all: !current.all,
+          schools: !current.all ? [] : current.schools
+        }
+      };
+    });
+  };
+
+  const handleToggleSpecificSchool = (clusterName, schoolName) => {
+    setClusterSchoolsScope((prev) => {
+      const current = prev[clusterName] || { all: false, schools: [] };
+      const currentSchools = current.schools || [];
+      const exists = currentSchools.includes(schoolName);
+      const updatedSchools = exists 
+        ? currentSchools.filter(s => s !== schoolName)
+        : [...currentSchools, schoolName];
+      return {
+        ...prev,
+        [clusterName]: {
+          all: false,
+          schools: updatedSchools
+        }
+      };
+    });
+  };
+
   // Filter schools in real-time based on the selected cluster from database
   const filteredSchools = React.useMemo(() => {
-    if (!cluster || cluster === 'All Clusters') return schoolsList;
-    const selectedClusterObj = clustersList.find(c => c.name === cluster || c.id === cluster);
-    return schoolsList.filter(s => 
-      (selectedClusterObj && s.cluster_id === selectedClusterObj.id) ||
-      s.cluster_name === cluster ||
-      s.cluster === cluster
-    );
+    if (!cluster || cluster === 'All Clusters') return schoolsList || [];
+    const selectedClusterObj = (clustersList || []).find(c => {
+      if (!c) return false;
+      if (typeof c === 'string') return c === cluster;
+      return c.name === cluster || c.id === cluster;
+    });
+    return (schoolsList || []).filter(s => {
+      if (!s) return false;
+      if (typeof s === 'string') return true;
+      return (
+        (selectedClusterObj && s.cluster_id === selectedClusterObj.id) ||
+        s.cluster_name === cluster ||
+        s.cluster === cluster
+      );
+    });
   }, [cluster, clustersList, schoolsList]);
 
   // Permissions State - default to full module access enabled for seamless integration
@@ -197,8 +356,12 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
       }
 
       case 'userId':
-        if (!val) return 'User ID is required.';
-        if (!/^USR\d+$/i.test(val)) return 'User ID must be in USR001 format (auto-generated).';
+        if (!val) return role === 'Cluster Administrator' ? 'Admin ID is required.' : 'User ID is required.';
+        if (!/^(ADM|USR)\d+$/i.test(val)) {
+          return role === 'Cluster Administrator'
+            ? 'Admin ID must be in ADM001 format (auto-generated).'
+            : 'User ID must be in USR001 format (auto-generated).';
+        }
         return '';
 
       case 'username':
@@ -252,11 +415,21 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
       username: validateField('username', username),
       password: validateField('password', password),
       confirmPassword: validateField('confirmPassword', confirmPassword, { password }),
-      cluster: validateField('cluster', cluster),
-      school: validateField('school', school, { scopeType }),
     };
 
-    if (selectedModulesList.length === 0) {
+    if (assignClustersLater || !selectedClusterIds || selectedClusterIds.length === 0) {
+      // Valid: Created unassigned for now, scope can be assigned later
+    } else {
+      for (const cName of selectedClusterIds) {
+        const sc = clusterSchoolsScope[cName];
+        if (sc && !sc.all && (!sc.schools || sc.schools.length === 0)) {
+          errs.school = `Please select at least one school for ${cName}, or select "All Schools".`;
+          break;
+        }
+      }
+    }
+
+    if (!isClusterAdmin && selectedModulesList.length === 0) {
       errs.permissions = 'Please select at least one module permission.';
     }
 
@@ -485,11 +658,68 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
     setErrorMsg('');
 
     try {
-      const foundClusterId = clustersList.find(c => c.name === cluster || c.id === cluster)?.id;
-      const assignedCluster = (cluster === 'All Clusters' || !cluster) ? null : (foundClusterId || null);
       // Login username is the email; User ID is the USR-format sequential ID
       const loginUsername = email.trim().toLowerCase();
       const finalPassword = password;
+
+      let assignedClusters = [];
+      let assignedSchools = null;
+      let finalRole = 'health_officer';
+      let finalScopeType = scopeType;
+      let primaryClusterId = null;
+      let primarySchoolName = null;
+
+      finalRole = role === 'Cluster Administrator' ? 'admin' : 'health_officer';
+      if (assignClustersLater || !selectedClusterIds || selectedClusterIds.length === 0) {
+        assignedClusters = [];
+        assignedSchools = null;
+        primaryClusterId = null;
+        primarySchoolName = null;
+        finalScopeType = 'cluster';
+      } else {
+        const effectiveClusterIds = selectedClusterIds.filter((cName) => {
+          const sc = clusterSchoolsScope && clusterSchoolsScope[cName];
+          if (sc && !sc.all && (!Array.isArray(sc.schools) || sc.schools.length === 0)) {
+            return false;
+          }
+          return true;
+        });
+
+        assignedClusters = Array.from(new Set(effectiveClusterIds.length > 0 ? effectiveClusterIds : selectedClusterIds));
+        const specificSchools = [];
+        const seenSchools = new Set();
+        let hasManualSelection = false;
+
+        selectedClusterIds.forEach((cName) => {
+          const sc = clusterSchoolsScope && clusterSchoolsScope[cName];
+          const cObj = (clustersList || []).find(cl => cl.name === cName || cl.id === cName);
+          const cId = String(cObj?.id || '').toLowerCase().trim();
+          const cNameLower = String(cName || '').toLowerCase().trim();
+
+          const schoolsInCluster = (schoolsList || []).filter(s => {
+            const sC = String(s.cluster_name || s.cluster || s.cluster_id || '').toLowerCase().trim();
+            return sC === cNameLower || (cId && String(s.cluster_id || '').toLowerCase().trim() === cId);
+          });
+          const validNames = new Set(schoolsInCluster.map(s => String(s.name || '').toLowerCase().trim()));
+
+          if (sc && !sc.all) {
+            hasManualSelection = true;
+            if (Array.isArray(sc.schools)) {
+              sc.schools.forEach(s => {
+                const trimmed = String(s || '').trim();
+                if (trimmed && validNames.has(trimmed.toLowerCase()) && !seenSchools.has(trimmed.toLowerCase())) {
+                  seenSchools.add(trimmed.toLowerCase());
+                  specificSchools.push(trimmed);
+                }
+              });
+            }
+          }
+        });
+        assignedSchools = hasManualSelection && specificSchools.length > 0 ? specificSchools : null;
+        primaryClusterId = clustersList.find(c => c.name === assignedClusters[0] || c.id === assignedClusters[0])?.id || assignedClusters[0] || null;
+        primarySchoolName = assignedSchools && assignedSchools.length > 0 ? assignedSchools.join(', ') : null;
+        finalScopeType = assignedSchools && assignedSchools.length > 0 ? 'school' : 'cluster';
+      }
 
       const createdUser = await api.createUser({
         id: userId.trim() || undefined,   // USR001, USR002...
@@ -497,14 +727,25 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
         name: fullName.trim(),
         email: email.trim(),
         phone: phone.trim(),
-        role: role === 'Super Admin' ? 'admin' : 'health_officer',
-        assigned_cluster_id: assignedCluster,
-        school_name: scopeType === 'school' ? school : null,
-        scope_type: scopeType,
-        permissions: selectedModulesList,
+        role: finalRole,
+        assigned_cluster_id: primaryClusterId,
+        assigned_cluster_ids: assignedClusters,
+        assigned_school_ids: assignedSchools,
+        school_name: primarySchoolName,
+        scope_type: finalScopeType,
+        permissions: isClusterAdmin 
+          ? ['Dashboard', 'Schools & Clusters', 'Students', 'Student Assessment', 'Monthly Tracking', 'Health History', 'Reports', 'Notifications']
+          : selectedModulesList,
         password: finalPassword,
         is_active: true
       });
+
+      const clusterDisplay = assignedClusters.length > 0
+        ? assignedClusters.join(', ')
+        : 'Unassigned (Pending Scope)';
+      const schoolDisplay = assignedSchools && assignedSchools.length > 0
+        ? assignedSchools.join(', ')
+        : (assignedClusters.length > 0 ? 'All Assigned Schools' : 'Unassigned');
 
       const newUserRecord = {
         id: createdUser.id || userId,
@@ -513,14 +754,16 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
         email: createdUser.email,
         phone: createdUser.phone,
         rawPassword: finalPassword,
-        cluster: cluster || (scopeType === 'cluster' ? 'All Clusters' : 'None'),
-        school: scopeType === 'school' ? school : 'All Assigned Schools',
+        cluster: clusterDisplay,
+        school: schoolDisplay,
         role: role,
         status: 'Active',
         lastLoginDate: 'Just now',
         lastLoginTime: '',
-        accessType: scopeType === 'cluster' ? 'Full Access' : 'Limited Access',
-        permissions: selectedModulesList,
+        accessType: finalRole === 'admin' ? 'Full Access' : (scopeType === 'cluster' ? 'Full Access' : 'Limited Access'),
+        permissions: isClusterAdmin 
+          ? ['Dashboard', 'Schools & Clusters', 'Students', 'Student Assessment', 'Monthly Tracking', 'Health History', 'Reports', 'Notifications']
+          : selectedModulesList,
       };
 
       setCreatedUserData(newUserRecord);
@@ -533,6 +776,8 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
       setIsSubmitting(false);
     }
   };
+
+  const isClusterAdmin = role === 'Cluster Administrator';
 
   return (
     <div 
@@ -556,7 +801,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             User Management
           </span>
           <span>&gt;</span>
-          <span style={{ color: '#0F172A', fontWeight: 600 }}>Create User</span>
+          <span style={{ color: '#0F172A', fontWeight: 600 }}>{isClusterAdmin ? 'Create Administrator' : 'Create User'}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
@@ -583,10 +828,10 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             </button>
             <div>
               <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', letterSpacing: '-0.02em', margin: 0 }}>
-                Create User
+                {isClusterAdmin ? 'Create Administrator' : 'Create User'}
               </h1>
               <p style={{ fontSize: '12.5px', color: '#64748B', margin: '2px 0 0 0' }}>
-                Create accounts and control mobile application access
+                {isClusterAdmin ? 'Create administrator accounts and assign cluster oversight' : 'Create accounts and control mobile application access'}
               </p>
             </div>
           </div>
@@ -632,7 +877,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
               }}
             >
               <UserPlus size={15} />
-              <span>{isSubmitting ? 'Creating...' : 'Create User'}</span>
+              <span>{isSubmitting ? (isClusterAdmin ? 'Creating Administrator...' : 'Creating User...') : (isClusterAdmin ? 'Create Administrator' : 'Create User')}</span>
             </button>
           </div>
         </div>
@@ -659,6 +904,91 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
 
       {/* ================= MAIN FORM ================= */}
       <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+          {/* Card 00: Account Role & Access Level */}
+          <div style={formCardStyle}>
+            <div style={cardHeaderRow}>
+              <div style={{ ...sectionIconBox, backgroundColor: '#E0E7FF', color: '#4F46E5' }}>
+                <ShieldCheck size={18} />
+              </div>
+              <div>
+                <h3 style={sectionHeadingStyle}>00. Account Role & Access Level</h3>
+                <p style={sectionSubStyle}>Select whether to create an Administrator or Staff user account.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px', marginTop: '4px' }}>
+              {/* Option 1: Cluster Administrator */}
+              <div 
+                onClick={() => handleRoleChange('Cluster Administrator')}
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: '12px',
+                  border: role === 'Cluster Administrator' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                  backgroundColor: role === 'Cluster Administrator' ? '#F0F7FF' : '#FFFFFF',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px'
+                }}
+              >
+                <div style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  border: role === 'Cluster Administrator' ? '6px solid #2563EB' : '2px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  flexShrink: 0,
+                  marginTop: '2px'
+                }} />
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>Cluster Administrator</span>
+                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '999px', backgroundColor: '#DBEAFE', color: '#1D4ED8', fontWeight: 700 }}>Admin Login</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', lineHeight: 1.4 }}>
+                    Manages one or more assigned clusters and specific schools. Experiences the same interface as Super Admin, dynamically scoped.
+                  </div>
+                </div>
+              </div>
+
+              {/* Option 2: School Staff */}
+              <div 
+                onClick={() => handleRoleChange('School Staff')}
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: '12px',
+                  border: role === 'School Staff' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+                  backgroundColor: role === 'School Staff' ? '#F0F7FF' : '#FFFFFF',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px'
+                }}
+              >
+                <div style={{
+                  width: '20px',
+                  height: '20px',
+                  borderRadius: '50%',
+                  border: role === 'School Staff' ? '6px solid #2563EB' : '2px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  flexShrink: 0,
+                  marginTop: '2px'
+                }} />
+                <div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>School Staff / Health Officer</span>
+                    <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '999px', backgroundColor: '#F1F5F9', color: '#475569', fontWeight: 700 }}>Staff Login</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#64748B', marginTop: '4px', lineHeight: 1.4 }}>
+                    Conducts health assessments and daily entry for a specific school or single cluster.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Card 01: Account Information */}
           <div style={formCardStyle}>
             <div style={cardHeaderRow}>
@@ -666,8 +996,8 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 <User size={18} />
               </div>
               <div>
-                <h3 style={sectionHeadingStyle}>01. Account Information</h3>
-                <p style={sectionSubStyle}>Enter the basic details for the user account.</p>
+                <h3 style={sectionHeadingStyle}>{isClusterAdmin ? '01. Administrator Information' : '01. Account Information'}</h3>
+                <p style={sectionSubStyle}>{isClusterAdmin ? 'Enter basic details for the administrator account.' : 'Enter the basic details for the user account.'}</p>
               </div>
             </div>
 
@@ -776,13 +1106,13 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
 
                 <div>
                   <label style={inputLabelStyle}>
-                    User ID <span style={{ color: '#EF4444' }}>*</span>
+                    {isClusterAdmin ? 'Admin ID' : 'User ID'} <span style={{ color: '#EF4444' }}>*</span>
                   </label>
                   <div style={{ ...getInputContainerStyle('userId'), border: '1.5px solid #E2E8F0', backgroundColor: '#F8FAFC' }}>
                     <Key size={16} color="#64748B" />
                     <input
                       type="text"
-                      placeholder="USR001"
+                      placeholder={isClusterAdmin ? "ADM001" : "USR001"}
                       value={userId}
                       readOnly
                       style={{ ...cleanInputStyle, color: '#334155', fontWeight: 600, cursor: 'default' }}
@@ -954,163 +1284,370 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 </div>
                 <div>
                   <h3 style={sectionHeadingStyle}>02. Access Scope</h3>
-                  <p style={sectionSubStyle}>Define the cluster and school access for this user.</p>
+                  <p style={sectionSubStyle}>
+                    Manually select the clusters and specific schools this user will access.
+                  </p>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={twoColInputGrid}>
-                  <div>
-                    <label style={inputLabelStyle}>
-                      Cluster <span style={{ color: '#EF4444' }}>*</span>
-                    </label>
-                    <div style={getInputContainerStyle('cluster')}>
-                      <User size={15} color={touched.cluster && fieldErrors.cluster ? '#EF4444' : '#94A3B8'} />
-                      <select 
-                        value={cluster} 
-                        onChange={(e) => handleFieldChange('cluster', e.target.value)} 
-                        onBlur={() => handleBlur('cluster')}
-                        style={cleanSelectStyle}
-                      >
-                        <option value="">-- Select Cluster --</option>
-                        {clustersList.length > 0 ? (
-                          <>
-                            <option value="All Clusters">All Clusters</option>
-                            {clustersList.map(c => (
-                              <option key={c.id || c.name} value={c.name}>{c.name}</option>
-                            ))}
-                          </>
-                        ) : (
-                          <option value="" disabled>No clusters available</option>
-                        )}
-                      </select>
-                      {touched.cluster && !fieldErrors.cluster && cluster && (
-                        <Check size={14} color="#10B981" strokeWidth={2.5} />
-                      )}
+              {/* Multi-cluster & Manual School Selection for all roles */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {fieldErrors.cluster && (
+                    <div style={inlineErrorStyle}>
+                      <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                      <span>{fieldErrors.cluster}</span>
                     </div>
-                    {touched.cluster && fieldErrors.cluster && (
-                      <div style={inlineErrorStyle}>
-                        <AlertCircle size={12} style={{ flexShrink: 0 }} />
-                        <span>{fieldErrors.cluster}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <label style={inputLabelStyle}>
-                      School {scopeType === 'school' && <span style={{ color: '#EF4444' }}>*</span>}
-                    </label>
-                    <div style={getInputContainerStyle('school')}>
-                      <School size={15} color={touched.school && fieldErrors.school ? '#EF4444' : '#94A3B8'} />
-                      <select 
-                        value={scopeType === 'cluster' ? 'All Assigned Schools' : school} 
-                        onChange={(e) => handleFieldChange('school', e.target.value)} 
-                        onBlur={() => handleBlur('school')}
-                        disabled={scopeType === 'cluster'}
-                        style={{
-                          ...cleanSelectStyle,
-                          cursor: scopeType === 'cluster' ? 'default' : 'pointer',
-                          color: scopeType === 'cluster' ? '#64748B' : '#0F172A'
-                        }}
-                      >
-                        {scopeType === 'cluster' ? (
-                          <option value="All Assigned Schools">
-                            {cluster && cluster !== 'All Clusters' ? `All Schools in ${cluster}` : 'All Assigned Schools'}
-                          </option>
-                        ) : (
-                          <>
-                            <option value="">-- Select Specific School --</option>
-                            {filteredSchools.map(s => (
-                              <option key={s.id || s.name} value={s.name}>{s.name}</option>
-                            ))}
-                          </>
-                        )}
-                      </select>
-                      {touched.school && !fieldErrors.school && school && (
-                        <Check size={14} color="#10B981" strokeWidth={2.5} />
-                      )}
+                  )}
+                  {fieldErrors.school && (
+                    <div style={inlineErrorStyle}>
+                      <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                      <span>{fieldErrors.school}</span>
                     </div>
-                    {touched.school && fieldErrors.school && (
-                      <div style={inlineErrorStyle}>
-                        <AlertCircle size={12} style={{ flexShrink: 0 }} />
-                        <span>{fieldErrors.school}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  )}
 
-                <div>
-                  <label style={inputLabelStyle}>Allow access to: <span style={{ color: '#EF4444' }}>*</span></label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
-                    {/* Radio 1: All schools in selected cluster */}
-                    <label 
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}
-                      onClick={() => {
-                        setScopeType('cluster');
-                        if (touched.school) {
-                          setFieldErrors((prev) => ({ ...prev, school: '' }));
-                        }
+                  {clustersList.length === 0 ? (
+                    /* Clean Informative Empty State when 0 clusters exist in system */
+                    <div 
+                      style={{
+                        border: '1.5px dashed #CBD5E1',
+                        borderRadius: '12px',
+                        padding: '24px 20px',
+                        backgroundColor: '#F8FAFC',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        textAlign: 'center',
+                        gap: '12px'
                       }}
                     >
-                      <div 
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          border: scopeType === 'cluster' ? '5px solid #EA580C' : '2px solid #CBD5E1',
-                          backgroundColor: '#FFFFFF',
-                          marginTop: '2px',
-                          flexShrink: 0,
-                          transition: 'border 0.15s ease'
-                        }}
-                      />
-                      <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
-                          All schools in selected cluster
-                        </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                          User will have access to all schools under the selected cluster.
-                        </div>
+                      <div style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '12px',
+                        backgroundColor: '#FFEDD5',
+                        color: '#EA580C',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Network size={24} />
                       </div>
-                    </label>
 
-                    {/* Radio 2: Specific school */}
-                    <label 
-                      style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}
-                      onClick={() => {
-                        setScopeType('school');
-                        if (!school) {
-                          setFieldErrors((prev) => ({ ...prev, school: 'Please select a specific school.' }));
-                        }
-                      }}
-                    >
-                      <div 
-                        style={{
-                          width: '18px',
-                          height: '18px',
-                          borderRadius: '50%',
-                          border: scopeType === 'school' ? '5px solid #EA580C' : '2px solid #CBD5E1',
-                          backgroundColor: '#FFFFFF',
-                          marginTop: '2px',
-                          flexShrink: 0,
-                          transition: 'border 0.15s ease'
-                        }}
-                      />
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
-                          Specific school
+                        <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: '0 0 4px 0' }}>
+                          No Clusters Found in System
+                        </h4>
+                        <p style={{ fontSize: '13px', color: '#64748B', margin: 0, maxWidth: '480px', lineHeight: 1.5 }}>
+                          No clusters or schools have been created in the database yet. You can create a cluster right now without leaving this page, or proceed with creating this Administrator with pending cluster assignment.
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickClusterName('');
+                            setQuickClusterError('');
+                            setShowQuickCreateClusterModal(true);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '9px 16px',
+                            borderRadius: '8px',
+                            backgroundColor: '#EA580C',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
+                          }}
+                        >
+                          <Plus size={15} strokeWidth={2.5} />
+                          <span>Create Cluster Now</span>
+                        </button>
+
+                        <label 
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: assignClustersLater ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+                            backgroundColor: assignClustersLater ? '#EFF6FF' : '#FFFFFF',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            color: assignClustersLater ? '#1E40AF' : '#475569'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={assignClustersLater}
+                            onChange={(e) => {
+                              setAssignClustersLater(e.target.checked);
+                              if (e.target.checked) {
+                                setFieldErrors(prev => ({ ...prev, cluster: '', school: '' }));
+                              }
+                            }}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563EB' }}
+                          />
+                          <span>Assign clusters later (Create as Unassigned Admin)</span>
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Top action row when clusters exist */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
+                          Select one or more clusters below. Under each selected cluster, you can assign <strong>All Schools</strong> or manually select specific schools:
                         </div>
-                        <div style={{ fontSize: '11.5px', color: '#64748B' }}>
-                          User will have access to the selected school only.
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <label 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: 'pointer',
+                              fontSize: '12.5px',
+                              fontWeight: 600,
+                              color: assignClustersLater ? '#2563EB' : '#64748B'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={assignClustersLater}
+                              onChange={(e) => {
+                                setAssignClustersLater(e.target.checked);
+                                if (e.target.checked) {
+                                  setFieldErrors(prev => ({ ...prev, cluster: '', school: '' }));
+                                }
+                              }}
+                              style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: '#2563EB' }}
+                            />
+                            <span>Assign clusters later (Skip for now)</span>
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickClusterName('');
+                              setQuickClusterError('');
+                              setShowQuickCreateClusterModal(true);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#EA580C',
+                              fontSize: '12.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: 0
+                            }}
+                          >
+                            <Plus size={14} strokeWidth={2.5} />
+                            <span>Add New Cluster</span>
+                          </button>
                         </div>
                       </div>
-                    </label>
-                  </div>
+
+                      {!assignClustersLater && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {(clustersList || []).map((c, cIdx) => {
+                            if (!c) return null;
+                            const cName = typeof c === 'string' ? c : (c.name || c.id || '');
+                            const isSelected = Array.isArray(selectedClusterIds) && selectedClusterIds.includes(cName);
+                            const scope = (clusterSchoolsScope && clusterSchoolsScope[cName]) || { all: true, schools: [] };
+                            const schoolsUnderCluster = (schoolsList || []).filter((s) => {
+                              if (!s) return false;
+                              if (typeof s === 'string') return true;
+                              const cId = typeof c === 'object' ? c?.id : c;
+                              const cNameStr = typeof c === 'object' ? c?.name : c;
+                              return (
+                                (cId && s.cluster_id === cId) ||
+                                (s.cluster_name && cNameStr && s.cluster_name.toLowerCase() === cNameStr.toLowerCase()) ||
+                                (s.cluster && cNameStr && s.cluster.toLowerCase() === cNameStr.toLowerCase())
+                              );
+                            });
+
+                            return (
+                              <div 
+                                key={typeof c === 'object' ? (c.id || c.name || `cls-${cIdx}`) : c}
+                          style={{
+                            border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                            borderRadius: '12px',
+                            backgroundColor: isSelected ? '#F8FAFC' : '#FFFFFF',
+                            overflow: 'hidden',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {/* Cluster Header Row */}
+                          <div 
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '12px 16px',
+                              cursor: 'pointer',
+                              backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
+                              borderBottom: isSelected ? '1px solid #DBEAFE' : 'none'
+                            }}
+                            onClick={() => handleToggleCluster(cName)}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <div style={{
+                                width: '18px',
+                                height: '18px',
+                                borderRadius: '4px',
+                                border: isSelected ? 'none' : '1.5px solid #94A3B8',
+                                backgroundColor: isSelected ? '#2563EB' : '#FFFFFF',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#FFFFFF'
+                              }}>
+                                {isSelected && <Check size={14} strokeWidth={3} />}
+                              </div>
+                              <span style={{ fontSize: '14px', fontWeight: 700, color: isSelected ? '#1E40AF' : '#1E293B' }}>
+                                {c.name}
+                              </span>
+                              <span style={{ fontSize: '12px', color: '#64748B' }}>
+                                ({schoolsUnderCluster.length} {schoolsUnderCluster.length === 1 ? 'school' : 'schools'})
+                              </span>
+                            </div>
+
+                            {isSelected && (
+                              <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#2563EB' }}>
+                                {scope.all ? 'All Schools in Cluster' : `${(scope.schools || []).filter(sName => schoolsUnderCluster.some(sch => (sch.name === sName || sch.id === sName))).length} ${(scope.schools || []).filter(sName => schoolsUnderCluster.some(sch => (sch.name === sName || sch.id === sName))).length === 1 ? 'School' : 'Schools'} Selected`}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Schools Option when cluster is checked */}
+                          {isSelected && (
+                            <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              {/* Option A: All Schools in this Cluster */}
+                              <div 
+                                style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                                onClick={() => handleToggleAllSchoolsForCluster(cName)}
+                              >
+                                <div style={{
+                                  width: '16px',
+                                  height: '16px',
+                                  borderRadius: '50%',
+                                  border: scope.all ? '5px solid #2563EB' : '2px solid #CBD5E1',
+                                  backgroundColor: '#FFFFFF',
+                                  flexShrink: 0
+                                }} />
+                                <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                                  All Schools in {c.name}
+                                </span>
+                              </div>
+
+                              {/* Option B: Manual Specific Schools Selection */}
+                              <div 
+                                style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                                onClick={() => {
+                                  if (scope.all) handleToggleAllSchoolsForCluster(cName);
+                                }}
+                              >
+                                <div style={{
+                                  width: '16px',
+                                  height: '16px',
+                                  borderRadius: '50%',
+                                  border: !scope.all ? '5px solid #2563EB' : '2px solid #CBD5E1',
+                                  backgroundColor: '#FFFFFF',
+                                  flexShrink: 0
+                                }} />
+                                <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                                  Select specific schools manually ({schoolsUnderCluster.length} available)
+                                </span>
+                              </div>
+
+                              {/* Manual Schools Grid when not 'all' */}
+                              {!scope.all && (
+                                <div style={{
+                                  marginTop: '6px',
+                                  padding: '10px',
+                                  backgroundColor: '#FFFFFF',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: '8px',
+                                  maxHeight: '200px',
+                                  overflowY: 'auto',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: '6px'
+                                }}>
+                                  {schoolsUnderCluster.length > 0 ? (
+                                    schoolsUnderCluster.map((s, sIdx) => {
+                                      if (!s) return null;
+                                      const sName = typeof s === 'string' ? s : (s.name || '');
+                                      const sKey = typeof s === 'string' ? s : (s.id || s.name || `sch-${sIdx}`);
+                                      const isSchoolChecked = Array.isArray(scope.schools) && scope.schools.includes(sName);
+                                      return (
+                                        <div 
+                                          key={sKey}
+                                          onClick={() => handleToggleSpecificSchool(cName, sName)}
+                                          style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '10px',
+                                            padding: '6px 8px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            backgroundColor: isSchoolChecked ? '#EFF6FF' : 'transparent',
+                                            transition: 'background-color 0.1s ease'
+                                          }}
+                                        >
+                                          <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            borderRadius: '3px',
+                                            border: isSchoolChecked ? 'none' : '1.5px solid #94A3B8',
+                                            backgroundColor: isSchoolChecked ? '#2563EB' : '#FFFFFF',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#FFFFFF',
+                                            flexShrink: 0
+                                          }}>
+                                            {isSchoolChecked && <Check size={12} strokeWidth={3} />}
+                                          </div>
+                                          <span style={{ fontSize: '13px', color: '#1E293B', fontWeight: isSchoolChecked ? 600 : 400 }}>
+                                            {s.name} {s.code ? `(${s.code})` : ''}
+                                          </span>
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic' }}>
+                                      No schools found under this cluster.
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              </div>
             </div>
 
-            {/* Section 03. Module Permissions */}
+            {/* Section 03. Module Permissions (Hidden for Cluster Administrator) */}
+            {!isClusterAdmin && (
             <div style={formCardStyle}>
               <div style={cardHeaderRow}>
                 <div style={{ ...sectionIconBox, backgroundColor: '#FFEDD5', color: '#EA580C' }}>
@@ -1214,6 +1751,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 </div>
               )}
             </div>
+            )}
 
         {/* Bottom Form Actions Bar */}
         <div 
@@ -1269,7 +1807,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             }}
           >
             <UserPlus size={16} />
-            <span>{isSubmitting ? 'Creating User...' : 'Create User'}</span>
+            <span>{isSubmitting ? (isClusterAdmin ? 'Creating Administrator...' : 'Creating User...') : (isClusterAdmin ? 'Create Administrator' : 'Create User')}</span>
           </button>
         </div>
       </form>
@@ -1464,10 +2002,10 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 </div>
                 <div>
                   <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>
-                    Confirm User Creation
+                    {isClusterAdmin ? 'Confirm Administrator Creation' : 'Confirm User Creation'}
                   </h3>
                   <span style={{ fontSize: '11.5px', color: '#64748B' }}>
-                    Review user details before adding to database
+                    {isClusterAdmin ? 'Review administrator details before adding to database' : 'Review user details before adding to database'}
                   </span>
                 </div>
               </div>
@@ -1483,7 +2021,9 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             {/* Modal Body */}
             <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <p style={{ fontSize: '13px', color: '#334155', margin: 0 }}>
-                Are you sure you want to create a new user account with active login privileges?
+                {isClusterAdmin 
+                  ? 'Are you sure you want to create a new administrator account with cluster oversight privileges?'
+                  : 'Are you sure you want to create a new user account with active login privileges?'}
               </p>
 
               <div 
@@ -1499,7 +2039,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#64748B' }}>User ID:</span>
+                  <span style={{ color: '#64748B' }}>{isClusterAdmin ? 'Admin ID:' : 'User ID:'}</span>
                   <strong style={{ color: '#EA580C', fontFamily: 'monospace', fontSize: '13px' }}>{userId || email || 'N/A'}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1522,8 +2062,18 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 )}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: '#64748B' }}>Assigned Scope:</span>
-                  <strong style={{ color: '#0F172A', textAlign: 'right' }}>{cluster || 'All Clusters'} ({school || 'All Schools'})</strong>
+                  <span style={{ color: '#64748B' }}>Account Role:</span>
+                  <strong style={{ color: '#2563EB' }}>{role}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <span style={{ color: '#64748B', flexShrink: 0 }}>Assigned Scope:</span>
+                  <strong style={{ color: '#0F172A', textAlign: 'right', maxWidth: '65%' }}>
+                    {role === 'Cluster Administrator'
+                      ? (assignClustersLater || selectedClusterIds.length === 0
+                          ? 'Unassigned (Will be assigned later)' 
+                          : selectedClusterIds.join(', '))
+                      : `${cluster || 'All Clusters'} (${school || 'All Schools'})`}
+                  </strong>
                 </div>
               </div>
 
@@ -1598,7 +2148,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
                 ) : (
                   <>
                     <Check size={16} />
-                    <span>Confirm & Create User</span>
+                    <span>{isClusterAdmin ? 'Confirm & Create Administrator' : 'Confirm & Create User'}</span>
                   </>
                 )}
               </button>
@@ -1653,7 +2203,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
             </div>
 
             <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', margin: '0 0 6px 0' }}>
-              User Created Successfully!
+              {isClusterAdmin ? 'Administrator Created Successfully!' : 'User Created Successfully!'}
             </h3>
             <p style={{ fontSize: '12.5px', color: '#64748B', margin: '0 0 16px 0' }}>
               Account for <strong>{createdUserData.name}</strong> is live and active in PostgreSQL.
@@ -1674,7 +2224,7 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#64748B' }}>User ID:</span>
+                <span style={{ color: '#64748B' }}>{isClusterAdmin ? 'Admin ID:' : 'User ID:'}</span>
                 <span style={{ backgroundColor: '#FFEDD5', color: '#C2410C', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', fontFamily: 'monospace' }}>
                   {createdUserData.id}
                 </span>
@@ -1740,12 +2290,137 @@ export default function CreateUserView({ onNavigateBack, onUserCreated }) {
           </div>
         </div>
       )}
+
+      {/* Quick Create Cluster Modal */}
+      {showQuickCreateClusterModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}
+          onClick={() => setShowQuickCreateClusterModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '16px',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.18)',
+              border: '1px solid #ECEEF2',
+              boxSizing: 'border-box'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#FFEDD5', color: '#EA580C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Network size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Create Cluster</h3>
+                  <span style={{ fontSize: '12px', color: '#64748B' }}>Quickly add a cluster to system</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickCreateClusterModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickCreateCluster}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Cluster Name <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. North Zone, Central District"
+                  value={quickClusterName}
+                  onChange={(e) => {
+                    const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                    setQuickClusterName(lettersOnly);
+                    setQuickClusterError('');
+                  }}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    padding: '0 12px',
+                    borderRadius: '8px',
+                    border: quickClusterError ? '1.5px solid #EF4444' : '1.5px solid #CBD5E1',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {quickClusterError && (
+                  <div style={{ fontSize: '11.5px', color: '#EF4444', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} />
+                    <span>{quickClusterError}</span>
+                  </div>
+                )}
+                <span style={{ fontSize: '11px', color: '#64748B', marginTop: '4px', display: 'block' }}>
+                  Only alphabetic letters and spaces are allowed.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCreateClusterModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    backgroundColor: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: '#475569',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingQuickCluster}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#EA580C',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: isCreatingQuickCluster ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isCreatingQuickCluster ? 'Creating...' : 'Create & Select'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // Sub-component for individual permission row
 function PermissionCheckboxRow({ icon: Icon, label, checked, onChange }) {
+
   return (
     <div 
       style={{

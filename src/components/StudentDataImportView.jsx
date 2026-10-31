@@ -41,7 +41,9 @@ import {
   Edit2,
   Building
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { filterScopeData } from '../utils/scopeFilter';
 import EditClusterModal from './EditClusterModal';
 import EditSchoolModal from './EditSchoolModal';
 import SearchableDropdown from './SearchableDropdown';
@@ -1008,6 +1010,7 @@ function EditImportRowModal({ row, onClose, onSave }) {
 }
 
 export default function StudentDataImportView({ onNavigateTab, initialView = 'wizard', globalSearch = '' }) {
+  const { user, isSuperAdmin, isClusterAdmin, assignedClusterIds, assignedSchoolIds } = useAuth();
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
@@ -1131,7 +1134,22 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
   // Client-side search & filter memo for instant zero-latency filtering
   const filteredHistoryList = useMemo(() => {
     const q = (historySearch || '').trim().toLowerCase();
+    const assignedClusterNames = isClusterAdmin && assignedClusterIds && clustersList.length > 0
+      ? new Set(clustersList.map(c => (c.name || '').toLowerCase()))
+      : null;
+    const assignedSchoolNames = isClusterAdmin && assignedSchoolIds && assignedSchoolIds.length > 0 && allSchoolsList.length > 0
+      ? new Set(allSchoolsList.map(s => (s.name || '').toLowerCase()))
+      : null;
+
     return historyList.filter((h) => {
+      // Cluster Admin scope check
+      if (assignedClusterNames && h.cluster && !assignedClusterNames.has(h.cluster.toLowerCase())) {
+        return false;
+      }
+      if (assignedSchoolNames && h.school && !assignedSchoolNames.has(h.school.toLowerCase())) {
+        return false;
+      }
+
       // Cluster filter
       if (historyClusterFilter && historyClusterFilter !== 'All Clusters') {
         if ((h.cluster || '').toLowerCase() !== historyClusterFilter.toLowerCase()) return false;
@@ -1153,7 +1171,7 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
       const uploaderMatch = (h.uploadedBy || '').toLowerCase().includes(q);
       return idMatch || fileMatch || clusterMatch || schoolMatch || dateMatch || campDateMatch || academicYearMatch || statusMatch || uploaderMatch;
     });
-  }, [historyList, historySearch, historyClusterFilter, historySchoolFilter]);
+  }, [historyList, historySearch, historyClusterFilter, historySchoolFilter, isClusterAdmin, assignedClusterIds, assignedSchoolIds, clustersList, allSchoolsList]);
 
   // Filtered students within the expanded batch
   const filteredBatchStudents = useMemo(() => {
@@ -1274,8 +1292,20 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
         api.getClusters(),
         api.getSchools()
       ]);
-      const cList = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : [];
-      const sList = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
+      const rawClusters = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : [];
+      const rawSchools = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
+
+      const {
+        filteredClusters: cList,
+        filteredSchools: sList
+      } = filterScopeData({
+        clusters: rawClusters,
+        schools: rawSchools,
+        isClusterAdmin,
+        isSuperAdmin,
+        assignedClusterIds,
+        assignedSchoolIds
+      });
 
       setClustersList(cList);
       setAllSchoolsList(sList);
@@ -1470,6 +1500,9 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
       // Map parsed rows to normalized student fields with zero artificial defaults
       const parsedRecords = rows.map((r, index) => {
         // Find best match for each field
+        const idKey = Object.keys(r).find(k => /^(id|student[_\s]?id|stud[_\s]?id)$/i.test(k));
+        const emisKey = Object.keys(r).find(k => /^(emis|emis[_\s]?no|emis[_\s]?number|emis[_\s]?id)$/i.test(k));
+        const admissionKey = Object.keys(r).find(k => /^(admission|admission[_\s]?no|admission[_\s]?number|adm[_\s]?no)$/i.test(k));
         const nameKey = Object.keys(r).find(k => /name|student/i.test(k)) || Object.keys(r)[1] || 'name';
         const classKey = Object.keys(r).find(k => /class|grade|std/i.test(k)) || Object.keys(r)[2] || 'class';
         const secKey = Object.keys(r).find(k => /sec/i.test(k)) || Object.keys(r)[3] || 'section';
@@ -1479,6 +1512,9 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
         const weightKey = Object.keys(r).find(k => /weight|wt/i.test(k));
         const attendKey = Object.keys(r).find(k => /attend|present|absent|status/i.test(k) && !/nutr/i.test(k));
 
+        const rawId = idKey && r[idKey] !== undefined ? String(r[idKey]).trim() : '';
+        const rawEmis = emisKey && r[emisKey] !== undefined ? String(r[emisKey]).trim() : '';
+        const rawAdmission = admissionKey && r[admissionKey] !== undefined ? String(r[admissionKey]).trim() : '';
         const rawName = String(r[nameKey] !== undefined ? r[nameKey] : '').trim();
         const rawClass = String(r[classKey] !== undefined ? r[classKey] : '').trim().replace(/class/i, '').trim();
         const rawSec = String(r[secKey] !== undefined ? r[secKey] : '').trim().toUpperCase() || 'A';
@@ -1506,6 +1542,10 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
 
         const initialRow = {
           row: index + 1,
+          id: rawId || null,
+          student_id: rawId || null,
+          emis_number: rawEmis || null,
+          admission_number: rawAdmission || null,
           name: rawName,
           classVal: rawClass,
           section: rawSec,
@@ -1714,6 +1754,10 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
                             validH === null || validW === null;
 
         return {
+          id: r.id || r.student_id || null,
+          student_id: r.student_id || r.id || null,
+          emis_number: r.emis_number || null,
+          admission_number: r.admission_number || null,
           name: String(r.name).trim(),
           class_name: /^class/i.test(r.classVal) ? r.classVal : `Class ${r.classVal || '1'}`,
           section: (r.section || 'A').trim().toUpperCase(),
@@ -2225,25 +2269,27 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
                 <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#1E293B' }}>
                   Select Cluster <span style={{ color: '#EF4444' }}>*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateClusterModal(true)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#EA580C',
-                    fontSize: '12px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    padding: 0
-                  }}
-                >
-                  <Plus size={13} strokeWidth={3} />
-                  <span>Create Cluster</span>
-                </button>
+                {isSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateClusterModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#EA580C',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: 0
+                    }}
+                  >
+                    <Plus size={13} strokeWidth={3} />
+                    <span>Create Cluster</span>
+                  </button>
+                )}
               </div>
 
               <SearchableDropdown

@@ -31,12 +31,15 @@ import {
   RotateCcw,
   Trash2
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { filterScopeData } from '../utils/scopeFilter';
 
 // Real-time notifications state (no hardcoded mock data)
 const INITIAL_NOTIFICATIONS = [];
 
 export default function NotificationsManagementView() {
+  const { user, isSuperAdmin, isClusterAdmin, assignedClusterIds, assignedSchoolIds } = useAuth();
   // Navigation Mode: 'list' (Image 1) | 'create' (Image 2) | 'history' (Image 3)
   const [viewMode, setViewMode] = useState('list');
 
@@ -97,10 +100,24 @@ export default function NotificationsManagementView() {
         api.getUsers()
       ]);
 
-      const backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
-      const cList = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : [];
-      const sList = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
-      const uList = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value) ? usersRes.value : [];
+      let backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
+      const rawClusters = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : [];
+      const rawSchools = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
+      const rawUsers = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value) ? usersRes.value : [];
+
+      const {
+        filteredClusters: cList,
+        filteredSchools: sList,
+        filteredUsers: uList
+      } = filterScopeData({
+        clusters: rawClusters,
+        schools: rawSchools,
+        users: rawUsers,
+        isClusterAdmin,
+        isSuperAdmin,
+        assignedClusterIds,
+        assignedSchoolIds
+      });
 
       setClustersList(cList);
       setSchoolsList(sList);

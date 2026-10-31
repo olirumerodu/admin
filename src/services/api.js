@@ -5,7 +5,7 @@
  */
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL 
-  || (import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '')}/api/v1` : '/api/v1');
+  || (import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '')}/api/v1` : 'https://3.108.136.127.nip.io/api/v1');
 
 // Helper to get auth token
 const getAuthHeaders = () => {
@@ -397,8 +397,10 @@ export const api = {
   /**
    * Fetch Registered Users / Staff (real-time from backend)
    */
-  async getUsers() {
-    const res = await fetch(`${API_BASE}/users`, {
+  async getUsers(params = {}) {
+    const query = new URLSearchParams(params).toString();
+    const url = query ? `${API_BASE}/users?${query}` : `${API_BASE}/users`;
+    const res = await fetch(url, {
       headers: getAuthHeaders(),
     });
     if (!res.ok) throw new Error('Failed to fetch users');
@@ -406,18 +408,39 @@ export const api = {
   },
 
   /**
-   * Get Next Available Sequential User ID starting from USR001
+   * Get single user by ID or username with full fresh profile state
    */
-  async getNextUserId() {
-    try {
-      const res = await fetch(`${API_BASE}/users/next-id`, {
+  async getUser(userId) {
+    const res = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}`, {
+      headers: getAuthHeaders(),
+    });
+    if (!res.ok) {
+      // Fallback to auth/me endpoint
+      const resFallback = await fetch(`${API_BASE}/auth/me?user_id=${encodeURIComponent(userId)}`, {
         headers: getAuthHeaders(),
       });
-      if (!res.ok) return { next_user_id: 'USR001' };
+      if (!resFallback.ok) throw new Error('Failed to fetch user');
+      return await resFallback.json();
+    }
+    return await res.json();
+  },
+
+  /**
+   * Get Next Available Sequential User ID (ADM001... for admin, USR001... for staff)
+   */
+  async getNextUserId(role = 'health_officer') {
+    try {
+      const q = role ? `?role=${encodeURIComponent(role)}` : '';
+      const res = await fetch(`${API_BASE}/users/next-id${q}`, {
+        headers: getAuthHeaders(),
+      });
+      const defaultId = (role === 'admin' || role === 'Cluster Administrator' || role === 'Cluster Admin') ? 'ADM001' : 'USR001';
+      if (!res.ok) return { next_user_id: defaultId };
       return await res.json();
     } catch (err) {
       console.warn('Failed to fetch next user ID:', err);
-      return { next_user_id: 'USR001' };
+      const defaultId = (role === 'admin' || role === 'Cluster Administrator' || role === 'Cluster Admin') ? 'ADM001' : 'USR001';
+      return { next_user_id: defaultId };
     }
   },
 

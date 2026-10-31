@@ -43,7 +43,10 @@ import {
   Mail,
   X
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { filterScopeData } from '../utils/scopeFilter';
+import { matchStudentSearch } from '../utils/studentSearch';
 import SearchableDropdown from './SearchableDropdown';
 import StudentGrowthChartModal from './StudentGrowthChartModal';
 import SchoolGrowthChartModal from './SchoolGrowthChartModal';
@@ -67,6 +70,7 @@ export const getNutritionStatusColor = (status) => {
   if (s.includes('underweight')) return '#EA580C';
   if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) return '#D97706';
   if (s.includes('normal')) return '#16A34A';
+  if (s.includes('not applicable')) return '#64748B';
   if (s.includes('absent')) return '#D97706';
   if (s.includes('tc issued')) return '#DC2626';
   if (s.includes('graduated')) return '#7C3AED';
@@ -84,6 +88,7 @@ export const getNutritionStatusBg = (status) => {
   if (s.includes('underweight')) return '#FFEDD5';
   if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) return '#FEF3C7';
   if (s.includes('normal')) return '#DCFCE7';
+  if (s.includes('not applicable')) return '#F1F5F9';
   if (s.includes('absent')) return '#FEF3C7';
   if (s.includes('tc issued')) return '#FEF2F2';
   if (s.includes('graduated')) return '#F5F3FF';
@@ -101,6 +106,7 @@ export const getNutritionStatusBorder = (status) => {
   if (s.includes('underweight')) return '#FDBA74';
   if (s.includes('overweight') || s.includes('obesity') || s.includes('obese')) return '#FCD34D';
   if (s.includes('normal')) return '#86EFAC';
+  if (s.includes('not applicable')) return '#CBD5E1';
   if (s.includes('absent')) return '#FCD34D';
   if (s.includes('tc issued')) return '#FECACA';
   if (s.includes('graduated')) return '#DDD6FE';
@@ -168,7 +174,46 @@ function StudentAvatar({ size = 72 }) {
   );
 }
 
-export default function StudentsManagementView({ initialSearch = '' }) {
+// Session storage caching utilities for 0ms instantaneous navigation
+export const getSessionCache = (key, fallback = null) => {
+  if (typeof window === 'undefined') return fallback;
+  try {
+    const raw = sessionStorage.getItem(`sh_cache_${key}`) || localStorage.getItem(`sh_cache_${key}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) ? parsed.length > 0 : (parsed && typeof parsed === 'object')) return parsed;
+    }
+  } catch (e) {}
+  return fallback;
+};
+
+export const setSessionCache = (key, data) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (data !== undefined && data !== null) {
+      sessionStorage.setItem(`sh_cache_${key}`, JSON.stringify(data));
+      localStorage.setItem(`sh_cache_${key}`, JSON.stringify(data));
+    }
+  } catch (e) {}
+};
+
+// Module-level persistent cache pre-hydrated from browser session/local storage
+export const studentsMemoryCache = {
+  clusters: getSessionCache('clusters', null),
+  schools: getSessionCache('schools', null),
+  students: getSessionCache('students', null),
+  users: getSessionCache('users', null),
+  lastFetched: 0
+};
+
+export default function StudentsManagementView({
+  initialSearch = '',
+  initialClusters = null,
+  initialSchools = null,
+  initialStudents = null,
+  initialUsers = null
+}) {
+  const { user, isSuperAdmin, isClusterAdmin, assignedClusterIds, assignedSchoolIds } = useAuth();
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
@@ -176,16 +221,66 @@ export default function StudentsManagementView({ initialSearch = '' }) {
   // Navigation Level: 'clusters' | 'schools' | 'students' | 'student_details' | 'health_history'
   const [viewLevel, setViewLevel] = useState('clusters');
 
-  // Raw live data from backend
-  const [rawClusters, setRawClusters] = useState([]);
-  const [rawSchools, setRawSchools] = useState([]);
-  const [rawStudents, setRawStudents] = useState([]);
-  const [rawUsers, setRawUsers] = useState([]);
-  const [loadingData, setLoadingData] = useState(true);
+  // Raw live data from backend (instantly initialized from props, memory cache, or session storage)
+  const [rawClusters, setRawClusters] = useState(() => {
+    if (initialClusters && initialClusters.length > 0) return initialClusters;
+    if (studentsMemoryCache.clusters && studentsMemoryCache.clusters.length > 0) return studentsMemoryCache.clusters;
+    return getSessionCache('clusters', []);
+  });
+  const [rawSchools, setRawSchools] = useState(() => {
+    if (initialSchools && initialSchools.length > 0) return initialSchools;
+    if (studentsMemoryCache.schools && studentsMemoryCache.schools.length > 0) return studentsMemoryCache.schools;
+    return getSessionCache('schools', []);
+  });
+  const [rawStudents, setRawStudents] = useState(() => {
+    if (initialStudents && initialStudents.length > 0) return initialStudents;
+    if (studentsMemoryCache.students && studentsMemoryCache.students.length > 0) return studentsMemoryCache.students;
+    return getSessionCache('students', []);
+  });
+  const [rawUsers, setRawUsers] = useState(() => {
+    if (initialUsers && initialUsers.length > 0) return initialUsers;
+    if (studentsMemoryCache.users && studentsMemoryCache.users.length > 0) return studentsMemoryCache.users;
+    return getSessionCache('users', []);
+  });
+  const [loadingData, setLoadingData] = useState(() => {
+    const hasCached = (initialStudents && initialStudents.length > 0) || 
+                      (studentsMemoryCache.students && studentsMemoryCache.students.length > 0) ||
+                      (getSessionCache('students', []).length > 0);
+    return !hasCached;
+  });
 
-  // Active selections
-  const [selectedClusterId, setSelectedClusterId] = useState('');
-  const [selectedSchoolId, setSelectedSchoolId] = useState('');
+  // Sync initial props from parent when updated
+  useEffect(() => {
+    if (initialClusters && initialClusters.length > 0) {
+      setRawClusters(initialClusters);
+      setSelectedClusterId(curr => curr && initialClusters.some(c => String(c.id) === String(curr)) ? curr : initialClusters[0].id);
+    }
+    if (initialSchools && initialSchools.length > 0) {
+      setRawSchools(initialSchools);
+      setSelectedSchoolId(curr => curr && initialSchools.some(s => String(s.id) === String(curr)) ? curr : initialSchools[0].id);
+    }
+    if (initialStudents && initialStudents.length > 0) {
+      setRawStudents(initialStudents);
+      setLoadingData(false);
+    }
+    if (initialUsers && initialUsers.length > 0) {
+      setRawUsers(initialUsers);
+    }
+  }, [initialClusters, initialSchools, initialStudents, initialUsers]);
+
+  // Active selections (defaults immediately to first available cluster / school)
+  const [selectedClusterId, setSelectedClusterId] = useState(() => {
+    const list = (initialClusters && initialClusters.length > 0)
+      ? initialClusters
+      : (studentsMemoryCache.clusters || getSessionCache('clusters', []));
+    return list?.[0]?.id || '';
+  });
+  const [selectedSchoolId, setSelectedSchoolId] = useState(() => {
+    const list = (initialSchools && initialSchools.length > 0)
+      ? initialSchools
+      : (studentsMemoryCache.schools || getSessionCache('schools', []));
+    return list?.[0]?.id || '';
+  });
   const [selectedStudentId, setSelectedStudentId] = useState('');
 
   // Search & Filter States
@@ -423,33 +518,92 @@ export default function StudentsManagementView({ initialSearch = '' }) {
     setStudentViewTab('all');
   }, []);
 
-  // Fetch all backend data and poll every 5s for real-time sync with mobile app
+  // Fetch all backend data and poll every 10s for real-time sync with mobile app
   const loadLiveStudentsData = async (silent = false) => {
     try {
-      if (!silent) setLoadingData(true);
-      const [clustersRes, schoolsRes, studentsRes, usersRes] = await Promise.all([
+      const hasCached = Boolean(studentsMemoryCache.students && studentsMemoryCache.students.length > 0);
+      if (!silent && !hasCached) setLoadingData(true);
+      const [clustersSettled, schoolsSettled, studentsSettled, usersSettled] = await Promise.allSettled([
         api.getClusters(),
         api.getSchools(),
         api.getStudents(),
-        api.getUsers().catch(() => []),
+        api.getUsers(),
       ]);
 
-      if (Array.isArray(clustersRes)) {
-        setRawClusters(clustersRes);
-        setSelectedClusterId(prev => prev || (clustersRes.length > 0 ? clustersRes[0].id : ''));
+      const clustersRes = clustersSettled.status === 'fulfilled' && Array.isArray(clustersSettled.value) 
+        ? clustersSettled.value 
+        : null;
+      const schoolsRes = schoolsSettled.status === 'fulfilled' && Array.isArray(schoolsSettled.value) 
+        ? schoolsSettled.value 
+        : null;
+      const studentsRes = studentsSettled.status === 'fulfilled' && Array.isArray(studentsSettled.value) 
+        ? studentsSettled.value 
+        : null;
+      const usersRes = usersSettled.status === 'fulfilled' && Array.isArray(usersSettled.value) 
+        ? usersSettled.value 
+        : null;
+
+      if (clustersRes !== null || schoolsRes !== null || studentsRes !== null) {
+        const freshClusters = clustersRes !== null ? clustersRes : (rawClusters.length > 0 ? rawClusters : (initialClusters || []));
+        const freshSchools = schoolsRes !== null ? schoolsRes : (rawSchools.length > 0 ? rawSchools : (initialSchools || []));
+        const freshStudents = studentsRes !== null ? studentsRes : (rawStudents.length > 0 ? rawStudents : (initialStudents || []));
+        const freshUsers = usersRes !== null ? usersRes : (rawUsers.length > 0 ? rawUsers : (initialUsers || []));
+
+        const {
+          filteredClusters,
+          filteredSchools,
+          filteredStudents,
+          filteredUsers
+        } = filterScopeData({
+          clusters: freshClusters,
+          schools: freshSchools,
+          students: freshStudents,
+          users: freshUsers,
+          isClusterAdmin,
+          isSuperAdmin,
+          assignedClusterIds,
+          assignedSchoolIds
+        });
+
+        setRawClusters(filteredClusters);
+        if (schoolsRes !== null || rawSchools.length === 0) {
+          setRawSchools(filteredSchools);
+        }
+        if (studentsRes !== null || rawStudents.length === 0) {
+          setRawStudents(filteredStudents);
+        }
+        if (usersRes !== null || rawUsers.length === 0) {
+          setRawUsers(filteredUsers);
+        }
+
+        setSelectedClusterId(curr => {
+          if (curr && filteredClusters.some(c => String(c.id) === String(curr))) return curr;
+          return filteredClusters.length > 0 ? filteredClusters[0].id : '';
+        });
+
+        setSelectedSchoolId(curr => {
+          if (curr && filteredSchools.some(s => String(s.id) === String(curr))) return curr;
+          return filteredSchools.length > 0 ? filteredSchools[0].id : '';
+        });
+
+        setSelectedStudentId(curr => {
+          if (curr && filteredStudents.some(s => String(s.id) === String(curr))) return curr;
+          return filteredStudents.length > 0 ? filteredStudents[0].id : '';
+        });
+
+        // Persist in memory cache and session storage for instant 0ms tab switches
+        studentsMemoryCache.clusters = filteredClusters;
+        studentsMemoryCache.schools = filteredSchools;
+        studentsMemoryCache.students = filteredStudents;
+        studentsMemoryCache.users = filteredUsers;
+        studentsMemoryCache.lastFetched = Date.now();
+        setSessionCache('clusters', filteredClusters);
+        setSessionCache('schools', filteredSchools);
+        setSessionCache('students', filteredStudents);
+        setSessionCache('users', filteredUsers);
+
+        setLastRefreshedAt(new Date());
       }
-      if (Array.isArray(schoolsRes)) {
-        setRawSchools(schoolsRes);
-        setSelectedSchoolId(prev => prev || (schoolsRes.length > 0 ? schoolsRes[0].id : ''));
-      }
-      if (Array.isArray(studentsRes)) {
-        setRawStudents(studentsRes);
-        setSelectedStudentId(prev => prev || (studentsRes.length > 0 ? studentsRes[0].id : ''));
-      }
-      if (Array.isArray(usersRes)) {
-        setRawUsers(usersRes);
-      }
-      setLastRefreshedAt(new Date());
     } catch (err) {
       console.warn('Real-time Students Sync notice:', err);
     } finally {
@@ -470,10 +624,23 @@ export default function StudentsManagementView({ initialSearch = '' }) {
   useEffect(() => {
     loadLiveStudentsData();
     const timer = setInterval(() => {
-      loadLiveStudentsData(true);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
+      if (!document.hidden) {
+        loadLiveStudentsData(true);
+      }
+    }, 10000);
+
+    const handleScopeEvent = () => {
+      loadLiveStudentsData(false);
+    };
+    window.addEventListener('sh_scope_updated', handleScopeEvent);
+    window.addEventListener('sh_user_updated', handleScopeEvent);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('sh_scope_updated', handleScopeEvent);
+      window.removeEventListener('sh_user_updated', handleScopeEvent);
+    };
+  }, [isClusterAdmin, JSON.stringify(assignedClusterIds), JSON.stringify(assignedSchoolIds)]);
 
   // AUTO-REFRESH & FILTER RESET ON SCHOOL SWITCH
   const prevSchoolIdRef = useRef(selectedSchoolId);
@@ -554,13 +721,25 @@ export default function StudentsManagementView({ initialSearch = '' }) {
     if (rawClusters.length === 0) return [];
     return rawClusters.map((c, i) => {
       const palette = THEME_PALETTES[i % THEME_PALETTES.length];
-      const clusterSchools = rawSchools.filter(s => s.cluster_id === c.id || s.cluster_name?.toLowerCase() === c.name?.toLowerCase());
-      const clusterStudents = rawStudents.filter(st => st.cluster_name?.toLowerCase() === c.name?.toLowerCase() || clusterSchools.some(sc => sc.id === st.school_id));
+      const cId = String(c.id || '').toLowerCase();
+      const cName = String(c.name || '').toLowerCase();
+      const clusterSchools = rawSchools.filter(s => {
+        const sClusterId = String(s.cluster_id || '').toLowerCase();
+        const sClusterName = String(s.cluster_name || s.cluster || '').toLowerCase();
+        return sClusterId === cId || sClusterName === cName || sClusterId === cName || sClusterName === cId;
+      });
+      const clusterStudents = rawStudents.filter(st => {
+        const stClusterName = String(st.cluster_name || '').toLowerCase();
+        const stClusterId = String(st.cluster_id || '').toLowerCase();
+        const inCluster = stClusterName === cName || stClusterId === cId;
+        const inSchool = clusterSchools.some(sc => String(sc.id || '').toLowerCase() === String(st.school_id || '').toLowerCase());
+        return inCluster || inSchool;
+      });
       return {
         id: c.id,
         name: c.name,
-        schoolsCount: clusterSchools.length || c.schools_count || 0,
-        studentsCount: clusterStudents.length || c.students_count || 0,
+        schoolsCount: clusterSchools.length,
+        studentsCount: clusterStudents.length,
         coverage: c.coverage_percentage || 0,
         ...palette
       };
@@ -580,11 +759,27 @@ export default function StudentsManagementView({ initialSearch = '' }) {
 
   // Schools mapping by cluster
   const schoolsList = useMemo(() => {
-    const clusterSchools = rawSchools.filter(s =>
-      selectedClusterId ? (s.cluster_id === selectedClusterId || s.cluster_name?.toLowerCase() === activeCluster?.name?.toLowerCase()) : true
-    );
+    const targetClusterId = String(selectedClusterId || '').toLowerCase();
+    const targetClusterName = String(activeCluster?.name || '').toLowerCase();
+    const clusterSchools = rawSchools.filter(s => {
+      if (!selectedClusterId) return true;
+      const sClusterId = String(s.cluster_id || '').toLowerCase();
+      const sClusterName = String(s.cluster_name || s.cluster || '').toLowerCase();
+      return (
+        sClusterId === targetClusterId ||
+        sClusterName === targetClusterName ||
+        sClusterId === targetClusterName ||
+        sClusterName === targetClusterId
+      );
+    });
     return clusterSchools.map((s, idx) => {
-      const studentsInSchool = rawStudents.filter(st => st.school_id === s.id || st.school_name === s.name);
+      const sId = String(s.id || '').toLowerCase();
+      const sName = String(s.name || '').toLowerCase();
+      const studentsInSchool = rawStudents.filter(st => {
+        const stSchoolId = String(st.school_id || '').toLowerCase();
+        const stSchoolName = String(st.school_name || '').toLowerCase();
+        return (stSchoolId && stSchoolId === sId) || (stSchoolName && stSchoolName === sName);
+      });
       const studentCount = studentsInSchool.length || s.students_count || 0;
       const assessedCount = studentsInSchool.filter(st => (st.assessments && st.assessments.length > 0) || st.latest_assessment_date).length;
       const pct = studentCount > 0 ? Math.round((assessedCount / studentCount) * 100) : (s.coverage_percentage || 0);
@@ -679,52 +874,42 @@ export default function StudentsManagementView({ initialSearch = '' }) {
         const hasWZ = typeof weightZ === 'number' && !isNaN(weightZ);
         const hasMeasurements = (s.height_cm > 0 && s.weight_kg > 0) || (latestA?.height_cm > 0 && latestA?.weight_kg > 0);
 
-        // 1. Acute malnutrition (Severe): Severely Wasted
-        if (
-          scLower.includes('severely wasted') || scLower.includes('severe thinness') ||
-          (hasZ && rawZ < -3.0)
-        ) {
-          authoritativeStatus = 'Severely Wasted';
-        }
-        // 2. Acute malnutrition (Moderate): Wasted
-        else if (
-          scLower.includes('wasted') || scLower.includes('thinness') ||
-          (hasZ && rawZ < -2.0)
-        ) {
-          authoritativeStatus = 'Wasted';
-        }
-        // 3. Chronic malnutrition: Stunted (includes Severely Stunted, since severely stunted is grouped/hidden)
-        else if (
-          rsLower.includes('stunt') || scLower.includes('stunt') || hcLower.includes('stunt') ||
-          (hasHZ && heightZ < -2.0)
-        ) {
-          authoritativeStatus = 'Stunted';
-        }
-        // 4. Underweight (includes Severely Underweight, since severely underweight is grouped/hidden)
-        else if (
-          rsLower.includes('underweight') || scLower.includes('underweight') || wcLower.includes('underweight') ||
-          (hasWZ && weightZ < -2.0)
-        ) {
-          authoritativeStatus = 'Underweight';
-        }
-        // 5. Overweight & Obesity (grouped under Overweight as requested: "obesity comes in overweight category")
-        else if (
-          rsLower.includes('obesity') || rsLower.includes('obese') || rsLower.includes('overweight') ||
-          scLower.includes('obesity') || scLower.includes('obese') || scLower.includes('overweight') ||
-          (hasZ && rawZ > 1.0)
-        ) {
-          authoritativeStatus = 'Overweight';
-        }
-        // 6. Normal (measurements or assessment present, and none of the malnutrition or overweight criteria met)
-        else if (
-          hasZ || hasMeasurements || hasAssessments ||
-          (assessDate && assessDate !== 'Pending' && assessDate !== 'None') ||
-          rsLower.includes('normal') || scLower.includes('normal')
-        ) {
+        const isSevThin = (hasZ && rawZ < -3.0) || scLower.includes('severe thinness') || scLower.includes('severely wasted');
+        const isThin = (hasZ && rawZ < -2.0) || scLower.includes('thinness') || scLower.includes('wasted');
+        const isSevStunted = (hasHZ && heightZ < -3.0) || hcLower.includes('severe stunting') || rsLower.includes('severe stunting');
+        const isStunted = (hasHZ && heightZ < -2.0) || hcLower.includes('stunt') || rsLower.includes('stunt');
+        const isOverweight = (hasZ && rawZ > 1.0) || scLower.includes('overweight') || scLower.includes('obese');
+        const isNormalBmi = hasZ ? (rawZ >= -2.0 && rawZ <= 1.0) : (scLower.includes('normal') && !isThin);
+        const isNormalHeight = hasHZ ? (heightZ >= -2.0) : (!isStunted);
+
+        const isWeightApplicable = s.latest_weight_for_age_applicable ?? latestA?.weight_for_age_applicable ?? (s.age_months ? (s.age_months >= 61 && s.age_months <= 120) : true);
+        const isUnderweight = isWeightApplicable && ((hasWZ && weightZ < -2.0) || wcLower.includes('underweight') || rsLower.includes('underweight'));
+        const isSevUnderweight = isWeightApplicable && ((hasWZ && weightZ < -3.0) || wcLower.includes('severely underweight'));
+
+        // Composite authoritative status honoring BOTH Thinness and Stunting without mutual erasure
+        if (isSevThin && isSevStunted) {
+          authoritativeStatus = 'Severe Thinness & Severe Stunting';
+        } else if (isSevThin && isStunted) {
+          authoritativeStatus = 'Severe Thinness & Stunting';
+        } else if (isThin && isSevStunted) {
+          authoritativeStatus = 'Thinness & Severe Stunting';
+        } else if (isThin && isStunted) {
+          authoritativeStatus = 'Thinness & Stunting';
+        } else if (isSevThin) {
+          authoritativeStatus = 'Severe Thinness';
+        } else if (isThin) {
+          authoritativeStatus = 'Thinness';
+        } else if (isSevStunted) {
+          authoritativeStatus = 'Severe Stunting';
+        } else if (isStunted) {
+          authoritativeStatus = 'Stunting';
+        } else if (isUnderweight) {
+          authoritativeStatus = isSevUnderweight ? 'Severely Underweight' : 'Underweight';
+        } else if (isOverweight) {
+          authoritativeStatus = (hasZ && rawZ > 2.0) ? 'Obese' : 'Overweight';
+        } else if (hasMeasurements || hasAssessments || hasZ || rsLower.includes('normal') || scLower.includes('normal')) {
           authoritativeStatus = 'Normal';
-        }
-        // 7. Otherwise: Pending Assessment
-        else {
+        } else {
           authoritativeStatus = 'Pending Assessment';
         }
       }
@@ -733,14 +918,19 @@ export default function StudentsManagementView({ initialSearch = '' }) {
       const healthStatus = authoritativeStatus;
       const bmiZ = typeof rawZ === 'number' ? rawZ : null;
 
-      const isSeverelyWasted = authoritativeStatus === 'Severely Wasted';
-      const isWasted = authoritativeStatus === 'Wasted';
-      const isStunted = authoritativeStatus === 'Stunted' || authoritativeStatus === 'Severely Stunted';
-      const isUnderweight = authoritativeStatus === 'Underweight' || authoritativeStatus === 'Severely Underweight';
-      const isOverweight = authoritativeStatus === 'Overweight' || authoritativeStatus === 'Obesity';
-      const isObesity = authoritativeStatus === 'Obesity';
-      const isNormal = authoritativeStatus === 'Normal';
-      const isCritical = isSeverelyWasted || isWasted;
+      const isSeverelyWasted = (typeof rawZ === 'number' && rawZ < -3.0) || authoritativeStatus.includes('Severe Thinness') || authoritativeStatus.includes('Severely Wasted');
+      const isWasted = (typeof rawZ === 'number' && rawZ < -2.0) || authoritativeStatus.includes('Thinness') || authoritativeStatus.includes('Wasted');
+      const isStunted = (typeof heightZ === 'number' && heightZ < -2.0) || authoritativeStatus.includes('Stunt');
+      const isSeverelyStunted = (typeof heightZ === 'number' && heightZ < -3.0) || authoritativeStatus.includes('Severe Stunt');
+      const isWeightApplicable = s.latest_weight_for_age_applicable ?? latestA?.weight_for_age_applicable ?? (s.age_months ? (s.age_months >= 61 && s.age_months <= 120) : true);
+      const isUnderweight = isWeightApplicable && ((typeof weightZ === 'number' && weightZ < -2.0) || authoritativeStatus.includes('Underweight'));
+      const isOverweight = (typeof rawZ === 'number' && rawZ > 1.0) || authoritativeStatus.includes('Overweight') || authoritativeStatus.includes('Obese');
+      const isNormal = authoritativeStatus === 'Normal' || (authoritativeStatus.includes('Normal') && !isWasted && !isStunted);
+      const isCritical = isSeverelyWasted || (isWasted && !isNormal);
+
+      const bmiClassification = isSeverelyWasted ? 'Severe Thinness' : (isWasted ? 'Thinness' : (isOverweight ? ((bmiZ && bmiZ > 2.0) ? 'Obese' : 'Overweight') : 'Normal (BMI)'));
+      const heightClassification = isSeverelyStunted ? 'Severe Stunting' : (isStunted ? 'Stunting' : 'Normal (Height)');
+      const weightClassification = isWeightApplicable ? (isUnderweight ? 'Underweight' : 'Normal (Weight)') : 'Not applicable';
 
       // Real-time Upcoming Monthly Assessment Schedule (based strictly on real last assessment date)
       let nextDueFormatted = 'Pending Assessment';
@@ -812,7 +1002,12 @@ export default function StudentsManagementView({ initialSearch = '' }) {
         heightZScore: heightZ,
         weightZScore: weightZ,
         heightClassification: s.latest_height_for_age_classification || s.height_classification || latestA?.height_for_age_classification || latestA?.height_classification || '',
-        weightClassification: s.latest_weight_for_age_classification || s.weight_classification || latestA?.weight_for_age_classification || latestA?.weight_classification || '',
+        weightClassification: weightClassification,
+        bmiClassification: bmiClassification,
+        isWeightApplicable: isWeightApplicable,
+        isStunted: isStunted,
+        isSeverelyStunted: isSeverelyStunted,
+        isThin: isWasted,
         ageDisplay: s.age_string || s.latest_age_display || '',
         enrollmentStatus: s.enrollment_status || 'Active',
         academicYear: s.academic_year || `${currentDate.getFullYear()}-${currentDate.getFullYear() + 1}`,
@@ -1260,12 +1455,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
   const filteredCriticalStudents = useMemo(() => {
     return criticalStudents.filter(s => {
       if (studentSearch) {
-        const q = studentSearch.toLowerCase().trim();
-        const match = s.name.toLowerCase().includes(q) ||
-                      s.id.toLowerCase().includes(q) ||
-                      (s.dob && s.dob.toLowerCase().includes(q)) ||
-                      (s.dobFormatted && s.dobFormatted.toLowerCase().includes(q));
-        if (!match) return false;
+        if (!matchStudentSearch(s, studentSearch)) return false;
       }
       if (classFilter !== 'All Classes') {
         const target = normalizeClassFilter(classFilter);
@@ -1416,11 +1606,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
     if (!q) return [];
 
     return rawStudents
-      .filter(st => {
-        const matchName = st.name && st.name.toLowerCase().includes(q);
-        const matchId = st.id && String(st.id).toLowerCase().includes(q);
-        return matchName || matchId;
-      })
+      .filter(st => matchStudentSearch(st, q))
       .map(st => {
         const sch = rawSchools.find(s =>
           (st.school_id && String(s.id) === String(st.school_id)) ||
@@ -1600,12 +1786,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
       }
 
       if (studentSearch) {
-        const q = studentSearch.toLowerCase().trim();
-        const match = s.name.toLowerCase().includes(q) ||
-                      s.id.toLowerCase().includes(q) ||
-                      (s.dob && s.dob.toLowerCase().includes(q)) ||
-                      (s.dobFormatted && s.dobFormatted.toLowerCase().includes(q));
-        if (!match) return false;
+        if (!matchStudentSearch(s, studentSearch)) return false;
       }
       if (dobFilter && s.dob !== dobFilter) return false;
       if (classFilter !== 'All Classes') {
@@ -1952,7 +2133,32 @@ export default function StudentsManagementView({ initialSearch = '' }) {
 
             {/* Clusters Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: isStacked ? (isMobile ? '1fr' : 'repeat(2, 1fr)') : 'repeat(3, 1fr)', gap: '16px' }}>
-              {filteredClusters.map((cluster) => (
+              {loadingData && filteredClusters.length === 0 ? (
+                <div style={{ padding: '60px 24px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #ECEEF2', gridColumn: '1 / -1' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #F1F5F9', borderTopColor: '#EA580C', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', marginBottom: '4px' }}>
+                    Loading Clusters & Students...
+                  </h3>
+                  <p style={{ fontSize: '13px', color: '#64748B' }}>
+                    Synchronizing latest live data
+                  </p>
+                </div>
+              ) : filteredClusters.length === 0 ? (
+                <div style={{ padding: '48px 24px', textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: '14px', border: '1px solid #ECEEF2', gridColumn: '1 / -1' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', backgroundColor: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#64748B' }}>
+                    <Building2 size={28} />
+                  </div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>
+                    {isClusterAdmin ? 'No Clusters Allotted (Pending Scope)' : 'No clusters found'}
+                  </h3>
+                  <p style={{ fontSize: '13px', color: '#64748B', maxWidth: '440px', margin: '0 auto' }}>
+                    {isClusterAdmin 
+                      ? 'You have not been assigned any cluster or school access yet. Please contact the Super Administrator to assign your cluster access scope.'
+                      : (clusterSearch.trim() ? `No clusters match "${clusterSearch}".` : 'No cluster records found in system.')}
+                  </p>
+                </div>
+              ) : (
+                filteredClusters.map((cluster) => (
                 <div
                   key={cluster.id}
                   onClick={() => {
@@ -2082,35 +2288,37 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                         <Edit2 size={15} />
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setClusterToDelete(cluster);
-                        }}
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '8px',
-                          border: '1px solid #FEE2E2',
-                          backgroundColor: '#FFF5F5',
-                          color: '#EF4444',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease'
-                        }}
-                        title={`Delete Cluster ${cluster.name}`}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = '#FEE2E2';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = '#FFF5F5';
-                        }}
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {isSuperAdmin && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClusterToDelete(cluster);
+                          }}
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
+                            border: '1px solid #FEE2E2',
+                            backgroundColor: '#FFF5F5',
+                            color: '#EF4444',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title={`Delete Cluster ${cluster.name}`}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FEE2E2';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#FFF5F5';
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
 
                       <div
                         style={{
@@ -2143,7 +2351,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                     </div>
                   </div>
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         </div>
@@ -2218,30 +2426,32 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                 <span>Edit Cluster</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setClusterToDelete(activeCluster)}
-                style={{
-                  backgroundColor: '#FFF5F5',
-                  color: '#DC2626',
-                  border: '1px solid #FEE2E2',
-                  borderRadius: '8px',
-                  padding: '8px 14px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  transition: 'all 0.15s ease'
-                }}
-                title={`Delete Cluster ${activeCluster.name}`}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF5F5'}
-              >
-                <Trash2 size={14} color="#DC2626" />
-                <span>Delete Cluster</span>
-              </button>
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setClusterToDelete(activeCluster)}
+                  style={{
+                    backgroundColor: '#FFF5F5',
+                    color: '#DC2626',
+                    border: '1px solid #FEE2E2',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.15s ease'
+                  }}
+                  title={`Delete Cluster ${activeCluster.name}`}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FEE2E2'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#FFF5F5'}
+                >
+                  <Trash2 size={14} color="#DC2626" />
+                  <span>Delete Cluster</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2519,7 +2729,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                       setSchoolSearch(e.target.value);
                       setSearchResultView('students');
                     }}
-                    placeholder="Search by student name or school..."
+                    placeholder="Search by student name, ID, DOB, class, section, or school..."
                     style={{
                       width: '100%',
                       padding: schoolSearch ? '8px 32px 8px 36px' : '8px 12px 8px 36px',
@@ -3968,7 +4178,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                     type="text"
                     value={studentSearch}
                     onChange={(e) => setStudentSearch(e.target.value)}
-                    placeholder="Search by student name, ID, or DOB..."
+                    placeholder="Search by student name, ID, DOB, class, section..."
                     style={{ width: '100%', padding: '7px 10px 7px 32px', borderRadius: '8px', border: '1px solid #CBD5E1', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
@@ -5574,8 +5784,8 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                   <div style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A', margin: '2px 0 4px 0' }}>
                     {activeStudent.weight ? `${activeStudent.weight} kg` : '—'}
                   </div>
-                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: activeStudent.weightZScore < -2 ? '#FFEDD5' : '#DCFCE7', color: activeStudent.weightZScore < -2 ? '#EA580C' : '#15803D', padding: '2px 8px', borderRadius: '10px' }}>
-                    {activeStudent.weight ? (activeStudent.weightZScore < -2 ? 'Underweight' : 'Normal') : 'Pending'}
+                  <span style={{ fontSize: '10px', fontWeight: 700, backgroundColor: activeStudent.isWeightApplicable === false ? '#F1F5F9' : (activeStudent.weightZScore < -2 ? '#FFEDD5' : '#DCFCE7'), color: activeStudent.isWeightApplicable === false ? '#64748B' : (activeStudent.weightZScore < -2 ? '#EA580C' : '#15803D'), padding: '2px 8px', borderRadius: '10px' }}>
+                    {activeStudent.isWeightApplicable === false ? 'N/A (>10y)' : (activeStudent.weight ? (activeStudent.weightZScore < -2 ? 'Underweight' : 'Normal') : 'Pending')}
                   </span>
                 </div>
 
@@ -5662,8 +5872,8 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                 {/* Weight-for-Age Z */}
                 <div>
                   <div style={{ fontSize: '11px', color: '#64748B', fontWeight: 500 }}>Weight-for-Age Z</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: (typeof activeStudent.weightZScore === 'number' && activeStudent.weightZScore < -2) ? '#DC2626' : '#0F172A', margin: '2px 0 4px 0' }}>
-                    {typeof activeStudent.weightZScore === 'number' ? `${activeStudent.weightZScore.toFixed(2)} SD` : '—'}
+                  <div style={{ fontSize: activeStudent.isWeightApplicable === false ? '13px' : '16px', fontWeight: 800, color: activeStudent.isWeightApplicable === false ? '#64748B' : ((typeof activeStudent.weightZScore === 'number' && activeStudent.weightZScore < -2) ? '#DC2626' : '#0F172A'), margin: '2px 0 4px 0' }}>
+                    {activeStudent.isWeightApplicable === false ? 'Not applicable' : (typeof activeStudent.weightZScore === 'number' ? `${activeStudent.weightZScore.toFixed(2)} SD` : '—')}
                   </div>
                   <div style={{ position: 'relative', height: '6px', backgroundColor: '#E2E8F0', borderRadius: '3px' }}>
                     <div style={{ position: 'absolute', left: '25%', right: '25%', height: '100%', backgroundColor: '#10B981', borderRadius: '3px' }} />
@@ -5672,7 +5882,7 @@ export default function StudentsManagementView({ initialSearch = '' }) {
                     )}
                   </div>
                   <div style={{ fontSize: '10px', color: '#64748B', textAlign: 'center', marginTop: '3px' }}>
-                    {typeof activeStudent.weightZScore === 'number' ? (activeStudent.weightZScore < -2 ? 'Underweight (<-2 SD)' : 'Normal range') : 'No assessment data'}
+                    {activeStudent.isWeightApplicable === false ? 'Not applicable (Age > 10 yrs)' : (typeof activeStudent.weightZScore === 'number' ? (activeStudent.weightZScore < -2 ? 'Underweight (<-2 SD)' : 'Normal range') : 'No assessment data')}
                   </div>
                 </div>
               </div>
@@ -5843,7 +6053,9 @@ export default function StudentsManagementView({ initialSearch = '' }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: '13px' }}>
                 <span style={{ color: '#64748B' }}>Weight-for-Age Z</span>
                 <span style={{ fontWeight: 600, color: (typeof activeStudent.weightZScore === 'number' && activeStudent.weightZScore < -2) ? '#DC2626' : '#0F172A' }}>
-                  {typeof activeStudent.weightZScore === 'number' ? `${activeStudent.weightZScore.toFixed(2)} SD` : '—'}
+                  {activeStudent.isWeightApplicable === false ? (
+                    <span style={{ color: '#94A3B8', fontStyle: 'italic', fontWeight: 500 }}>Not applicable</span>
+                  ) : (typeof activeStudent.weightZScore === 'number' ? `${activeStudent.weightZScore.toFixed(2)} SD` : '—')}
                 </span>
               </div>
 
@@ -5853,17 +6065,47 @@ export default function StudentsManagementView({ initialSearch = '' }) {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid #F1F5F9', fontSize: '13px' }}>
-                <span style={{ color: '#64748B' }}>Classification</span>
+                <span style={{ color: '#64748B' }}>BMI-for-Age (Thinness)</span>
                 <span style={{
                   fontSize: '11px',
                   fontWeight: 700,
-                  backgroundColor: getNutritionStatusBg(activeStudent.currentStatus),
-                  color: getNutritionStatusColor(activeStudent.currentStatus),
-                  border: `1px solid ${getNutritionStatusBorder(activeStudent.currentStatus)}`,
+                  backgroundColor: getNutritionStatusBg(activeStudent.bmiClassification || activeStudent.currentStatus),
+                  color: getNutritionStatusColor(activeStudent.bmiClassification || activeStudent.currentStatus),
+                  border: `1px solid ${getNutritionStatusBorder(activeStudent.bmiClassification || activeStudent.currentStatus)}`,
                   padding: '2px 10px',
                   borderRadius: '10px'
                 }}>
-                  {activeStudent.currentStatus || 'Pending'}
+                  {activeStudent.bmiClassification || 'Normal (BMI)'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid #F1F5F9', fontSize: '13px' }}>
+                <span style={{ color: '#64748B' }}>Height-for-Age (Stunting)</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  backgroundColor: getNutritionStatusBg(activeStudent.heightClassification || (activeStudent.isStunted ? 'Stunting' : 'Normal')),
+                  color: getNutritionStatusColor(activeStudent.heightClassification || (activeStudent.isStunted ? 'Stunting' : 'Normal')),
+                  border: `1px solid ${getNutritionStatusBorder(activeStudent.heightClassification || (activeStudent.isStunted ? 'Stunting' : 'Normal'))}`,
+                  padding: '2px 10px',
+                  borderRadius: '10px'
+                }}>
+                  {activeStudent.heightClassification || (activeStudent.isStunted ? 'Stunting' : 'Normal (Height)')}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid #F1F5F9', fontSize: '13px' }}>
+                <span style={{ color: '#64748B' }}>Weight-for-Age (Underweight)</span>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  backgroundColor: activeStudent.isWeightApplicable === false ? '#F1F5F9' : getNutritionStatusBg(activeStudent.weightClassification || 'Normal'),
+                  color: activeStudent.isWeightApplicable === false ? '#64748B' : getNutritionStatusColor(activeStudent.weightClassification || 'Normal'),
+                  border: `1px solid ${activeStudent.isWeightApplicable === false ? '#E2E8F0' : getNutritionStatusBorder(activeStudent.weightClassification || 'Normal')}`,
+                  padding: '2px 10px',
+                  borderRadius: '10px'
+                }}>
+                  {activeStudent.isWeightApplicable === false ? 'Not applicable' : (activeStudent.weightClassification || 'Normal (Weight)')}
                 </span>
               </div>
             </div>

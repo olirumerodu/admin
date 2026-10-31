@@ -4,9 +4,10 @@ import {
   Check, LayoutGrid, Users, ClipboardCheck,
   BarChart2, Heart, Bell, Network, AlertCircle, AlertTriangle,
   CheckCircle2, ArrowLeft, Save, ShieldCheck, CreditCard, Calendar,
-  Lock, Eye, EyeOff
+  Lock, Eye, EyeOff, Plus, X
 } from "lucide-react";
 import { api } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 function useWindowWidth() {
   const [width, setWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 1440);
@@ -84,19 +85,29 @@ const grid2 = {
 };
 
 export default function EditUserView({ user: initialUser, onNavigateBack, onUserUpdated }) {
+  const { isClusterAdmin: isCallerClusterAdmin, assignedClusterIds, assignedSchoolIds } = useAuth();
   const windowWidth = useWindowWidth();
   const isMobile = windowWidth < 768;
   const isStacked = windowWidth < 1080;
 
-  const parseRole = (r) => {
+  const parseRole = (r, userObj) => {
     if (!r) return "School Staff";
-    if (r === "admin" || r === "Super Admin") return "Super Admin";
+    const username = (userObj?.username || userObj?.raw?.username || "").toLowerCase();
+    const email = (userObj?.email || userObj?.raw?.email || "").toLowerCase();
+    const id = (userObj?.id || userObj?.raw?.id || "").toLowerCase();
+    const isRootAdmin = username === "admin" || username === "ksvadmin" || email === "admin@gmail.com" || email === "admin@oehealth.org" || id.startsWith("admin");
+
+    if (r === "admin" || r === "Super Admin") {
+      if (isRootAdmin) return "Super Admin";
+      return "Cluster Administrator";
+    }
+    if (r === "Cluster Admin" || r === "Cluster Administrator") return "Cluster Administrator";
     return "School Staff";
   };
 
   // Compute immutable snapshot of initial values for change detection
   const originalValues = useMemo(() => {
-    const rawRole = parseRole(initialUser?.role);
+    const rawRole = parseRole(initialUser?.role, initialUser);
     let rawPerms = initialUser?.permissions || initialUser?.raw?.permissions;
     if (typeof rawPerms === 'string') {
       try {
@@ -141,6 +152,56 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
 
     const rawStatus = initialUser?.status || (initialUser?.raw?.is_active !== false ? "Active" : "Inactive");
 
+    // Multi-cluster & schools scope for Cluster Administrator
+    let initialClusterIds = [];
+    let rawClusterTokens = initialUser?.assigned_cluster_ids ?? initialUser?.raw?.assigned_cluster_ids;
+    if (typeof rawClusterTokens === 'string') {
+      try {
+        const parsed = JSON.parse(rawClusterTokens);
+        if (Array.isArray(parsed)) rawClusterTokens = parsed;
+        else rawClusterTokens = rawClusterTokens.split(',').map(c => c.trim()).filter(Boolean);
+      } catch {
+        rawClusterTokens = rawClusterTokens.split(',').map(c => c.trim()).filter(Boolean);
+      }
+    }
+    if (Array.isArray(rawClusterTokens) && rawClusterTokens.length > 0) {
+      initialClusterIds = Array.from(new Set(rawClusterTokens.map(c => String(c || '').trim()).filter(Boolean)));
+    } else if (initialUser?.cluster && initialUser.cluster !== 'All Clusters' && initialUser.cluster !== 'Unassigned (Pending Scope)' && !/^[0-9a-fA-F-]{20,}/.test(initialUser.cluster)) {
+      initialClusterIds = Array.from(new Set(initialUser.cluster.split(',').map(c => c.trim()).filter(Boolean)));
+    } else if (initialUser?.assigned_cluster_id && initialUser.assigned_cluster_id !== 'All Clusters' && initialUser.assigned_cluster_id !== 'all') {
+      initialClusterIds = [initialUser.assigned_cluster_id];
+    }
+
+    let initialSchoolsScope = {};
+    let parsedSchoolIds = initialUser?.assigned_school_ids ?? initialUser?.raw?.assigned_school_ids;
+    if (typeof parsedSchoolIds === 'string') {
+      try {
+        const parsed = JSON.parse(parsedSchoolIds);
+        if (Array.isArray(parsed)) parsedSchoolIds = parsed;
+        else parsedSchoolIds = parsedSchoolIds.split(',').map(s => s.trim()).filter(Boolean);
+      } catch {
+        parsedSchoolIds = parsedSchoolIds.split(',').map(s => s.trim()).filter(Boolean);
+      }
+    } else if (!parsedSchoolIds && initialUser?.school && initialUser.school !== 'All Assigned Schools' && initialUser.school !== 'All Schools' && initialUser.school !== 'All Schools in Cluster') {
+      parsedSchoolIds = initialUser.school.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    const rawSchoolList = Array.isArray(parsedSchoolIds)
+      ? Array.from(new Set(parsedSchoolIds.map(s => String(s || '').trim()).filter(Boolean)))
+      : [];
+
+    if (rawSchoolList.length > 0) {
+      initialClusterIds.forEach(c => {
+        initialSchoolsScope[c] = { all: false, schools: rawSchoolList };
+      });
+    } else {
+      initialClusterIds.forEach(c => {
+        initialSchoolsScope[c] = { all: true, schools: [] };
+      });
+    }
+
+    const initialAssignLater = rawRole === "Cluster Administrator" && initialClusterIds.length === 0;
+
     return {
       fullName: initialUser?.name || "",
       email: initialUser?.email || "",
@@ -156,6 +217,9 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       joinedOn: initialUser?.joinedOn || initialUser?.createdAtFormatted || "",
       lastLoginDate: initialUser?.lastLoginDate || "",
       lastLoginTime: initialUser?.lastLoginTime || "",
+      selectedClusterIds: initialClusterIds,
+      clusterSchoolsScope: initialSchoolsScope,
+      assignClustersLater: initialAssignLater,
     };
   }, [initialUser]);
 
@@ -169,6 +233,17 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
   const [school, setSchool] = useState(originalValues.school);
   const [scopeType, setScopeType] = useState(originalValues.scopeType);
   const [permissions, setPermissions] = useState(originalValues.permissions);
+
+  // Multi-cluster & schools manual selection state for Cluster Administrator
+  const [selectedClusterIds, setSelectedClusterIds] = useState(originalValues.selectedClusterIds);
+  const [clusterSchoolsScope, setClusterSchoolsScope] = useState(originalValues.clusterSchoolsScope);
+  const [assignClustersLater, setAssignClustersLater] = useState(originalValues.assignClustersLater);
+
+  // Quick cluster creation modal state
+  const [showQuickCreateClusterModal, setShowQuickCreateClusterModal] = useState(false);
+  const [quickClusterName, setQuickClusterName] = useState("");
+  const [quickClusterError, setQuickClusterError] = useState("");
+  const [isCreatingQuickCluster, setIsCreatingQuickCluster] = useState(false);
 
   // Password editing states (optional: leave blank to preserve existing password)
   const [password, setPassword] = useState("");
@@ -219,6 +294,9 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     setSchool(originalValues.school);
     setScopeType(originalValues.scopeType);
     setPermissions(originalValues.permissions);
+    setSelectedClusterIds(originalValues.selectedClusterIds);
+    setClusterSchoolsScope(originalValues.clusterSchoolsScope);
+    setAssignClustersLater(originalValues.assignClustersLater);
     setPassword("");
     setConfirmPassword("");
     setShowPassword(false);
@@ -229,39 +307,209 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
   }, [originalValues]);
 
   // Load cluster and school options
-  useEffect(() => {
-    async function loadScope() {
-      try {
-        const [cData, sData] = await Promise.allSettled([api.getClusters(), api.getSchools()]);
-        if (cData.status === "fulfilled" && Array.isArray(cData.value) && cData.value.length > 0) {
-          setClustersList(cData.value);
-          const rawCluster = initialUser?.raw?.assigned_cluster_id || initialUser?.raw?.cluster_name || initialUser?.cluster;
-          if (rawCluster && rawCluster !== "All Clusters") {
-            const matched = cData.value.find(c => c.id === rawCluster || c.name === rawCluster);
-            if (matched) {
-              setCluster(matched.name);
-            }
+  const loadScope = async () => {
+    try {
+      const [cData, sData] = await Promise.allSettled([api.getClusters(), api.getSchools()]);
+      if (cData.status === "fulfilled" && Array.isArray(cData.value)) {
+        let availableClusters = cData.value;
+        if (isCallerClusterAdmin && assignedClusterIds.length > 0) {
+          const normAllowed = new Set(assignedClusterIds.map(x => String(x).toLowerCase().trim()));
+          availableClusters = availableClusters.filter(c =>
+            normAllowed.has(String(c.id).toLowerCase().trim()) || normAllowed.has(String(c.name).toLowerCase().trim())
+          );
+        }
+        setClustersList(availableClusters);
+
+        // Normalize selectedClusterIds so that any UUID tokens are resolved to actual cluster names
+        setSelectedClusterIds(prev => {
+          return (prev || []).map(token => {
+            const matched = availableClusters.find(c => c.id === token || c.name === token);
+            return matched ? matched.name : token;
+          });
+        });
+
+        const rawCluster = initialUser?.raw?.assigned_cluster_id || initialUser?.raw?.cluster_name || initialUser?.cluster;
+        if (rawCluster && rawCluster !== "All Clusters") {
+          const matched = cData.value.find(c => c.id === rawCluster || c.name === rawCluster);
+          if (matched) {
+            setCluster(matched.name);
           }
         }
-        if (sData.status === "fulfilled" && Array.isArray(sData.value) && sData.value.length > 0) {
-          setSchoolsList(sData.value);
-        }
-      } catch (err) {
-        console.warn("Scope load error:", err);
       }
+      if (sData.status === "fulfilled" && Array.isArray(sData.value)) {
+        const sList = sData.value;
+        const cList = (cData.status === "fulfilled" && Array.isArray(cData.value)) ? cData.value : clustersList;
+        setSchoolsList(sList);
+
+        // Partition user's initial schools per cluster accurately
+        let rawSchools = initialUser?.assigned_school_ids ?? initialUser?.raw?.assigned_school_ids;
+        if (typeof rawSchools === 'string') {
+          try {
+            const parsed = JSON.parse(rawSchools);
+            if (Array.isArray(parsed)) rawSchools = parsed;
+            else rawSchools = rawSchools.split(',').map(s => s.trim()).filter(Boolean);
+          } catch {
+            rawSchools = rawSchools.split(',').map(s => s.trim()).filter(Boolean);
+          }
+        } else if (!rawSchools && initialUser?.school && initialUser.school !== 'All Assigned Schools' && initialUser.school !== 'All Schools' && initialUser.school !== 'All Schools in Cluster') {
+          rawSchools = initialUser.school.split(',').map(s => s.trim()).filter(Boolean);
+        }
+
+        const candidateSchools = Array.isArray(rawSchools) ? rawSchools.map(s => String(s || '').trim()).filter(Boolean) : [];
+
+        if (candidateSchools.length > 0) {
+          setClusterSchoolsScope(prev => {
+            const nextScope = { ...prev };
+            Object.keys(nextScope).forEach(cName => {
+              const cObj = (cList || []).find(cl => cl.name === cName || cl.id === cName);
+              const cId = String(cObj?.id || '').toLowerCase().trim();
+              const cNameLower = String(cName || '').toLowerCase().trim();
+
+              const schoolsInCluster = sList.filter(s => {
+                const sC = String(s.cluster_name || s.cluster || s.cluster_id || '').toLowerCase().trim();
+                return sC === cNameLower || (cId && String(s.cluster_id || '').toLowerCase().trim() === cId);
+              });
+
+              const validSchoolNames = new Set(schoolsInCluster.map(s => String(s.name || '').toLowerCase().trim()));
+              const matchedSchools = candidateSchools.filter(s => validSchoolNames.has(String(s).toLowerCase().trim()));
+
+              if (matchedSchools.length > 0) {
+                nextScope[cName] = {
+                  all: matchedSchools.length === schoolsInCluster.length && schoolsInCluster.length > 0,
+                  schools: matchedSchools
+                };
+              } else {
+                nextScope[cName] = {
+                  all: true,
+                  schools: []
+                };
+              }
+            });
+            return nextScope;
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Scope load error:", err);
     }
+  };
+
+  useEffect(() => {
     loadScope();
   }, []);
 
+  const handleQuickCreateCluster = async (e) => {
+    if (e) e.preventDefault();
+    const cleanName = quickClusterName.trim();
+    if (!cleanName) {
+      setQuickClusterError("Cluster name is required.");
+      return;
+    }
+    if (!/^[a-zA-Z\s]+$/.test(cleanName)) {
+      setQuickClusterError("Cluster name can only contain alphabetic letters.");
+      return;
+    }
+    setIsCreatingQuickCluster(true);
+    setQuickClusterError("");
+    try {
+      const newCluster = await api.createCluster({ name: cleanName });
+      await loadScope();
+      const cName = newCluster.name || cleanName;
+      setSelectedClusterIds((prev) => {
+        if (!prev.includes(cName)) return [...prev, cName];
+        return prev;
+      });
+      setClusterSchoolsScope((prev) => ({
+        ...prev,
+        [cName]: { all: true, schools: [] }
+      }));
+      setCluster(cName);
+      setAssignClustersLater(false);
+      setShowQuickCreateClusterModal(false);
+      setQuickClusterName("");
+      setFieldErrors((prev) => ({ ...prev, cluster: "", school: "" }));
+    } catch (err) {
+      setQuickClusterError(err.message || "Failed to create cluster.");
+    } finally {
+      setIsCreatingQuickCluster(false);
+    }
+  };
+
+  // Handlers for manual cluster & school selection for Cluster Administrator
+  const handleToggleCluster = (clusterName) => {
+    setSelectedClusterIds((prev) => {
+      const exists = prev.includes(clusterName);
+      const next = exists ? prev.filter(c => c !== clusterName) : [...prev, clusterName];
+      if (next.length === 0) {
+        setAssignClustersLater(true);
+      } else {
+        setAssignClustersLater(false);
+      }
+      return next;
+    });
+    setFieldErrors(prev => ({ ...prev, cluster: '', school: '' }));
+    setClusterSchoolsScope((prev) => {
+      if (prev[clusterName]) {
+        const copy = { ...prev };
+        delete copy[clusterName];
+        return copy;
+      } else {
+        return {
+          ...prev,
+          [clusterName]: { all: true, schools: [] }
+        };
+      }
+    });
+  };
+
+  const handleToggleAllSchoolsForCluster = (clusterName) => {
+    setClusterSchoolsScope((prev) => {
+      const current = prev[clusterName] || { all: true, schools: [] };
+      return {
+        ...prev,
+        [clusterName]: {
+          all: !current.all,
+          schools: !current.all ? [] : current.schools
+        }
+      };
+    });
+  };
+
+  const handleToggleSpecificSchool = (clusterName, schoolName) => {
+    setClusterSchoolsScope((prev) => {
+      const current = prev[clusterName] || { all: false, schools: [] };
+      const currentSchools = current.schools || [];
+      const exists = currentSchools.includes(schoolName);
+      const updatedSchools = exists 
+        ? currentSchools.filter(s => s !== schoolName)
+        : [...currentSchools, schoolName];
+      return {
+        ...prev,
+        [clusterName]: {
+          all: false,
+          schools: updatedSchools
+        }
+      };
+    });
+  };
+
   // Filter schools in real-time based on the selected cluster from database
   const filteredSchools = useMemo(() => {
-    if (!cluster || cluster === "All Clusters") return schoolsList;
-    const selectedClusterObj = clustersList.find(c => c.name === cluster || c.id === cluster);
-    return schoolsList.filter(s => 
-      (selectedClusterObj && s.cluster_id === selectedClusterObj.id) ||
-      s.cluster_name === cluster ||
-      s.cluster === cluster
-    );
+    if (!cluster || cluster === "All Clusters") return schoolsList || [];
+    const selectedClusterObj = (clustersList || []).find(c => {
+      if (!c) return false;
+      if (typeof c === "string") return c === cluster;
+      return c.name === cluster || c.id === cluster;
+    });
+    return (schoolsList || []).filter(s => {
+      if (!s) return false;
+      if (typeof s === "string") return true;
+      return (
+        (selectedClusterObj && s.cluster_id === selectedClusterObj.id) ||
+        s.cluster_name === cluster ||
+        s.cluster === cluster
+      );
+    });
   }, [cluster, clustersList, schoolsList]);
 
   // Validation function matching CreateUserView
@@ -360,14 +608,25 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     if (phone.replace(/\D/g, "") !== originalValues.phone) return true;
     if (role !== originalValues.role) return true;
     if (status !== originalValues.status) return true;
+
+    if (assignClustersLater !== originalValues.assignClustersLater) return true;
+    const curSorted = [...selectedClusterIds].sort();
+    const origSorted = [...(originalValues.selectedClusterIds || [])].sort();
+    if (JSON.stringify(curSorted) !== JSON.stringify(origSorted)) return true;
+    if (JSON.stringify(clusterSchoolsScope) !== JSON.stringify(originalValues.clusterSchoolsScope || {})) return true;
     if (cluster !== originalValues.cluster) return true;
     if (school !== originalValues.school) return true;
     if (scopeType !== originalValues.scopeType) return true;
+
     for (const k of Object.keys(originalValues.permissions)) {
       if (Boolean(permissions[k]) !== Boolean(originalValues.permissions[k])) return true;
     }
     return false;
-  }, [password, confirmPassword, fullName, email, phone, role, status, cluster, school, scopeType, permissions, originalValues]);
+  }, [
+    password, confirmPassword, fullName, email, phone, role, status,
+    cluster, school, scopeType, permissions, originalValues,
+    assignClustersLater, selectedClusterIds, clusterSchoolsScope
+  ]);
 
   // Permission toggles
   const handleTogglePermission = (key) => setPermissions(p => ({ ...p, [key]: !p[key] }));
@@ -418,18 +677,27 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     const ef = validateField("fullName", fullName);
     const ee = validateField("email", email);
     const ep = validateField("phone", phone);
-    const ec = validateField("cluster", cluster);
-    const es = validateField("school", school);
     const epw = validateField("password", password);
     const ecp = validateField("confirmPassword", confirmPassword);
 
     if (ef) errs.fullName = ef;
     if (ee) errs.email = ee;
     if (ep) errs.phone = ep;
-    if (ec) errs.cluster = ec;
-    if (es) errs.school = es;
     if (epw) errs.password = epw;
     if (ecp) errs.confirmPassword = ecp;
+
+    if (!selectedClusterIds || selectedClusterIds.length === 0) {
+      // Valid: unassigned admin / pending scope
+      setAssignClustersLater(true);
+    } else if (!assignClustersLater && selectedClusterIds.length > 0) {
+      for (const cId of selectedClusterIds) {
+        const scope = clusterSchoolsScope[cId];
+        if (scope && !scope.all && (!scope.schools || scope.schools.length === 0)) {
+          errs.school = `Please select at least one school for cluster "${cId}" or select "All Schools".`;
+          break;
+        }
+      }
+    }
 
     setTouched({ fullName: true, email: true, phone: true, cluster: true, school: true, password: true, confirmPassword: true });
     setFieldErrors(errs);
@@ -439,7 +707,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       return;
     }
 
-    if (selectedModulesList.length === 0) {
+    if (role !== "Cluster Administrator" && selectedModulesList.length === 0) {
       setErrorMsg("Please select at least one module permission.");
       return;
     }
@@ -456,10 +724,92 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
   const handleConfirmSave = async () => {
     setIsSubmitting(true);
     try {
-      const backendRole = role === "Super Admin" ? "admin" : "health_officer";
+      const backendRole = (role === "Super Admin" || role === "Cluster Administrator" || role === "Cluster Admin") ? "admin" : "health_officer";
       const foundClusterId = clustersList.find(c => c.name === cluster || c.id === cluster)?.id;
       const assignedCluster = (cluster === "All Clusters" || !cluster) ? null : (foundClusterId || null);
       const cleanEmail = email.trim().toLowerCase();
+
+      let assigned_cluster_ids = null;
+      let assigned_school_ids = null;
+      let finalCluster = cluster;
+      let finalSchool = school;
+      let primaryClusterId = assignedCluster;
+
+      if (assignClustersLater || !selectedClusterIds || selectedClusterIds.length === 0) {
+        assigned_cluster_ids = [];
+        assigned_school_ids = null;
+        finalCluster = 'Unassigned (Pending Scope)';
+        finalSchool = 'Unassigned';
+        primaryClusterId = null;
+      } else {
+        // Filter out clusters that have manual selection enabled but 0 schools checked
+        const effectiveClusterIds = selectedClusterIds.filter((cName) => {
+          const sc = clusterSchoolsScope && clusterSchoolsScope[cName];
+          if (sc && !sc.all && (!Array.isArray(sc.schools) || sc.schools.length === 0)) {
+            return false;
+          }
+          return true;
+        });
+
+        assigned_cluster_ids = Array.from(new Set(effectiveClusterIds.length > 0 ? effectiveClusterIds : selectedClusterIds));
+        const specificSchools = [];
+        const seenSchools = new Set();
+        let hasAnyManualSelection = false;
+
+        // Check if ANY cluster has manual specific schools selected
+        selectedClusterIds.forEach((cName) => {
+          const sc = clusterSchoolsScope && clusterSchoolsScope[cName];
+          if (sc && !sc.all) {
+            hasAnyManualSelection = true;
+          }
+        });
+
+        selectedClusterIds.forEach((cName) => {
+          const sc = clusterSchoolsScope && clusterSchoolsScope[cName];
+          const cObj = (clustersList || []).find(cl => cl.name === cName || cl.id === cName);
+          const cId = String(cObj?.id || '').toLowerCase().trim();
+          const cNameLower = String(cName || '').toLowerCase().trim();
+
+          const schoolsInThisCluster = (schoolsList || []).filter(s => {
+            const sC = String(s.cluster_name || s.cluster || s.cluster_id || '').toLowerCase().trim();
+            return sC === cNameLower || (cId && String(s.cluster_id || '').toLowerCase().trim() === cId);
+          });
+          const validSchoolNames = new Set(schoolsInThisCluster.map(s => String(s.name || '').toLowerCase().trim()));
+
+          if (hasAnyManualSelection) {
+            if (sc && !sc.all) {
+              if (Array.isArray(sc.schools)) {
+                sc.schools.forEach(s => {
+                  const trimmed = String(s || '').trim();
+                  if (trimmed && validSchoolNames.has(trimmed.toLowerCase()) && !seenSchools.has(trimmed.toLowerCase())) {
+                    seenSchools.add(trimmed.toLowerCase());
+                    specificSchools.push(trimmed);
+                  }
+                });
+              }
+            } else {
+              // sc.all is true: Add ALL schools in this cluster to specificSchools
+              schoolsInThisCluster.forEach(s => {
+                const trimmed = String(s.name || '').trim();
+                if (trimmed && !seenSchools.has(trimmed.toLowerCase())) {
+                  seenSchools.add(trimmed.toLowerCase());
+                  specificSchools.push(trimmed);
+                }
+              });
+            }
+          }
+        });
+
+        assigned_school_ids = hasAnyManualSelection && specificSchools.length > 0 ? specificSchools : null;
+        finalCluster = assigned_cluster_ids.join(', ');
+        finalSchool = assigned_school_ids && assigned_school_ids.length > 0 ? assigned_school_ids.join(', ') : 'All Assigned Schools';
+        if (assigned_cluster_ids.length > 0) {
+          const firstC = clustersList.find(c => c.name === assigned_cluster_ids[0] || c.id === assigned_cluster_ids[0]);
+          if (firstC) primaryClusterId = firstC.id;
+        }
+      }
+
+      const calculatedScopeType = assigned_school_ids && assigned_school_ids.length > 0 ? 'school' : 'cluster';
 
       const updatePayload = {
         name: fullName.trim(),
@@ -467,10 +817,12 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
         email: cleanEmail,
         phone: phone.trim(),
         role: backendRole,
-        assigned_cluster_id: assignedCluster,
-        school_name: scopeType === "school" ? school : null,
-        scope_type: scopeType,
-        permissions: selectedModulesList,
+        assigned_cluster_id: primaryClusterId,
+        assigned_cluster_ids: assigned_cluster_ids,
+        assigned_school_ids: assigned_school_ids,
+        school_name: finalSchool && finalSchool !== 'All Assigned Schools' && finalSchool !== 'Unassigned' ? finalSchool : null,
+        scope_type: calculatedScopeType,
+        permissions: role === "Cluster Administrator" ? ["Dashboard", "Schools", "Students", "Student Assessment", "Monthly Tracking", "Growth Analytics", "Reports & Analytics"] : selectedModulesList,
         is_active: status === "Active",
       };
 
@@ -479,6 +831,14 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       }
 
       const savedUser = await api.updateUser(initialUser.id, updatePayload);
+
+      // Broadcast real-time update event so any active views or tabs refresh immediately
+      window.dispatchEvent(new CustomEvent('sh_user_updated', {
+        detail: {
+          userId: initialUser.id,
+          updatedUser: savedUser
+        }
+      }));
 
       const updatedRecord = {
         ...initialUser,
@@ -489,10 +849,13 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
         phone: phone.trim(),
         role,
         status,
-        cluster,
-        school,
-        scopeType,
-        accessType: status !== "Active" ? "Inactive Users" : (scopeType === "cluster" ? "Full Access" : "Limited Access"),
+        cluster: finalCluster,
+        school: finalSchool,
+        scopeType: calculatedScopeType,
+        assigned_cluster_id: primaryClusterId,
+        assigned_cluster_ids: assigned_cluster_ids,
+        assigned_school_ids: assigned_school_ids,
+        accessType: status !== "Active" ? "Inactive Users" : (calculatedScopeType === "cluster" ? "Full Access" : "Limited Access"),
         permissions: (savedUser && Array.isArray(savedUser.permissions)) ? savedUser.permissions : selectedModulesList,
         raw: {
           ...(initialUser?.raw || {}),
@@ -502,9 +865,11 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
           email: cleanEmail,
           phone: phone.trim(),
           role: backendRole,
-          assigned_cluster_id: assignedCluster,
-          school_name: scopeType === "school" ? school : null,
-          scope_type: scopeType,
+          assigned_cluster_id: primaryClusterId,
+          assigned_cluster_ids: assigned_cluster_ids,
+          assigned_school_ids: assigned_school_ids,
+          school_name: calculatedScopeType === "school" ? finalSchool : null,
+          scope_type: calculatedScopeType,
           permissions: (savedUser && Array.isArray(savedUser.permissions)) ? savedUser.permissions : selectedModulesList,
           is_active: status === "Active",
         }
@@ -512,11 +877,11 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
 
       setShowConfirm(false);
       setShowSuccess(true);
-      if (onUserUpdated) onUserUpdated(updatedRecord);
       setTimeout(() => {
         setShowSuccess(false);
+        if (onUserUpdated) onUserUpdated(updatedRecord);
         if (onNavigateBack) onNavigateBack();
-      }, 1500);
+      }, 1200);
     } catch (err) {
       setShowConfirm(false);
       setErrorMsg(err.message || "Failed to save changes.");
@@ -555,7 +920,8 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
     color: fg
   });
 
-  const initials = fullName.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || "US";
+  const isClusterAdmin = role === 'Cluster Administrator' || initialUser?.role === 'admin' || initialUser?.role === 'Cluster Administrator';
+  const initials = fullName.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() || (isClusterAdmin ? "AD" : "US");
 
   // Dynamic style for Save Changes button based strictly on hasChanges
   const saveBtnStyle = (enabled) => ({
@@ -582,9 +948,9 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
       <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#64748B" }}>
         <span style={{ cursor: "pointer" }} onClick={handleAttemptBack}>User Management</span>
         <span>&gt;</span>
-        <span style={{ cursor: "pointer" }} onClick={handleAttemptBack}>{initialUser?.name || "User"}</span>
+        <span style={{ cursor: "pointer" }} onClick={handleAttemptBack}>{initialUser?.name || (isClusterAdmin ? "Administrator" : "User")}</span>
         <span>&gt;</span>
-        <span style={{ color: "#0F172A", fontWeight: 600 }}>Edit User</span>
+        <span style={{ color: "#0F172A", fontWeight: 600 }}>{isClusterAdmin ? "Edit Administrator" : "Edit User"}</span>
       </div>
 
       {/* Page Header */}
@@ -600,10 +966,10 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
           </button>
           <div>
             <h1 style={{ fontSize: "22px", fontWeight: 800, color: "#0F172A", letterSpacing: "-0.02em", margin: 0 }}>
-              Edit User — {initialUser?.name}
+              {isClusterAdmin ? `Edit Administrator — ${initialUser?.name}` : `Edit User — ${initialUser?.name}`}
             </h1>
             <p style={{ fontSize: "12.5px", color: "#64748B", margin: "2px 0 0 0" }}>
-              Modify user account details. Save Changes button enables only when changes are made.
+              {isClusterAdmin ? "Modify administrator account details and cluster scope permissions." : "Modify user account details. Save Changes button enables only when changes are made."}
             </p>
           </div>
         </div>
@@ -654,8 +1020,8 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
             <div style={fHdr}>
               <div style={iconBox("#FFEDD5", "#EA580C")}><User size={18}/></div>
               <div>
-                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A", margin: 0 }}>01. Account Information</h3>
-                <p style={{ fontSize: "11.5px", color: "#94A3B8", margin: "1px 0 0 0" }}>Update user account details and permissions.</p>
+                <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A", margin: 0 }}>{isClusterAdmin ? "01. Administrator Information" : "01. Account Information"}</h3>
+                <p style={{ fontSize: "11.5px", color: "#94A3B8", margin: "1px 0 0 0" }}>{isClusterAdmin ? "Update administrator account details and cluster oversight." : "Update user account details and permissions."}</p>
               </div>
             </div>
 
@@ -727,7 +1093,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                 </div>
 
                 <div>
-                  <label style={lbl}>User ID <span style={{ color: "#EF4444" }}>*</span></label>
+                  <label style={lbl}>{isClusterAdmin ? "Admin ID" : "User ID"} <span style={{ color: "#EF4444" }}>*</span></label>
                   <div style={{ height: "38px", border: "1.5px solid #E2E8F0", borderRadius: "8px", display: "flex", alignItems: "center", padding: "0 10px", gap: "8px", backgroundColor: "#F8FAFC" }}>
                     <CreditCard size={16} color="#64748B"/>
                     <input
@@ -909,82 +1275,389 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                 <div style={iconBox("#FFEDD5", "#EA580C")}><GraduationCap size={18}/></div>
                 <div>
                   <h3 style={{ fontSize: "14px", fontWeight: 700, color: "#0F172A", margin: 0 }}>02. Access Scope</h3>
-                  <p style={{ fontSize: "11.5px", color: "#94A3B8", margin: "1px 0 0 0" }}>Cluster and school jurisdiction.</p>
+                  <p style={{ fontSize: "11.5px", color: "#94A3B8", margin: "1px 0 0 0" }}>
+                    Manually select the clusters and specific schools this user will access.
+                  </p>
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  <div>
-                    <label style={lbl}>Cluster <span style={{ color: "#EF4444" }}>*</span></label>
-                    <div style={getInputStyle("cluster", cluster)}>
-                      <Network size={15} color="#94A3B8"/>
-                      <select value={cluster} onChange={e => handleFieldChange("cluster", e.target.value)} onBlur={() => handleBlur("cluster", cluster)} style={sel}>
-                        <option value="">-- Select Cluster --</option>
-                        <option value="All Clusters">All Clusters</option>
-                        {clustersList.length > 0
-                          ? clustersList.map(c => <option key={c.id || c.name} value={c.name}>{c.name}</option>)
-                          : <option value={(!cluster || /^[0-9a-fA-F-]{20,}$/.test(cluster)) ? "All Clusters" : cluster}>{(!cluster || /^[0-9a-fA-F-]{20,}$/.test(cluster)) ? "All Clusters" : cluster}</option>}
-                      </select>
-                      {touched.cluster && !fieldErrors.cluster && cluster && <Check size={14} color="#10B981" strokeWidth={2.5}/>}
+              {/* Multi-cluster & Manual School Selection for all roles */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {fieldErrors.cluster && (
+                    <div style={errRow}>
+                      <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                      <span>{fieldErrors.cluster}</span>
                     </div>
-                    {touched.cluster && fieldErrors.cluster && <div style={errRow}><AlertCircle size={12}/><span>{fieldErrors.cluster}</span></div>}
-                  </div>
-
-                  <div>
-                    <label style={lbl}>School {scopeType === "school" && <span style={{ color: "#EF4444" }}>*</span>}</label>
-                    <div style={{ height: "38px", border: "1.5px solid #E2E8F0", borderRadius: "8px", display: "flex", alignItems: "center", padding: "0 10px", gap: "8px", backgroundColor: scopeType === "cluster" ? "#F8FAFC" : "#FFFFFF" }}>
-                      <School size={15} color="#94A3B8"/>
-                      <select 
-                        value={scopeType === "cluster" ? "All Assigned Schools" : school} 
-                        onChange={e => handleFieldChange("school", e.target.value)} 
-                        disabled={scopeType === "cluster"}
-                        style={{ ...sel, cursor: scopeType === "cluster" ? "default" : "pointer", color: scopeType === "cluster" ? "#64748B" : "#0F172A" }}
-                      >
-                        {scopeType === "cluster" ? (
-                          <option value="All Assigned Schools">
-                            {cluster && cluster !== "All Clusters" ? `All Schools in ${cluster}` : "All Assigned Schools"}
-                          </option>
-                        ) : (
-                          <>
-                            <option value="">-- Select Specific School --</option>
-                            {filteredSchools.map(s => (
-                              <option key={s.id || s.name} value={s.name}>{s.name}</option>
-                            ))}
-                          </>
-                        )}
-                      </select>
+                  )}
+                  {fieldErrors.school && (
+                    <div style={errRow}>
+                      <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                      <span>{fieldErrors.school}</span>
                     </div>
-                    {touched.school && fieldErrors.school && <div style={errRow}><AlertCircle size={12}/><span>{fieldErrors.school}</span></div>}
-                  </div>
-                </div>
+                  )}
 
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
-                  <label style={lbl}>Access Scope Type:</label>
-                  {[
-                    { val: "cluster", label: "All schools in cluster", sub: "User can access all schools within the selected cluster." },
-                    { val: "school", label: "Specific school only", sub: "User is restricted to the chosen school only." }
-                  ].map(opt => (
-                    <label 
-                      key={opt.val} 
-                      style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", padding: "6px 8px", borderRadius: "8px", backgroundColor: scopeType === opt.val ? "#FFF7ED" : "#FFFFFF", border: "1px solid", borderColor: scopeType === opt.val ? "#FFEDD5" : "#F1F5F9", transition: "all 0.15s ease" }} 
-                      onClick={() => {
-                        setScopeType(opt.val);
-                        if (opt.val === 'cluster') setSchool('All Assigned Schools');
+                  {clustersList.length === 0 ? (
+                    /* Clean Informative Empty State when 0 clusters exist in system */
+                    <div 
+                      style={{
+                        border: '1.5px dashed #CBD5E1',
+                        borderRadius: '12px',
+                        padding: '24px 20px',
+                        backgroundColor: '#F8FAFC',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        textAlign: 'center',
+                        gap: '12px'
                       }}
                     >
-                      <div style={{ width: "16px", height: "16px", borderRadius: "50%", marginTop: "2px", flexShrink: 0, border: scopeType === opt.val ? "5px solid #EA580C" : "2px solid #CBD5E1", backgroundColor: "#FFFFFF", transition: "border 0.15s ease" }}/>
-                      <div>
-                        <div style={{ fontSize: "12.5px", fontWeight: 700, color: "#0F172A" }}>{opt.label}</div>
-                        <div style={{ fontSize: "11px", color: "#64748B" }}>{opt.sub}</div>
+                      <div style={{
+                        width: '46px',
+                        height: '46px',
+                        borderRadius: '12px',
+                        backgroundColor: '#FFEDD5',
+                        color: '#EA580C',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Network size={24} />
                       </div>
-                    </label>
-                  ))}
+
+                      <div>
+                        <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: '0 0 4px 0' }}>
+                          No Clusters Found in System
+                        </h4>
+                        <p style={{ fontSize: '13px', color: '#64748B', margin: 0, maxWidth: '480px', lineHeight: 1.5 }}>
+                          No clusters or schools have been created in the database yet. You can create a cluster right now without leaving this page, or save this Administrator with pending cluster assignment.
+                        </p>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQuickClusterName('');
+                            setQuickClusterError('');
+                            setShowQuickCreateClusterModal(true);
+                          }}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '9px 16px',
+                            borderRadius: '8px',
+                            backgroundColor: '#EA580C',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(234, 88, 12, 0.25)'
+                          }}
+                        >
+                          <Plus size={15} strokeWidth={2.5} />
+                          <span>Create Cluster Now</span>
+                        </button>
+
+                        <label 
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: assignClustersLater ? '1.5px solid #2563EB' : '1px solid #CBD5E1',
+                            backgroundColor: assignClustersLater ? '#EFF6FF' : '#FFFFFF',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            color: assignClustersLater ? '#1E40AF' : '#475569'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={assignClustersLater}
+                            onChange={(e) => {
+                              setAssignClustersLater(e.target.checked);
+                              if (e.target.checked) {
+                                setFieldErrors(prev => ({ ...prev, cluster: '', school: '' }));
+                              }
+                            }}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#2563EB' }}
+                          />
+                          <span>Assign clusters later (Keep as Unassigned Admin)</span>
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Top action row when clusters exist */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                        <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
+                          Select one or more clusters below. Under each selected cluster, you can assign <strong>All Schools</strong> or manually select specific schools:
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <label 
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: 'pointer',
+                              fontSize: '12.5px',
+                              fontWeight: 600,
+                              color: assignClustersLater ? '#2563EB' : '#64748B'
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={assignClustersLater}
+                              onChange={(e) => {
+                                setAssignClustersLater(e.target.checked);
+                                if (e.target.checked) {
+                                  setFieldErrors(prev => ({ ...prev, cluster: '', school: '' }));
+                                }
+                              }}
+                              style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: '#2563EB' }}
+                            />
+                            <span>Assign clusters later (Keep as Unassigned)</span>
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickClusterName('');
+                              setQuickClusterError('');
+                              setShowQuickCreateClusterModal(true);
+                            }}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#EA580C',
+                              fontSize: '12.5px',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: 0
+                            }}
+                          >
+                            <Plus size={14} strokeWidth={2.5} />
+                            <span>Add New Cluster</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {!assignClustersLater && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          {(clustersList || []).map((c, cIdx) => {
+                            if (!c) return null;
+                            const cName = typeof c === 'string' ? c : (c.name || c.id || '');
+                            const isSelected = Array.isArray(selectedClusterIds) && selectedClusterIds.includes(cName);
+                            const scope = (clusterSchoolsScope && clusterSchoolsScope[cName]) || { all: true, schools: [] };
+                            const schoolsUnderCluster = (schoolsList || []).filter((s) => {
+                              if (!s) return false;
+                              if (typeof s === 'string') return true;
+                              const cId = typeof c === 'object' ? c?.id : c;
+                              const cNameStr = typeof c === 'object' ? c?.name : c;
+                              return (
+                                (cId && s.cluster_id === cId) ||
+                                (s.cluster_name && cNameStr && s.cluster_name.toLowerCase() === cNameStr.toLowerCase()) ||
+                                (s.cluster && cNameStr && s.cluster.toLowerCase() === cNameStr.toLowerCase())
+                              );
+                            });
+
+                            return (
+                              <div 
+                                key={typeof c === 'object' ? (c.id || c.name || `cls-${cIdx}`) : c}
+                                style={{
+                                  border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                                  borderRadius: '12px',
+                                  backgroundColor: isSelected ? '#F8FAFC' : '#FFFFFF',
+                                  overflow: 'hidden',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                {/* Cluster Header Row */}
+                                <div 
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '12px 16px',
+                                    cursor: 'pointer',
+                                    backgroundColor: isSelected ? '#EFF6FF' : '#FFFFFF',
+                                    borderBottom: isSelected ? '1px solid #DBEAFE' : 'none'
+                                  }}
+                                  onClick={() => handleToggleCluster(cName)}
+                                >
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{
+                                      width: '18px',
+                                      height: '18px',
+                                      borderRadius: '4px',
+                                      border: isSelected ? 'none' : '1.5px solid #94A3B8',
+                                      backgroundColor: isSelected ? '#2563EB' : '#FFFFFF',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#FFFFFF'
+                                    }}>
+                                      {isSelected && <Check size={14} strokeWidth={3} />}
+                                    </div>
+                                    <span style={{ fontSize: '14px', fontWeight: 700, color: isSelected ? '#1E40AF' : '#1E293B' }}>
+                                      {c.name}
+                                    </span>
+                                    <span style={{ fontSize: '12px', color: '#64748B' }}>
+                                      ({schoolsUnderCluster.length} {schoolsUnderCluster.length === 1 ? 'school' : 'schools'})
+                                    </span>
+                                  </div>
+
+                                  {isSelected && (
+                                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#2563EB' }}>
+                                      {scope.all ? 'All Schools in Cluster' : `${(scope.schools || []).filter(sName => schoolsUnderCluster.some(sch => (sch.name === sName || sch.id === sName))).length} ${(scope.schools || []).filter(sName => schoolsUnderCluster.some(sch => (sch.name === sName || sch.id === sName))).length === 1 ? 'School' : 'Schools'} Selected`}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Schools Option when cluster is checked */}
+                                {isSelected && (
+                                  <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {/* Option A: All Schools in this Cluster */}
+                                    <div 
+                                      style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        setClusterSchoolsScope(prev => ({
+                                          ...prev,
+                                          [cName]: { all: true, schools: [] }
+                                        }));
+                                        setFieldErrors(prev => ({ ...prev, school: '' }));
+                                      }}
+                                    >
+                                      <div style={{
+                                        width: '16px',
+                                        height: '16px',
+                                        borderRadius: '50%',
+                                        border: scope.all ? '5px solid #2563EB' : '2px solid #CBD5E1',
+                                        backgroundColor: '#FFFFFF',
+                                        flexShrink: 0
+                                      }} />
+                                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                                        All Schools in {c.name}
+                                      </span>
+                                    </div>
+
+                                    {/* Option B: Manual Specific Schools Selection */}
+                                    <div 
+                                      style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+                                      onClick={() => {
+                                        setClusterSchoolsScope(prev => {
+                                          const existingSchools = prev[cName]?.schools || [];
+                                          const initialSelected = existingSchools.length > 0
+                                            ? existingSchools
+                                            : (schoolsUnderCluster[0]?.name ? [schoolsUnderCluster[0].name] : []);
+                                          return {
+                                            ...prev,
+                                            [cName]: {
+                                              all: false,
+                                              schools: initialSelected
+                                            }
+                                          };
+                                        });
+                                        setFieldErrors(prev => ({ ...prev, school: '' }));
+                                      }}
+                                    >
+                                      <div style={{
+                                        width: '16px',
+                                        height: '16px',
+                                        borderRadius: '50%',
+                                        border: !scope.all ? '5px solid #2563EB' : '2px solid #CBD5E1',
+                                        backgroundColor: '#FFFFFF',
+                                        flexShrink: 0
+                                      }} />
+                                      <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>
+                                        Select specific schools manually ({schoolsUnderCluster.length} available)
+                                      </span>
+                                    </div>
+
+                                    {/* Manual Schools Grid when not 'all' */}
+                                    {!scope.all && (
+                                      <div style={{
+                                        marginTop: '6px',
+                                        padding: '10px',
+                                        backgroundColor: '#FFFFFF',
+                                        border: '1px solid #E2E8F0',
+                                        borderRadius: '8px',
+                                        maxHeight: '200px',
+                                        overflowY: 'auto',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '6px'
+                                      }}>
+                                        {schoolsUnderCluster.length > 0 ? (
+                                          schoolsUnderCluster.map((s, sIdx) => {
+                                            if (!s) return null;
+                                            const sName = typeof s === 'string' ? s : (s.name || '');
+                                            const sKey = typeof s === 'string' ? s : (s.id || s.name || `sch-${sIdx}`);
+                                            const isSchoolChecked = Array.isArray(scope.schools) && scope.schools.includes(sName);
+                                            return (
+                                              <div 
+                                                key={sKey}
+                                                onClick={() => handleToggleSpecificSchool(cName, sName)}
+                                                style={{
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  gap: '10px',
+                                                  padding: '6px 8px',
+                                                  borderRadius: '6px',
+                                                  cursor: 'pointer',
+                                                  backgroundColor: isSchoolChecked ? '#EFF6FF' : 'transparent',
+                                                  transition: 'background-color 0.1s ease'
+                                                }}
+                                              >
+                                                <div style={{
+                                                  width: '16px',
+                                                  height: '16px',
+                                                  borderRadius: '4px',
+                                                  border: isSchoolChecked ? 'none' : '1.5px solid #94A3B8',
+                                                  backgroundColor: isSchoolChecked ? '#2563EB' : '#FFFFFF',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center',
+                                                  color: '#FFFFFF',
+                                                  flexShrink: 0
+                                                }}>
+                                                  {isSchoolChecked && <Check size={12} strokeWidth={3} />}
+                                                </div>
+                                                <span style={{ fontSize: '12.5px', color: isSchoolChecked ? '#1E40AF' : '#334155', fontWeight: isSchoolChecked ? 600 : 400 }}>
+                                                  {s.name}
+                                                </span>
+                                              </div>
+                                            );
+                                          })
+                                        ) : (
+                                          <div style={{ fontSize: '12px', color: '#94A3B8', fontStyle: 'italic', padding: '6px' }}>
+                                            No schools currently registered under this cluster.
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              </div>
             </div>
 
-            {/* Section 03: Module Permissions - Always fully visible */}
+            {/* Section 03: Module Permissions (Hidden for Cluster Administrator) */}
+            {role !== "Cluster Administrator" && (
             <div style={fCard}>
               <div style={fHdr}>
                 <div style={iconBox("#FFEDD5", "#EA580C")}><Settings size={18}/></div>
@@ -1036,6 +1709,27 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
                   </div>
                 </div>
             </div>
+            )}
+
+        {/* Validation error notification banner if errors exist */}
+        {errorMsg && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '12px 16px',
+            borderRadius: '10px',
+            backgroundColor: '#FEF2F2',
+            border: '1px solid #FCA5A5',
+            color: '#DC2626',
+            fontSize: '13px',
+            fontWeight: 600,
+            marginTop: '8px'
+          }}>
+            <AlertCircle size={17} style={{ flexShrink: 0 }} />
+            <span>{errorMsg}</span>
+          </div>
+        )}
 
         {/* Bottom Form Actions Bar */}
         <div 
@@ -1153,7 +1847,7 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
             </div>
 
             <div style={{ backgroundColor: "#F8FAFC", borderRadius: "8px", padding: "10px 12px", marginBottom: "18px", fontSize: "12px", color: "#475569", display: "flex", flexDirection: "column", gap: "4px" }}>
-              <div>• <strong>User ID:</strong> {userId}</div>
+              <div>• <strong>{isClusterAdmin ? "Admin ID:" : "User ID:"}</strong> {userId}</div>
               <div>• <strong>Login Username:</strong> {loginUsername}</div>
               <div>• <strong>Cluster:</strong> {cluster || "—"}</div>
               <div>• <strong>Modules:</strong> {selectedModulesList.length} enabled</div>
@@ -1196,6 +1890,134 @@ export default function EditUserView({ user: initialUser, onNavigateBack, onUser
             <div style={{ fontSize: "13px", color: "#64748B" }}>
               The account for <strong>{fullName || initialUser?.name}</strong> has been updated successfully.
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Create Cluster Modal */}
+      {showQuickCreateClusterModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            backdropFilter: 'blur(3px)'
+          }}
+        >
+          <div 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '14px',
+              padding: '24px 26px',
+              maxWidth: '420px',
+              width: '90%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  backgroundColor: '#FFEDD5',
+                  color: '#EA580C',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Network size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', margin: 0 }}>Create Cluster</h3>
+                  <span style={{ fontSize: '12px', color: '#64748B' }}>Quickly add a cluster to system</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowQuickCreateClusterModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickCreateCluster}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '12.5px', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '6px' }}>
+                  Cluster Name <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. North Zone, Central District"
+                  value={quickClusterName}
+                  onChange={(e) => {
+                    const lettersOnly = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                    setQuickClusterName(lettersOnly);
+                    setQuickClusterError('');
+                  }}
+                  autoFocus
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    padding: '0 12px',
+                    borderRadius: '8px',
+                    border: quickClusterError ? '1.5px solid #EF4444' : '1.5px solid #CBD5E1',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {quickClusterError && (
+                  <div style={{ fontSize: '11.5px', color: '#EF4444', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <AlertCircle size={12} />
+                    <span>{quickClusterError}</span>
+                  </div>
+                )}
+                <span style={{ fontSize: '11px', color: '#64748B', marginTop: '4px', display: 'block' }}>
+                  Only alphabetic letters and spaces are allowed.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickCreateClusterModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    backgroundColor: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: '#475569',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingQuickCluster}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#EA580C',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: isCreatingQuickCluster ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {isCreatingQuickCluster ? 'Creating...' : 'Create & Select'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

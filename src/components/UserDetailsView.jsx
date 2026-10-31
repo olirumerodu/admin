@@ -61,11 +61,20 @@ export default function UserDetailsView({
     const formattedJoinedOn = data.joinedOn || createdDt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     const formattedCreatedAt = data.createdAtFormatted || `${formattedJoinedOn}, ${createdDt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
     
-    const roleDisplay = data.role === 'admin' 
-      ? 'Super Admin' 
-      : data.role === 'health_officer' 
-        ? 'School Staff' 
-        : data.role || 'Staff';
+    const username = (data.username || data.raw?.username || '').toLowerCase();
+    const email = (data.email || data.raw?.email || '').toLowerCase();
+    const id = (data.id || data.raw?.id || '').toLowerCase();
+    const isRootAdmin = username === 'admin' || username === 'ksvadmin' || email === 'admin@gmail.com' || email === 'admin@oehealth.org' || id.startsWith('admin');
+
+    const isClusterAdministrator = (data.role === 'admin' && !isRootAdmin) || data.role === 'Cluster Admin' || data.role === 'Cluster Administrator';
+
+    const roleDisplay = isRootAdmin
+      ? 'Super Admin'
+      : isClusterAdministrator
+        ? 'Cluster Admin'
+        : data.role === 'health_officer'
+          ? 'School Staff'
+          : data.role || 'Staff';
 
     const isAdmin = roleDisplay === 'Super Admin' || roleDisplay === 'Admin';
     const defaultCluster = isAdmin ? 'All Clusters' : 'Assigned Cluster';
@@ -73,12 +82,27 @@ export default function UserDetailsView({
 
     // Clean human-readable Cluster Name
     let clusterVal = data.cluster_name || data.cluster || 'All Clusters';
-    if (!clusterVal || clusterVal === 'All Clusters' || clusterVal === 'all' || /^[0-9a-fA-F-]{20,}/.test(clusterVal) || clusterVal === 'Cluster A' || clusterVal === 'Cluster A Cluster') {
-      clusterVal = 'All Clusters';
+    if (clusterVal === 'Unassigned (Pending Scope)') {
+      // Keep as Unassigned (Pending Scope)
+    } else if (Array.isArray(data.assigned_cluster_ids) && data.assigned_cluster_ids.length > 0) {
+      clusterVal = data.assigned_cluster_ids.join(', ');
+    } else if (!clusterVal || clusterVal === 'All Clusters' || clusterVal === 'all' || /^[0-9a-fA-F-]{20,}/.test(clusterVal) || clusterVal === 'Cluster A' || clusterVal === 'Cluster A Cluster') {
+      clusterVal = (isClusterAdministrator && (!data.assigned_cluster_ids || data.assigned_cluster_ids.length === 0)) ? 'Unassigned (Pending Scope)' : 'All Clusters';
     }
-    let schoolVal = data.school || defaultSchool;
-    if (schoolVal === 'Greenwood Public School') {
-      schoolVal = defaultSchool;
+
+    let parsedSchools = data.assigned_school_ids;
+    if (typeof parsedSchools === 'string') {
+      try { parsedSchools = JSON.parse(parsedSchools); } catch { parsedSchools = [parsedSchools]; }
+    }
+    let schoolVal = defaultSchool;
+    if (clusterVal === 'Unassigned (Pending Scope)') {
+      schoolVal = 'Unassigned';
+    } else if (Array.isArray(parsedSchools) && parsedSchools.length > 0) {
+      schoolVal = parsedSchools.join(', ');
+    } else if (data.school_name && data.school_name !== 'All Assigned Schools' && data.school_name !== 'All Schools') {
+      schoolVal = data.school_name;
+    } else if (data.school && data.school !== 'Greenwood Public School') {
+      schoolVal = data.school;
     }
 
     return {
@@ -929,7 +953,8 @@ export default function UserDetailsView({
             </div>
           </div>
 
-          {/* 2. Module Access Card */}
+          {/* 2. Module Access Card (Hidden for Cluster Administrator) */}
+          {user.role !== "Cluster Administrator" && (
           <div style={cardContainerStyle}>
             <div style={cardHeaderRowStyle}>
               <div style={{ ...sectionIconBoxStyle, backgroundColor: '#FFEDD5', color: '#EA580C' }}>
@@ -1005,6 +1030,7 @@ export default function UserDetailsView({
 
             </div>
           </div>
+          )}
         </div>
       </div>
 

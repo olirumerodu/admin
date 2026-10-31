@@ -73,7 +73,8 @@ export default function ClusterGrowthChartModal({
       (typeof bmiZ === 'number' && bmiZ < -2.0)
     );
 
-    const isUnderweight = !isSW && !isW && (
+    const isWeightApplicable = s.isWeightApplicable ?? raw.latest_weight_for_age_applicable ?? latestA?.weight_for_age_applicable ?? true;
+    const isUnderweight = !isSW && !isW && isWeightApplicable && (
       statusLower.includes('underweight') ||
       (typeof wtZ === 'number' && wtZ < -2.0)
     );
