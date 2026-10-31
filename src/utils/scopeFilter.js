@@ -18,7 +18,7 @@ export function filterScopeData({
   assignedSchoolIds = []
 }) {
   // Super Admin or unrestricted administrator sees everything completely unrestricted
-  if (isSuperAdmin || !isClusterAdmin) {
+  if (isSuperAdmin) {
     return {
       filteredClusters: Array.isArray(clusters) ? clusters : [],
       filteredSchools: Array.isArray(schools) ? schools : [],
@@ -59,7 +59,7 @@ export function filterScopeData({
 
   // If Cluster Admin has no assigned clusters or schools (Pending Scope / Unassigned):
   // They have zero allotted access! Return empty sets.
-  if (isClusterAdmin && normClusters.length === 0 && normSchools.length === 0) {
+  if (normClusters.length === 0 && normSchools.length === 0) {
     return {
       filteredClusters: [],
       filteredSchools: [],

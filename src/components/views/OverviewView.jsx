@@ -43,7 +43,7 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
           </div>
           <div className="stat-card-number">{totalStudents}</div>
           <div className="stat-card-footer">
-            <span className="badge-trend-up">100% screened</span>
+            <span className="badge-trend-up">{totalStudents > 0 ? Math.round(((metrics?.assessed_students || 0) / totalStudents) * 100) : 0}% screened</span>
             <span>in current academic term</span>
           </div>
         </div>
@@ -221,7 +221,7 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <span className="status-pill normal">
-                    {school.coverage_percentage || 100}% Covered
+                    {school.coverage_percentage || 0}% Covered
                   </span>
                   <div style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
                     {school.students_count || 0} students

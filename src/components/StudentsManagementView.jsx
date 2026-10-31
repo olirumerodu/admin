@@ -782,7 +782,7 @@ export default function StudentsManagementView({
       });
       const studentCount = studentsInSchool.length || s.students_count || 0;
       const assessedCount = studentsInSchool.filter(st => (st.assessments && st.assessments.length > 0) || st.latest_assessment_date).length;
-      const pct = studentCount > 0 ? Math.round((assessedCount / studentCount) * 100) : (s.coverage_percentage || 0);
+      const pct = (studentCount > 0 && assessedCount > 0) ? Math.round((assessedCount / studentCount) * 100) : 0;
       return {
         id: s.id,
         name: s.name,
