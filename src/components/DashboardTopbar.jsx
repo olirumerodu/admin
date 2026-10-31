@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, Search, Bell, LogOut, RefreshCw, Filter, Shield } from 'lucide-react';
+import { Menu, Search, Bell, LogOut, RefreshCw, Filter, Shield, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import LogoutConfirmModal from './LogoutConfirmModal';
 
@@ -16,7 +16,7 @@ export default function DashboardTopbar({
   selectedSchool,
   onSchoolChange
 }) {
-  const { user, logout } = useAuth();
+  const { user, logout, openParallelSession } = useAuth();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -79,6 +79,29 @@ export default function DashboardTopbar({
       </div>
 
       <div className="topbar-right">
+        {/* Parallel Admin Session (Runs Super Admin & Cluster Admin simultaneously in separate tabs) */}
+        <button
+          className="parallel-tab-btn-top"
+          onClick={openParallelSession}
+          title="Open Parallel Admin Login in New Tab (Run Super Admin and Cluster Admin concurrently)"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 12px',
+            borderRadius: '8px',
+            fontSize: '12px',
+            fontWeight: 600,
+            color: '#0284C7',
+            backgroundColor: '#F0F9FF',
+            border: '1px solid #BAE6FD',
+            cursor: 'pointer'
+          }}
+        >
+          <ExternalLink size={14} />
+          <span>Parallel Admin Tab</span>
+        </button>
+
         {/* Refresh Button */}
         <button
           className="icon-action-btn"

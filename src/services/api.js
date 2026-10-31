@@ -7,11 +7,16 @@
 export const API_BASE = import.meta.env.VITE_API_BASE_URL 
   || (import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '')}/api/v1` : 'https://3.108.136.127.nip.io/api/v1');
 
-// Helper to get auth token
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('sh_admin_token');
+// Helper to get auth token (isolated to current tab session first, fallback to remembered storage)
+export const getAuthToken = () => {
+  if (typeof window === "undefined") return "";
+  return sessionStorage.getItem("sh_admin_token") || localStorage.getItem("sh_admin_token") || "";
+};
+
+export const getAuthHeaders = () => {
+  const token = getAuthToken();
   return {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };

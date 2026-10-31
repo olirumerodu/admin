@@ -197,6 +197,9 @@ export default function LoginScreen({ onLoginSuccess }) {
               </span>
               <span>Authorized administrators only</span>
             </div>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+              <span>Multi-Admin Active: Super Admin & Cluster Admin can run side-by-side in parallel tabs</span>
+            </div>
           </div>
         </div>
       </section>
