@@ -129,8 +129,8 @@ function validateStudentRow(row) {
     errors.push('DOB missing');
   }
 
-  const rawH = String(row.height || '').trim();
-  const rawW = String(row.weight || '').trim();
+  let rawH = String(row.height || '').trim();
+  let rawW = String(row.weight || '').trim();
   const rawAtt = String(row.attendance_status || '').trim();
 
   // Dynamically detect if student is absent (from attendance column, or if height/weight says 'Absent' / 'AB' / 'A' / 'Leave')
@@ -143,14 +143,34 @@ function validateStudentRow(row) {
   const isAbsent = isAbsentCell(rawAtt) || isAbsentCell(rawH) || isAbsentCell(rawW);
 
   if (!isAbsent) {
-    const h = parseFloat(rawH);
-    const w = parseFloat(rawW);
+    let h = parseFloat(rawH);
+    let w = parseFloat(rawW);
 
     if (!rawH || rawH === '-' || isNaN(h) || h <= 0) {
       errors.push('Height missing');
+    } else {
+      if (h > 0 && h < 2.5) {
+        h = Math.round(h * 100 * 10) / 10;
+        rawH = String(h);
+      } else if (h >= 500 && h <= 2500) {
+        h = Math.round((h / 10) * 10) / 10;
+        rawH = String(h);
+      }
+      if (h >= 1000) {
+        errors.push(`Height too large (${rawH} cm)`);
+      }
     }
+
     if (!rawW || rawW === '-' || isNaN(w) || w <= 0) {
       errors.push('Weight missing');
+    } else {
+      if (w >= 5000 && w <= 150000) {
+        w = Math.round((w / 1000) * 10) / 10;
+        rawW = String(w);
+      }
+      if (w >= 1000) {
+        errors.push(`Weight too large (${rawW} kg)`);
+      }
     }
   }
 
@@ -280,14 +300,30 @@ function EditImportRowModal({ row, onClose, onSave }) {
     }
 
     if (attendance === 'Present') {
-      const h = parseFloat(height);
-      const w = parseFloat(weight);
+      let h = parseFloat(height);
+      let w = parseFloat(weight);
       if (!height || isNaN(h) || h <= 0) {
         setValidationError('Height is required for present students (e.g. 125.0 cm).');
         return;
       }
+      if (h > 0 && h < 2.5) {
+        h = Math.round(h * 100 * 10) / 10;
+      } else if (h >= 500 && h <= 2500) {
+        h = Math.round((h / 10) * 10) / 10;
+      }
+      if (h >= 1000) {
+        setValidationError('Height must be less than 1000 cm (check for missing decimal point).');
+        return;
+      }
       if (!weight || isNaN(w) || w <= 0) {
         setValidationError('Weight is required for present students (e.g. 22.0 kg).');
+        return;
+      }
+      if (w >= 5000 && w <= 150000) {
+        w = Math.round((w / 1000) * 10) / 10;
+      }
+      if (w >= 1000) {
+        setValidationError('Weight must be less than 1000 kg (check for typo).');
         return;
       }
     }
@@ -1745,10 +1781,17 @@ export default function StudentDataImportView({ onNavigateTab, initialView = 'wi
           }
         }
 
-        const parsedH = parseFloat(r.height);
-        const parsedW = parseFloat(r.weight);
-        const validH = (!isNaN(parsedH) && parsedH > 0) ? parsedH : null;
-        const validW = (!isNaN(parsedW) && parsedW > 0) ? parsedW : null;
+        let parsedH = parseFloat(r.height);
+        let parsedW = parseFloat(r.weight);
+        if (!isNaN(parsedH)) {
+          if (parsedH > 0 && parsedH < 2.5) parsedH = Math.round(parsedH * 100 * 10) / 10;
+          else if (parsedH >= 500 && parsedH <= 2500) parsedH = Math.round((parsedH / 10) * 10) / 10;
+        }
+        if (!isNaN(parsedW)) {
+          if (parsedW >= 5000 && parsedW <= 150000) parsedW = Math.round((parsedW / 1000) * 10) / 10;
+        }
+        const validH = (!isNaN(parsedH) && parsedH > 0 && parsedH < 1000) ? parsedH : null;
+        const validW = (!isNaN(parsedW) && parsedW > 0 && parsedW < 1000) ? parsedW : null;
 
         const isRowAbsent = String(r.attendance_status || '').toLowerCase() === 'absent' ||
                             validH === null || validW === null;
