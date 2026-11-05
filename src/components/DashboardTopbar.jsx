@@ -147,7 +147,7 @@ export default function DashboardTopbar({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ padding: '8px', background: '#FEF2F2', borderRadius: '8px', fontSize: '12px', color: '#991B1B' }}>
-                  <strong>Severe Thinness Alert:</strong> 2 students require immediate follow-up in PUMS GOBI.
+                  <strong>Severely Wasted Alert:</strong> 2 students require immediate follow-up in PUMS GOBI.
                 </div>
                 <div style={{ padding: '8px', background: '#EFF6FF', borderRadius: '8px', fontSize: '12px', color: '#1E40AF' }}>
                   <strong>WHO AnthroPlus 2007:</strong> Baseline z-score screening updated for Term 1.

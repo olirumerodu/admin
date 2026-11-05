@@ -886,23 +886,13 @@ export default function StudentsManagementView({
         const isUnderweight = isWeightApplicable && ((hasWZ && weightZ < -2.0) || wcLower.includes('underweight') || rsLower.includes('underweight'));
         const isSevUnderweight = isWeightApplicable && ((hasWZ && weightZ < -3.0) || wcLower.includes('severely underweight'));
 
-        // Composite authoritative status honoring BOTH Thinness and Stunting without mutual erasure
-        if (isSevThin && isSevStunted) {
-          authoritativeStatus = 'Severe Thinness & Severe Stunting';
-        } else if (isSevThin && isStunted) {
-          authoritativeStatus = 'Severe Thinness & Stunting';
-        } else if (isThin && isSevStunted) {
-          authoritativeStatus = 'Thinness & Severe Stunting';
-        } else if (isThin && isStunted) {
-          authoritativeStatus = 'Thinness & Stunting';
-        } else if (isSevThin) {
-          authoritativeStatus = 'Severe Thinness';
+        // Authoritative nutrition status prioritizing acute conditions
+        if (isSevThin) {
+          authoritativeStatus = 'Severely Wasted';
         } else if (isThin) {
-          authoritativeStatus = 'Thinness';
-        } else if (isSevStunted) {
-          authoritativeStatus = 'Severe Stunting';
-        } else if (isStunted) {
-          authoritativeStatus = 'Stunting';
+          authoritativeStatus = 'Wasted';
+        } else if (isSevStunted || isStunted) {
+          authoritativeStatus = 'Stunted';
         } else if (isUnderweight) {
           authoritativeStatus = isSevUnderweight ? 'Severely Underweight' : 'Underweight';
         } else if (isOverweight) {
@@ -918,18 +908,18 @@ export default function StudentsManagementView({
       const healthStatus = authoritativeStatus;
       const bmiZ = typeof rawZ === 'number' ? rawZ : null;
 
-      const isSeverelyWasted = (typeof rawZ === 'number' && rawZ < -3.0) || authoritativeStatus.includes('Severe Thinness') || authoritativeStatus.includes('Severely Wasted');
-      const isWasted = (typeof rawZ === 'number' && rawZ < -2.0) || authoritativeStatus.includes('Thinness') || authoritativeStatus.includes('Wasted');
-      const isStunted = (typeof heightZ === 'number' && heightZ < -2.0) || authoritativeStatus.includes('Stunt');
-      const isSeverelyStunted = (typeof heightZ === 'number' && heightZ < -3.0) || authoritativeStatus.includes('Severe Stunt');
+      const isSeverelyWasted = authoritativeStatus === 'Severely Wasted' || (typeof rawZ === 'number' && rawZ < -3.0);
+      const isWasted = authoritativeStatus === 'Wasted' || (!isSeverelyWasted && typeof rawZ === 'number' && rawZ < -2.0);
+      const isStunted = authoritativeStatus === 'Stunted' || (!isSeverelyWasted && !isWasted && typeof heightZ === 'number' && heightZ < -2.0);
+      const isSeverelyStunted = isStunted && ((typeof heightZ === 'number' && heightZ < -3.0) || authoritativeStatus === 'Severely Stunted');
       const isWeightApplicable = s.latest_weight_for_age_applicable ?? latestA?.weight_for_age_applicable ?? (s.age_months ? (s.age_months >= 61 && s.age_months <= 120) : true);
-      const isUnderweight = isWeightApplicable && ((typeof weightZ === 'number' && weightZ < -2.0) || authoritativeStatus.includes('Underweight'));
-      const isOverweight = (typeof rawZ === 'number' && rawZ > 1.0) || authoritativeStatus.includes('Overweight') || authoritativeStatus.includes('Obese');
-      const isNormal = authoritativeStatus === 'Normal' || (authoritativeStatus.includes('Normal') && !isWasted && !isStunted);
-      const isCritical = isSeverelyWasted || (isWasted && !isNormal);
+      const isUnderweight = isWeightApplicable && (authoritativeStatus === 'Underweight' || authoritativeStatus === 'Severely Underweight' || (!isSeverelyWasted && !isWasted && !isStunted && typeof weightZ === 'number' && weightZ < -2.0));
+      const isOverweight = authoritativeStatus === 'Overweight' || authoritativeStatus === 'Obese' || (!isSeverelyWasted && !isWasted && !isStunted && typeof rawZ === 'number' && rawZ > 1.0);
+      const isNormal = authoritativeStatus === 'Normal';
+      const isCritical = isSeverelyWasted || isWasted;
 
-      const bmiClassification = isSeverelyWasted ? 'Severe Thinness' : (isWasted ? 'Thinness' : (isOverweight ? ((bmiZ && bmiZ > 2.0) ? 'Obese' : 'Overweight') : 'Normal (BMI)'));
-      const heightClassification = isSeverelyStunted ? 'Severe Stunting' : (isStunted ? 'Stunting' : 'Normal (Height)');
+      const bmiClassification = isSeverelyWasted ? 'Severely Wasted' : (isWasted ? 'Wasted' : (isOverweight ? ((bmiZ && bmiZ > 2.0) ? 'Obese' : 'Overweight') : 'Normal (BMI)'));
+      const heightClassification = (typeof heightZ === 'number' && heightZ < -3.0) ? 'Severe Stunting' : ((typeof heightZ === 'number' && heightZ < -2.0) || isStunted ? 'Stunting' : 'Normal (Height)');
       const weightClassification = isWeightApplicable ? (isUnderweight ? 'Underweight' : 'Normal (Weight)') : 'Not applicable';
 
       // Real-time Upcoming Monthly Assessment Schedule (based strictly on real last assessment date)
@@ -1715,42 +1705,36 @@ export default function StudentsManagementView({
 
           let matchesHealth = false;
           const statusLower = String(s.currentStatus || '').toLowerCase().trim();
-          const nutrLower = String(s.nutritionStatus || '').toLowerCase().trim();
 
           if (statusFilter === 'Overweight') {
             // Note: obesity comes in overweight category
             matchesHealth = (
               statusLower === 'overweight' ||
               statusLower === 'obesity' ||
-              statusLower.includes('obese') ||
-              statusLower.includes('overweight')
+              statusLower === 'obese'
             );
           } else if (statusFilter === 'Severely Wasted') {
             matchesHealth = (
-              s.isSeverelyWasted ||
               statusLower === 'severely wasted' ||
-              statusLower.includes('severely wasted') ||
-              statusLower.includes('severe thinness')
+              statusLower === 'severe thinness'
             );
           } else if (statusFilter === 'Wasted') {
             matchesHealth = (
-              s.isWasted ||
-              statusLower === 'wasted' ||
-              (statusLower.includes('thinness') && !statusLower.includes('severe'))
-            ) && !statusLower.includes('severely');
+              (statusLower === 'wasted' || statusLower === 'thinness') &&
+              !statusLower.includes('severely') &&
+              !statusLower.includes('severe')
+            );
           } else if (statusFilter === 'Stunted' || statusFilter === 'Severely Stunted') {
             matchesHealth = (
-              s.isStunted ||
               statusLower === 'stunted' ||
-              statusLower === 'severely stunted' ||
-              statusLower.includes('stunt')
+              statusLower === 'stunting' ||
+              statusLower === 'severe stunting' ||
+              statusLower === 'severely stunted'
             );
           } else if (statusFilter === 'Underweight' || statusFilter === 'Severely Underweight') {
             matchesHealth = (
-              s.isUnderweight ||
               statusLower === 'underweight' ||
-              statusLower === 'severely underweight' ||
-              statusLower.includes('underweight')
+              statusLower === 'severely underweight'
             );
           } else if (statusFilter === 'Pending Assessment') {
             matchesHealth = (
@@ -1764,8 +1748,9 @@ export default function StudentsManagementView({
             );
           } else if (statusFilter === 'Normal') {
             matchesHealth = (
-              statusLower === 'normal'
-            ) && !s.isAbsentRecord && statusLower !== 'absent';
+              statusLower === 'normal' ||
+              statusLower === 'normal (bmi)'
+            ) && !s.isAbsentRecord && statusLower !== 'absent' && !statusLower.includes('wasted') && !statusLower.includes('stunt');
           } else {
             matchesHealth = (
               statusLower === String(statusFilter).toLowerCase().trim() ||
@@ -6065,7 +6050,7 @@ export default function StudentsManagementView({
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid #F1F5F9', fontSize: '13px' }}>
-                <span style={{ color: '#64748B' }}>BMI-for-Age (Thinness)</span>
+                <span style={{ color: '#64748B' }}>BMI-for-Age (Wasting)</span>
                 <span style={{
                   fontSize: '11px',
                   fontWeight: 700,
@@ -6075,7 +6060,7 @@ export default function StudentsManagementView({
                   padding: '2px 10px',
                   borderRadius: '10px'
                 }}>
-                  {activeStudent.bmiClassification || 'Normal (BMI)'}
+                  {activeStudent.bmiClassification || 'Normal'}
                 </span>
               </div>
 

@@ -80,10 +80,10 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
           </div>
         </div>
 
-        {/* Severe Thinness / Underweight */}
+        {/* Severely Wasted */}
         <div className="stat-card">
           <div className="stat-card-top">
-            <span className="stat-card-title">Severe Thinness</span>
+            <span className="stat-card-title">Severely Wasted</span>
             <div className="stat-card-icon-wrap" style={{ background: '#FEF2F2', color: '#DC2626' }}>
               <AlertTriangle size={20} />
             </div>
@@ -146,10 +146,10 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
               </div>
             </div>
 
-            {/* Severe Thinness */}
+            {/* Severely Wasted */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px', marginBottom: '6px' }}>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>🔴 Severe Thinness / Severely Wasted</span>
+                <span style={{ fontWeight: 600, color: '#0F172A' }}>🔴 Severely Wasted</span>
                 <span style={{ fontWeight: 700, color: '#DC2626' }}>
                   {severeCount} Students ({totalStudents ? Math.round((severeCount / totalStudents) * 100) : 0}%)
                 </span>
@@ -167,10 +167,10 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
               </div>
             </div>
 
-            {/* Thinness / Mild */}
+            {/* Wasted */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px', marginBottom: '6px' }}>
-                <span style={{ fontWeight: 600, color: '#0F172A' }}>🟡 Thinness / Underweight</span>
+                <span style={{ fontWeight: 600, color: '#0F172A' }}>🟠 Wasted</span>
                 <span style={{ fontWeight: 700, color: '#D97706' }}>
                   {thinnessCount} Students ({totalStudents ? Math.round((thinnessCount / totalStudents) * 100) : 0}%)
                 </span>
