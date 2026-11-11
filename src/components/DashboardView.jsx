@@ -187,6 +187,8 @@ function computeHealthOverviewFromStudents(studentList) {
 
   return {
     total: assessedCount,
+    totalEnrolled: studentList.length,
+    notAssessed: Math.max(0, studentList.length - assessedCount),
     normal,
     normalPct: calcPct(normal),
     wasted,
@@ -874,6 +876,10 @@ export default function DashboardView() {
       return {
 
         total: metrics.students_assessed || metrics.total_students,
+
+        totalEnrolled: metrics.total_students,
+
+        notAssessed: Math.max(0, (metrics.total_students || 0) - (metrics.students_assessed || 0)),
 
         normal: metrics.health_normal,
 
@@ -2469,7 +2475,7 @@ export default function DashboardView() {
 
               <div style={compactCardStyle}>
 
-                <div style={compactCardHeaderStyle}>
+                <div style={{ ...compactCardHeaderStyle, marginBottom: '10px' }}>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
@@ -2721,13 +2727,51 @@ export default function DashboardView() {
 
               <div style={compactCardStyle}>
 
-                <div style={compactCardHeaderStyle}>
+                <div style={{ ...compactCardHeaderStyle, marginBottom: '10px' }}>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
 
-                    <Activity size={15} color="#EA580C" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
-                    <h3 style={compactCardTitleStyle}>Health Overview</h3>
+                      <Activity size={15} color="#EA580C" />
+
+                      <h3 style={compactCardTitleStyle}>Health Overview</h3>
+
+                    </div>
+
+                    <span
+
+                      style={{
+
+                        fontSize: '10.5px',
+
+                        fontWeight: 600,
+
+                        color: '#475569',
+
+                        backgroundColor: '#F1F5F9',
+
+                        padding: '2px 7px',
+
+                        borderRadius: '999px',
+
+                        whiteSpace: 'nowrap',
+
+                      }}
+
+                      title="BMI-for-Age rows sum to Assessed students; Stunting & Underweight are independent overlapping indicators."
+
+                    >
+
+                      {(healthOverviewData.total || 0).toLocaleString()} Assessed
+
+                      {healthOverviewData.notAssessed > 0
+
+                        ? ` · ${healthOverviewData.notAssessed.toLocaleString()} Absent/Pending`
+
+                        : ''}
+
+                    </span>
 
                   </div>
 
@@ -2757,9 +2801,9 @@ export default function DashboardView() {
 
 
 
-                {/* 4 Compact Bars */}
+                {/* BMI-for-Age + Independent WHO Indicator Bars */}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', flex: 1, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', flex: 1, justifyContent: 'center' }}>
 
                   {/* Normal */}
 
@@ -2825,7 +2869,7 @@ export default function DashboardView() {
 
                   <div style={compactHealthBarRow}>
 
-                    <span style={compactHealthLabel}>Overweight / Obese</span>
+                    <span style={compactHealthLabel}>Overweight</span>
 
                     <div style={compactHealthTrack}>
 
@@ -2841,11 +2885,21 @@ export default function DashboardView() {
 
 
 
+                  {/* Independent WHO Indicators (may overlap BMI-for-Age categories above) */}
+
+                  <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: '5px', marginTop: '1px', fontSize: '10px', fontWeight: 600, color: '#94A3B8', letterSpacing: '0.01em' }}>
+
+                    Separate WHO Indicators (overlap BMI categories)
+
+                  </div>
+
+
+
                   {/* Stunted (Height-for-Age) */}
 
                   <div style={compactHealthBarRow}>
 
-                    <span style={compactHealthLabel}>Stunting (HAZ &lt; -2)</span>
+                    <span style={compactHealthLabel}>Stunted</span>
 
                     <div style={compactHealthTrack}>
 
@@ -2865,7 +2919,7 @@ export default function DashboardView() {
 
                   <div style={compactHealthBarRow}>
 
-                    <span style={compactHealthLabel}>Underweight (5-10y)</span>
+                    <span style={compactHealthLabel}>Underweight</span>
 
                     <div style={compactHealthTrack}>
 
@@ -2915,7 +2969,7 @@ export default function DashboardView() {
 
               <div style={compactCardStyle}>
 
-                <div style={compactCardHeaderStyle}>
+                <div style={{ ...compactCardHeaderStyle, marginBottom: '10px' }}>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
@@ -3639,7 +3693,7 @@ const compactHealthBarRow = {
 
   display: 'grid',
 
-  gridTemplateColumns: '100px minmax(0, 1fr) 42px 42px',
+  gridTemplateColumns: '136px minmax(0, 1fr) 44px 44px',
 
   alignItems: 'center',
 
