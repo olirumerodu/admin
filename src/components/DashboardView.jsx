@@ -2729,45 +2729,11 @@ export default function DashboardView() {
 
                 <div style={{ ...compactCardHeaderStyle, marginBottom: '8px', gap: '8px' }}>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
                     <Activity size={15} color="#EA580C" style={{ flexShrink: 0 }} />
 
                     <h3 style={{ ...compactCardTitleStyle, whiteSpace: 'nowrap' }}>Health Overview</h3>
-
-                    <span
-
-                      style={{
-
-                        fontSize: '10.5px',
-
-                        fontWeight: 600,
-
-                        color: '#475569',
-
-                        backgroundColor: '#F1F5F9',
-
-                        padding: '2px 7px',
-
-                        borderRadius: '999px',
-
-                        whiteSpace: 'nowrap',
-
-                        flexShrink: 0,
-
-                      }}
-
-                      title={`${(healthOverviewData.total || 0).toLocaleString()} Assessed${healthOverviewData.notAssessed > 0 ? ` · ${healthOverviewData.notAssessed.toLocaleString()} Absent/Pending` : ''}`}
-
-                    >
-
-                      {healthOverviewData.notAssessed > 0
-
-                        ? `${(healthOverviewData.total || 0).toLocaleString()} / ${(healthOverviewData.totalEnrolled || 0).toLocaleString()} Assessed`
-
-                        : `${(healthOverviewData.total || 0).toLocaleString()} Assessed`}
-
-                    </span>
 
                   </div>
 
@@ -2775,7 +2741,7 @@ export default function DashboardView() {
 
                   <select
 
-                    style={{ ...compactSelectStyle, maxWidth: '175px' }}
+                    style={compactSelectStyle}
 
                     value={healthSchoolFilter}
 
