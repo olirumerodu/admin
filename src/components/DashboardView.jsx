@@ -2861,7 +2861,7 @@ export default function DashboardView() {
 
                       </span>
 
-                      <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 500 }}>
+                      <span style={{ fontSize: '8px', color: '#64748B', fontWeight: 500, letterSpacing: '-0.01em', marginTop: '1px' }}>
 
                         Assessed Students
 
