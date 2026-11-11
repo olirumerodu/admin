@@ -2133,13 +2133,13 @@ export default function DashboardView() {
 
           style={{
 
-            padding: isMobile ? '12px 14px' : '18px 24px',
+            padding: isMobile ? '10px 14px' : '12px 22px',
 
             display: activeNav === 'dashboard' ? 'flex' : 'none',
 
               flexDirection: 'column',
 
-              gap: '14px',
+              gap: '10px',
 
               flex: 1,
 
@@ -2461,9 +2461,7 @@ export default function DashboardView() {
 
                 width: '100%',
 
-                flex: '1 1 0',
-
-                minHeight: 0,
+                flex: '0 0 auto',
 
                 boxSizing: 'border-box'
 
@@ -2903,6 +2901,8 @@ export default function DashboardView() {
 
                 gridTemplateColumns: '1fr',
 
+                gridTemplateRows: 'minmax(0, 1fr)',
+
                 gap: '10px',
 
                 width: '100%',
@@ -2999,7 +2999,7 @@ export default function DashboardView() {
 
                 {/* Table */}
 
-                <div style={{ width: '100%', overflowY: topSchoolsLimit > 5 ? 'auto' : 'hidden', maxHeight: '220px' }}>
+                <div style={{ width: '100%', flex: '1 1 0', minHeight: 0, overflowY: 'auto' }}>
 
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
 
