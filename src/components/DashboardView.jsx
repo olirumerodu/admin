@@ -106,6 +106,106 @@ function useWindowWidth() {
 
 
 
+/**
+ * Computes independent WHO AnthroPlus category counts and percentages from a list of students,
+ * matching backend /api/v1/dashboard/metrics (using the latest physical assessment per student).
+ */
+function computeHealthOverviewFromStudents(studentList) {
+  let assessedCount = 0;
+  let normal = 0;
+  let wasted = 0;
+  let sevWasted = 0;
+  let overweight = 0;
+  let stunted = 0;
+  let underweight = 0;
+
+  for (const s of studentList) {
+    const assessments = Array.isArray(s.assessments) ? s.assessments : [];
+    const physA = assessments.find((a) => {
+      const att = String(a.attendance_status || 'Present').toLowerCase();
+      const ns = String(a.nutrition_status || '').toLowerCase();
+      if (att === 'absent' || ns === 'absent') return false;
+      return (Number(a.height_cm) > 0 && Number(a.weight_kg) > 0) ||
+        a.bmi_for_age_zscore != null ||
+        a.height_for_age_zscore != null;
+    });
+
+    const hasTopPhys = (Number(s.height_cm) > 0 && Number(s.weight_kg) > 0) ||
+      Number(s.bmi) > 0 ||
+      s.latest_bmi_for_age_zscore != null ||
+      s.latest_height_for_age_zscore != null;
+
+    if (!physA && !hasTopPhys) continue;
+    assessedCount += 1;
+
+    const baz = physA?.bmi_for_age_zscore ?? s.latest_bmi_for_age_zscore ?? null;
+    const haz = physA?.height_for_age_zscore ?? s.latest_height_for_age_zscore ?? null;
+    const waz = physA?.weight_for_age_zscore ?? s.latest_weight_for_age_zscore ?? null;
+    const wApp = physA?.weight_for_age_applicable ?? s.latest_weight_for_age_applicable ?? true;
+
+    const effStatus = String(physA?.nutrition_status || s.nutrition_status || '').toLowerCase();
+    const hClass = String(
+      physA?.height_for_age_classification ||
+      physA?.height_classification ||
+      s.latest_height_classification ||
+      s.height_for_age_classification ||
+      ''
+    ).toLowerCase();
+    const wClass = String(
+      physA?.weight_for_age_classification ||
+      physA?.weight_classification ||
+      s.latest_weight_classification ||
+      s.weight_for_age_classification ||
+      ''
+    ).toLowerCase();
+
+    if (typeof baz === 'number') {
+      if (baz < -3.0) sevWasted += 1;
+      else if (baz < -2.0) wasted += 1;
+      else if (baz <= 1.0) normal += 1;
+      else overweight += 1;
+    } else if (effStatus.includes('severe') && (effStatus.includes('wasted') || effStatus.includes('thin'))) {
+      sevWasted += 1;
+    } else if ((effStatus.includes('wasted') || effStatus.includes('thinness')) && !effStatus.includes('severe')) {
+      wasted += 1;
+    } else if (effStatus.includes('overweight') || effStatus.includes('obese') || effStatus.includes('obesity')) {
+      overweight += 1;
+    } else if (effStatus.includes('normal')) {
+      normal += 1;
+    }
+
+    if ((typeof haz === 'number' && haz < -2.0) || (haz == null && (hClass.includes('stunt') || effStatus.includes('stunt')))) {
+      stunted += 1;
+    }
+
+    if (wApp && ((typeof waz === 'number' && waz < -2.0) || (waz == null && (wClass.includes('underweight') || effStatus.includes('underweight'))))) {
+      underweight += 1;
+    }
+  }
+
+  const calcPct = (v) => (assessedCount > 0 ? Number(((v / assessedCount) * 100).toFixed(1)) : 0);
+
+  return {
+    total: assessedCount,
+    normal,
+    normalPct: calcPct(normal),
+    wasted,
+    wastedPct: calcPct(wasted),
+    sevWasted,
+    sevWastedPct: calcPct(sevWasted),
+    overweight,
+    overweightPct: calcPct(overweight),
+    obesity: 0,
+    obesityPct: 0,
+    stunted,
+    stuntedPct: calcPct(stunted),
+    underweight,
+    underweightPct: calcPct(underweight),
+  };
+}
+
+
+
 export default function DashboardView() {
 
   const { user, logout, isSuperAdmin, isClusterAdmin, assignedClusterIds, assignedSchoolIds } = useAuth();
@@ -376,17 +476,9 @@ export default function DashboardView() {
 
 
 
-      const assessedInScoped = backendStudents.filter(s => 
+      const scopedHealth = isScoped ? computeHealthOverviewFromStudents(backendStudents) : null;
 
-        (s.nutrition_status && s.nutrition_status !== 'Pending Calculation') || 
-
-        s.bmi || 
-
-        (s.assessments && s.assessments.length > 0)
-
-      ).length;
-
-      const studentsAssessed = isScoped ? assessedInScoped : (dm.assessed_students ?? 0);
+      const studentsAssessed = isScoped ? scopedHealth.total : (dm.assessed_students ?? 0);
 
       // Coverage must strictly be 0% if totalStudents is 0 or studentsAssessed is 0 (no fallback to global metrics)
       const cov = (totalStudents > 0 && studentsAssessed > 0) ? Math.round((studentsAssessed / totalStudents) * 100) : 0;
@@ -413,89 +505,23 @@ export default function DashboardView() {
 
 
 
-      const getStatus = (s) => (s.nutrition_status || s.assessments?.[0]?.nutrition_status || '').toLowerCase();
+      const norm = isScoped ? scopedHealth.normal : (dm.count_normal ?? 0);
 
-      const norm = isScoped 
+      const wasted = isScoped ? scopedHealth.wasted : (dm.count_thinness ?? 0);
 
-        ? backendStudents.filter(s => {
+      const sevWasted = isScoped ? scopedHealth.sevWasted : (dm.count_severe_thinness ?? 0);
 
-            const st = getStatus(s);
-
-            return st.includes('normal') || (!st && !s.is_follow_up_required && (s.bmi || s.nutrition_status));
-
-          }).length
-
-        : (dm.count_normal ?? 0);
-
-      const wasted = isScoped
-
-        ? backendStudents.filter(s => {
-
-            const st = getStatus(s);
-
-            return (st.includes('wasted') || st.includes('thinness')) && !st.includes('severe');
-
-          }).length
-
-        : (dm.count_thinness ?? 0);
-
-      const sevWasted = isScoped
-
-        ? backendStudents.filter(s => {
-
-            const st = getStatus(s);
-
-            return st.includes('severe');
-
-          }).length
-
-        : (dm.count_severe_thinness ?? 0);
-
-      const overwt = isScoped
-
-        ? backendStudents.filter(s => {
-
-            const st = getStatus(s);
-
-            return st.includes('overweight') || st.includes('obese') || st.includes('obesity');
-
-          }).length
-
-        : ((dm.count_overweight ?? 0) + (dm.count_obesity ?? 0));
+      const overwt = isScoped ? scopedHealth.overweight : ((dm.count_overweight ?? 0) + (dm.count_obesity ?? 0));
 
       const obesity = 0;
 
+      const stunted = isScoped ? scopedHealth.stunted : (dm.count_stunted ?? 0);
 
+      const underweight = isScoped ? scopedHealth.underweight : (dm.count_underweight ?? 0);
 
-      const stunted = isScoped
+      const pctDenom = studentsAssessed > 0 ? studentsAssessed : totalStudents;
 
-        ? backendStudents.filter(s => {
-
-            const hs = String(s.height_for_age_classification || s.assessments?.[0]?.height_for_age_classification || '').toLowerCase();
-
-            return hs.includes('stunt');
-
-          }).length
-
-        : (dm.count_stunted ?? 0);
-
-
-
-      const underweight = isScoped
-
-        ? backendStudents.filter(s => {
-
-            const ws = String(s.weight_for_age_classification || s.assessments?.[0]?.weight_for_age_classification || '').toLowerCase();
-
-            return ws.includes('underweight');
-
-          }).length
-
-        : (dm.count_underweight ?? 0);
-
-
-
-      const calcPct = (v) => totalStudents > 0 ? Number(((v / totalStudents) * 100).toFixed(1)) : 0;
+      const calcPct = (v) => pctDenom > 0 ? Number(((v / pctDenom) * 100).toFixed(1)) : 0;
 
 
 
@@ -841,109 +867,7 @@ export default function DashboardView() {
 
   const healthOverviewData = useMemo(() => {
 
-    let list = rawStudents.filter(s => !s.enrollment_status || s.enrollment_status === 'Active');
-
     const isFiltered = healthSchoolFilter && healthSchoolFilter !== 'ALL';
-
-    if (isFiltered) {
-
-      list = list.filter(s =>
-
-        String(s.school_id || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase() ||
-
-        String(s.school_name || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase()
-
-      );
-
-    }
-
-
-
-    const total = list.length;
-
-    if (total > 0) {
-
-      const getStatus = (s) => (s.nutrition_status || s.assessments?.[0]?.nutrition_status || '').toLowerCase();
-
-
-
-      const normal = list.filter(s => {
-
-        const st = getStatus(s);
-
-        return st.includes('normal') || (!st && !s.is_follow_up_required);
-
-      }).length;
-
-
-
-      const wasted = list.filter(s => {
-
-        const st = getStatus(s);
-
-        return (st.includes('wasted') || st.includes('thinness')) && !st.includes('severe');
-
-      }).length;
-
-
-
-      const sevWasted = list.filter(s => {
-
-        const st = getStatus(s);
-
-        return st.includes('severe');
-
-      }).length;
-
-
-
-      const overweight = list.filter(s => {
-
-        const st = getStatus(s);
-
-        return st.includes('overweight') || st.includes('obese') || st.includes('obesity');
-
-      }).length;
-
-
-
-      const obesity = 0;
-
-
-
-      const calcPct = (v) => Number(((v / total) * 100).toFixed(1));
-
-
-
-      return {
-
-        total,
-
-        normal,
-
-        normalPct: calcPct(normal),
-
-        wasted,
-
-        wastedPct: calcPct(wasted),
-
-        sevWasted,
-
-        sevWastedPct: calcPct(sevWasted),
-
-        overweight,
-
-        overweightPct: calcPct(overweight),
-
-        obesity,
-
-        obesityPct: calcPct(obesity),
-
-      };
-
-    }
-
-
 
     if (!isFiltered) {
 
@@ -971,37 +895,27 @@ export default function DashboardView() {
 
         obesityPct: metrics.health_obesity_pct,
 
+        stunted: metrics.health_stunted,
+
+        stuntedPct: metrics.health_stunted_pct,
+
+        underweight: metrics.health_underweight,
+
+        underweightPct: metrics.health_underweight_pct,
+
       };
 
     }
 
+    const filtered = rawStudents.filter(s =>
 
+      String(s.school_id || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase() ||
 
-    return {
+      String(s.school_name || '').trim().toLowerCase() === String(healthSchoolFilter).trim().toLowerCase()
 
-      total: 0,
+    );
 
-      normal: 0,
-
-      normalPct: 0,
-
-      wasted: 0,
-
-      wastedPct: 0,
-
-      sevWasted: 0,
-
-      sevWastedPct: 0,
-
-      overweight: 0,
-
-      overweightPct: 0,
-
-      obesity: 0,
-
-      obesityPct: 0,
-
-    };
+    return computeHealthOverviewFromStudents(filtered);
 
   }, [rawStudents, healthSchoolFilter, metrics]);
 

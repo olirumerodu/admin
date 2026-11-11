@@ -13,11 +13,12 @@ import {
 
 export default function OverviewView({ metrics, schools, students, onSelectStudent }) {
   const totalStudents = metrics?.total_students || students.length || 0;
+  const assessedStudents = metrics?.assessed_students || totalStudents;
   const normalCount = metrics?.count_normal || 0;
   const thinnessCount = metrics?.count_thinness || 0;
   const severeCount = metrics?.count_severe_thinness || 0;
   const followUpCount = metrics?.count_follow_up_required || 0;
-  const normalPercent = totalStudents > 0 ? Math.round((normalCount / totalStudents) * 100) : 0;
+  const normalPercent = assessedStudents > 0 ? Math.round((normalCount / assessedStudents) * 100) : 0;
 
   return (
     <div>
@@ -151,14 +152,14 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px', marginBottom: '6px' }}>
                 <span style={{ fontWeight: 600, color: '#0F172A' }}>🔴 Severely Wasted</span>
                 <span style={{ fontWeight: 700, color: '#DC2626' }}>
-                  {severeCount} Students ({totalStudents ? Math.round((severeCount / totalStudents) * 100) : 0}%)
+                  {severeCount} Students ({assessedStudents ? Math.round((severeCount / assessedStudents) * 100) : 0}%)
                 </span>
               </div>
               <div style={{ height: '10px', background: '#E2E8F0', borderRadius: '99px', overflow: 'hidden' }}>
                 <div 
                   style={{ 
                     height: '100%', 
-                    width: `${totalStudents ? (severeCount / totalStudents) * 100 : 0}%`, 
+                    width: `${assessedStudents ? (severeCount / assessedStudents) * 100 : 0}%`, 
                     backgroundColor: '#EF4444', 
                     borderRadius: '99px',
                     transition: 'width 0.5s ease'
@@ -172,14 +173,14 @@ export default function OverviewView({ metrics, schools, students, onSelectStude
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13.5px', marginBottom: '6px' }}>
                 <span style={{ fontWeight: 600, color: '#0F172A' }}>🟠 Wasted</span>
                 <span style={{ fontWeight: 700, color: '#D97706' }}>
-                  {thinnessCount} Students ({totalStudents ? Math.round((thinnessCount / totalStudents) * 100) : 0}%)
+                  {thinnessCount} Students ({assessedStudents ? Math.round((thinnessCount / assessedStudents) * 100) : 0}%)
                 </span>
               </div>
               <div style={{ height: '10px', background: '#E2E8F0', borderRadius: '99px', overflow: 'hidden' }}>
                 <div 
                   style={{ 
                     height: '100%', 
-                    width: `${totalStudents ? (thinnessCount / totalStudents) * 100 : 0}%`, 
+                    width: `${assessedStudents ? (thinnessCount / assessedStudents) * 100 : 0}%`, 
                     backgroundColor: '#F59E0B', 
                     borderRadius: '99px',
                     transition: 'width 0.5s ease'
