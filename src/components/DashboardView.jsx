@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 
 import {
 
@@ -106,6 +106,151 @@ function useWindowWidth() {
 
 
 
+function findPhysicalAssessment(s) {
+  const assessments = Array.isArray(s?.assessments) ? s.assessments : [];
+  return assessments.find((a) => {
+    const att = String(a.attendance_status || 'Present').toLowerCase();
+    const ns = String(a.nutrition_status || '').toLowerCase();
+    if (att === 'absent' || ns === 'absent') return false;
+    return (Number(a.height_cm) > 0 && Number(a.weight_kg) > 0) ||
+      a.bmi_for_age_zscore != null ||
+      a.height_for_age_zscore != null;
+  }) || null;
+}
+
+function hasTopLevelPhysicalAssessment(s) {
+  return Boolean(
+    s && (
+      (Number(s.height_cm) > 0 && Number(s.weight_kg) > 0) ||
+      Number(s.bmi) > 0 ||
+      s.latest_bmi_for_age_zscore != null ||
+      s.latest_height_for_age_zscore != null
+    )
+  );
+}
+
+function isStudentPhysicallyAssessed(s) {
+  return Boolean(findPhysicalAssessment(s) || hasTopLevelPhysicalAssessment(s));
+}
+
+const DEFAULT_METRICS = {
+  total_users: 0,
+  total_clusters: 0,
+  total_schools: 0,
+  total_students: 0,
+  students_assessed: 0,
+  assessment_coverage: 0,
+  male_students: 0,
+  female_students: 0,
+  male_percentage: 0,
+  female_percentage: 0,
+  assessed_male_students: 0,
+  assessed_female_students: 0,
+  assessed_male_percentage: 0,
+  assessed_female_percentage: 0,
+  health_normal: 0,
+  health_normal_pct: 0,
+  health_wasted: 0,
+  health_wasted_pct: 0,
+  health_severely_wasted: 0,
+  health_severely_wasted_pct: 0,
+  health_overweight: 0,
+  health_overweight_pct: 0,
+  health_obesity: 0,
+  health_obesity_pct: 0,
+  health_stunted: 0,
+  health_stunted_pct: 0,
+  health_underweight: 0,
+  health_underweight_pct: 0,
+};
+
+function mapSchoolsToList(schools) {
+  if (!Array.isArray(schools) || schools.length === 0) return [];
+  const maxStudentCount = Math.max(...schools.map(s => s.students_count || 0), 1);
+  return schools.map(s => ({
+    id: String(s.id),
+    name: s.name,
+    cluster: s.cluster_name || 'District',
+    students: s.students_count || 0,
+    coverage: s.coverage_percentage || 0,
+    maxPct: Math.round(((s.students_count || 0) / maxStudentCount) * 100),
+  }));
+}
+
+function sameMetrics(a, b) {
+  if (!a || !b) return false;
+  return Object.keys(DEFAULT_METRICS).every(k => a[k] === b[k]);
+}
+
+function sameSchoolsList(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  return a.every((item, i) =>
+    item.id === b[i].id &&
+    item.name === b[i].name &&
+    item.cluster === b[i].cluster &&
+    item.students === b[i].students &&
+    item.coverage === b[i].coverage
+  );
+}
+
+function buildDashboardMetrics({
+  totalUsers = 0,
+  totalClusters = 0,
+  totalSchools = 0,
+  totalStudents = 0,
+  studentsAssessed = 0,
+  maleCount = 0,
+  femaleCount = 0,
+  assessedMale = 0,
+  assessedFemale = 0,
+  norm = 0,
+  wasted = 0,
+  sevWasted = 0,
+  overwt = 0,
+  stunted = 0,
+  underweight = 0,
+}) {
+  const cov = (totalStudents > 0 && studentsAssessed > 0) ? Math.round((studentsAssessed / totalStudents) * 100) : 0;
+  const malePct = totalStudents > 0 ? Number(((maleCount / totalStudents) * 100).toFixed(1)) : 0;
+  const femalePct = totalStudents > 0 ? Number(((femaleCount / totalStudents) * 100).toFixed(1)) : 0;
+  const assessedDenom = studentsAssessed > 0 ? studentsAssessed : (assessedMale + assessedFemale);
+  const assessedMalePct = assessedDenom > 0 ? Number(((assessedMale / assessedDenom) * 100).toFixed(1)) : 0;
+  const assessedFemalePct = assessedDenom > 0 ? Number(((assessedFemale / assessedDenom) * 100).toFixed(1)) : 0;
+  const pctDenom = studentsAssessed > 0 ? studentsAssessed : totalStudents;
+  const calcPct = (v) => (pctDenom > 0 ? Number(((v / pctDenom) * 100).toFixed(1)) : 0);
+
+  return {
+    total_users: totalUsers,
+    total_clusters: totalClusters,
+    total_schools: totalSchools,
+    total_students: totalStudents,
+    students_assessed: studentsAssessed,
+    assessment_coverage: cov,
+    male_students: maleCount,
+    female_students: femaleCount,
+    male_percentage: malePct,
+    female_percentage: femalePct,
+    assessed_male_students: assessedMale,
+    assessed_female_students: assessedFemale,
+    assessed_male_percentage: assessedMalePct,
+    assessed_female_percentage: assessedFemalePct,
+    health_normal: norm,
+    health_normal_pct: calcPct(norm),
+    health_wasted: wasted,
+    health_wasted_pct: calcPct(wasted),
+    health_severely_wasted: sevWasted,
+    health_severely_wasted_pct: calcPct(sevWasted),
+    health_overweight: overwt,
+    health_overweight_pct: calcPct(overwt),
+    health_obesity: 0,
+    health_obesity_pct: 0,
+    health_stunted: stunted,
+    health_stunted_pct: calcPct(stunted),
+    health_underweight: underweight,
+    health_underweight_pct: calcPct(underweight),
+  };
+}
+
 /**
  * Computes independent WHO AnthroPlus category counts and percentages from a list of students,
  * matching backend /api/v1/dashboard/metrics (using the latest physical assessment per student).
@@ -120,20 +265,8 @@ function computeHealthOverviewFromStudents(studentList) {
   let underweight = 0;
 
   for (const s of studentList) {
-    const assessments = Array.isArray(s.assessments) ? s.assessments : [];
-    const physA = assessments.find((a) => {
-      const att = String(a.attendance_status || 'Present').toLowerCase();
-      const ns = String(a.nutrition_status || '').toLowerCase();
-      if (att === 'absent' || ns === 'absent') return false;
-      return (Number(a.height_cm) > 0 && Number(a.weight_kg) > 0) ||
-        a.bmi_for_age_zscore != null ||
-        a.height_for_age_zscore != null;
-    });
-
-    const hasTopPhys = (Number(s.height_cm) > 0 && Number(s.weight_kg) > 0) ||
-      Number(s.bmi) > 0 ||
-      s.latest_bmi_for_age_zscore != null ||
-      s.latest_height_for_age_zscore != null;
+    const physA = findPhysicalAssessment(s);
+    const hasTopPhys = hasTopLevelPhysicalAssessment(s);
 
     if (!physA && !hasTopPhys) continue;
     assessedCount += 1;
@@ -234,7 +367,7 @@ export default function DashboardView() {
 
   // Keep-alive state: keep all views pre-warmed so selecting sidebar tabs is 100% instantaneous (0ms)
 
-  const [visitedTabs, setVisitedTabs] = useState(() => new Set(['dashboard', 'students', 'users', 'import', 'reports', 'notifications', 'settings']));
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set(['dashboard']));
 
   useEffect(() => {
 
@@ -300,57 +433,23 @@ export default function DashboardView() {
 
 
 
+  const scopeCacheKey = (isClusterAdmin || !isSuperAdmin) ? `scoped_${user?.id || 'user'}` : 'global';
+
+  const syncSeqRef = useRef(0);
+
+  const isSyncingRef = useRef(false);
+
+  const lastSyncAtRef = useRef(0);
+
+
+
   // Dynamic Real-time Dashboard Metrics directly from Backend
 
-  const [metrics, setMetrics] = useState({
+  const [metrics, setMetrics] = useState(() => {
 
-    total_users: 0,
+    const cached = getSessionCache(`metrics_${scopeCacheKey}`, null);
 
-    total_clusters: 0,
-
-    total_schools: 0,
-
-    total_students: 0,
-
-    students_assessed: 0,
-
-    assessment_coverage: 0,
-
-    male_students: 0,
-
-    female_students: 0,
-
-    male_percentage: 0,
-
-    female_percentage: 0,
-
-    health_normal: 0,
-
-    health_normal_pct: 0,
-
-    health_wasted: 0,
-
-    health_wasted_pct: 0,
-
-    health_severely_wasted: 0,
-
-    health_severely_wasted_pct: 0,
-
-    health_overweight: 0,
-
-    health_overweight_pct: 0,
-
-    health_obesity: 0,
-
-    health_obesity_pct: 0,
-
-    health_stunted: 0,
-
-    health_stunted_pct: 0,
-
-    health_underweight: 0,
-
-    health_underweight_pct: 0,
+    return cached ? { ...DEFAULT_METRICS, ...cached } : DEFAULT_METRICS;
 
   });
 
@@ -358,7 +457,17 @@ export default function DashboardView() {
 
   // Real-time Schools List from Database
 
-  const [schoolsList, setSchoolsList] = useState([]);
+  const [schoolsList, setSchoolsList] = useState(() => {
+
+    const cachedList = getSessionCache(`schools_list_${scopeCacheKey}`, null);
+
+    if (Array.isArray(cachedList) && cachedList.length > 0) return cachedList;
+
+    const cachedSchools = studentsMemoryCache.schools || getSessionCache('schools', []);
+
+    return mapSchoolsToList(cachedSchools);
+
+  });
 
 
 
@@ -370,41 +479,199 @@ export default function DashboardView() {
 
   // Synchronize live data from FastAPI backend in real time
 
-  const loadData = async (filterTarget = dashboardSchoolFilter) => {
+  const loadData = async (filterTarget = dashboardSchoolFilter, { isBackgroundPoll = false } = {}) => {
+
+    if (isBackgroundPoll && isSyncingRef.current) return;
+
+    const reqSeq = ++syncSeqRef.current;
+
+    isSyncingRef.current = true;
 
     try {
 
       const isFiltered = filterTarget && filterTarget !== 'ALL';
 
-      const [dashMetricsRes, schoolsRes, studentsRes, usersRes, notifsRes, clustersRes] = await Promise.allSettled([
+      const isScoped = isClusterAdmin || !isSuperAdmin;
 
-        api.getMetrics(isFiltered ? filterTarget : null),
+      const currentScopeKey = isScoped ? `scoped_${user?.id || 'user'}` : 'global';
 
-        api.getSchools(),
 
-        api.getStudents(),
 
-        api.getUsers(),
+      const metricsPromise = api.getMetrics(isFiltered ? filterTarget : null);
 
-        api.getNotifications(),
+      const schoolsPromise = api.getSchools();
 
-        api.getClusters(),
+      const clustersPromise = api.getClusters();
+
+      const notifsPromise = api.getNotifications();
+
+      const studentsPromise = api.getStudents();
+
+      const usersPromise = api.getUsers();
+
+
+
+      // Fast phase: paint global KPIs, school distribution & health bars before heavy /students resolves
+
+      const [dashMetricsRes, schoolsRes, clustersRes, notifsRes] = await Promise.allSettled([
+
+        metricsPromise,
+
+        schoolsPromise,
+
+        clustersPromise,
+
+        notifsPromise,
 
       ]);
 
 
 
-      const dm = dashMetricsRes.status === 'fulfilled' ? dashMetricsRes.value || {} : {};
+      if (reqSeq !== syncSeqRef.current) return;
 
-      const fetchedSchools = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : [];
 
-      const fetchedStudents = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : [];
 
-      const fetchedUsers = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value) ? usersRes.value : [];
+      const dm = dashMetricsRes.status === 'fulfilled' && dashMetricsRes.value && typeof dashMetricsRes.value === 'object'
 
-      const fetchedClusters = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : [];
+        ? dashMetricsRes.value
 
-      const backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : [];
+        : null;
+
+      const fetchedSchools = schoolsRes.status === 'fulfilled' && Array.isArray(schoolsRes.value) ? schoolsRes.value : null;
+
+      const fetchedClusters = clustersRes.status === 'fulfilled' && Array.isArray(clustersRes.value) ? clustersRes.value : null;
+
+      const backendNotifs = notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value) ? notifsRes.value : null;
+
+
+
+      if (!isScoped && dm) {
+
+        const nextMetrics = buildDashboardMetrics({
+
+          totalUsers: dm.total_users ?? 0,
+
+          totalClusters: dm.total_clusters ?? 0,
+
+          totalSchools: dm.total_schools ?? 0,
+
+          totalStudents: dm.total_students ?? 0,
+
+          studentsAssessed: dm.assessed_students ?? 0,
+
+          maleCount: dm.count_male ?? 0,
+
+          femaleCount: dm.count_female ?? 0,
+
+          assessedMale: dm.count_assessed_male ?? 0,
+
+          assessedFemale: dm.count_assessed_female ?? 0,
+
+          norm: dm.count_normal ?? 0,
+
+          wasted: dm.count_thinness ?? 0,
+
+          sevWasted: dm.count_severe_thinness ?? 0,
+
+          overwt: (dm.count_overweight ?? 0) + (dm.count_obesity ?? 0),
+
+          stunted: dm.count_stunted ?? 0,
+
+          underweight: dm.count_underweight ?? 0,
+
+        });
+
+        setMetrics(prev => (sameMetrics(prev, nextMetrics) ? prev : nextMetrics));
+
+        if (!isFiltered) {
+
+          setSessionCache(`metrics_${currentScopeKey}`, nextMetrics);
+
+        }
+
+      }
+
+
+
+      if (!isScoped && fetchedSchools) {
+
+        if (studentsMemoryCache) {
+
+          studentsMemoryCache.schools = fetchedSchools;
+
+        }
+
+        setSessionCache('schools', fetchedSchools);
+
+        const mappedSchools = mapSchoolsToList(fetchedSchools);
+
+        setSchoolsList(prev => (sameSchoolsList(prev, mappedSchools) ? prev : mappedSchools));
+
+        setSessionCache(`schools_list_${currentScopeKey}`, mappedSchools);
+
+        setRawSchools(fetchedSchools);
+
+      }
+
+
+
+      if (!isScoped && fetchedClusters) {
+
+        if (studentsMemoryCache) {
+
+          studentsMemoryCache.clusters = fetchedClusters;
+
+        }
+
+        setSessionCache('clusters', fetchedClusters);
+
+        setRawClusters(fetchedClusters);
+
+      }
+
+
+
+      if (backendNotifs) {
+
+        const scheduledNotifs = backendNotifs.filter(n => n.scheduled_date || n.status === 'Scheduled');
+
+        if (scheduledNotifs.length > 0) {
+
+          setUpcomingActivities(scheduledNotifs.map(n => ({
+
+            id: String(n.id),
+
+            activity: n.title,
+
+            school: n.target || 'All Schools',
+
+            date: n.scheduled_date ? `${n.scheduled_date} ${n.scheduled_time || ''}` : new Date(n.created_at).toLocaleDateString(),
+
+            status: n.status || 'Scheduled'
+
+          })));
+
+        } else {
+
+          setUpcomingActivities([]);
+
+        }
+
+      }
+
+
+
+      // Background/full phase: wait for students & users (used for per-school filters and scoped admins)
+
+      const [studentsRes, usersRes] = await Promise.allSettled([studentsPromise, usersPromise]);
+
+      if (reqSeq !== syncSeqRef.current) return;
+
+
+
+      const fetchedStudents = studentsRes.status === 'fulfilled' && Array.isArray(studentsRes.value) ? studentsRes.value : null;
+
+      const fetchedUsers = usersRes.status === 'fulfilled' && Array.isArray(usersRes.value) ? usersRes.value : null;
 
 
 
@@ -420,13 +687,13 @@ export default function DashboardView() {
 
       } = filterScopeData({
 
-        clusters: fetchedClusters,
+        clusters: fetchedClusters ?? rawClusters ?? [],
 
-        schools: fetchedSchools,
+        schools: fetchedSchools ?? rawSchools ?? [],
 
-        students: fetchedStudents,
+        students: fetchedStudents ?? rawStudents ?? [],
 
-        users: fetchedUsers,
+        users: fetchedUsers ?? rawUsers ?? [],
 
         isClusterAdmin,
 
@@ -440,216 +707,133 @@ export default function DashboardView() {
 
 
 
-      // Pre-warm students cache immediately so sidebar switch has 0ms delay
-
       if (studentsMemoryCache) {
 
-        studentsMemoryCache.clusters = filteredClusters;
+        if (fetchedClusters) studentsMemoryCache.clusters = filteredClusters;
 
-        studentsMemoryCache.schools = backendSchools;
+        if (fetchedSchools) studentsMemoryCache.schools = backendSchools;
 
-        studentsMemoryCache.students = backendStudents;
+        if (fetchedStudents) studentsMemoryCache.students = backendStudents;
 
-        studentsMemoryCache.users = backendUsers;
+        if (fetchedUsers) studentsMemoryCache.users = backendUsers;
 
         studentsMemoryCache.lastFetched = Date.now();
 
       }
 
-      setSessionCache('clusters', filteredClusters);
 
-      setSessionCache('schools', backendSchools);
 
-      setSessionCache('students', backendStudents);
+      if (fetchedClusters && isScoped) {
 
-      setSessionCache('users', backendUsers);
+        setSessionCache('clusters', filteredClusters);
 
+        setRawClusters(filteredClusters);
 
+      }
 
-      const isScoped = isClusterAdmin || !isSuperAdmin;
+      if (fetchedSchools && isScoped) {
 
-      const totalStudents = isScoped ? backendStudents.length : (dm.total_students ?? backendStudents.length ?? 0);
+        setSessionCache('schools', backendSchools);
 
-      const totalSchools = isScoped ? backendSchools.length : (dm.total_schools ?? backendSchools.length ?? 0);
+        const mappedSchools = mapSchoolsToList(backendSchools);
 
-      const totalUsers = isScoped ? backendUsers.length : (dm.total_users ?? backendUsers.length ?? 0);
+        setSchoolsList(prev => (sameSchoolsList(prev, mappedSchools) ? prev : mappedSchools));
 
-      const totalClusters = isScoped ? filteredClusters.length : (dm.total_clusters ?? 0);
+        setSessionCache(`schools_list_${currentScopeKey}`, mappedSchools);
 
+        setRawSchools(backendSchools);
 
+      }
 
-      const scopedHealth = isScoped ? computeHealthOverviewFromStudents(backendStudents) : null;
+      if (fetchedStudents) {
 
-      const studentsAssessed = isScoped ? scopedHealth.total : (dm.assessed_students ?? 0);
+        setSessionCache('students', backendStudents);
 
-      // Coverage must strictly be 0% if totalStudents is 0 or studentsAssessed is 0 (no fallback to global metrics)
-      const cov = (totalStudents > 0 && studentsAssessed > 0) ? Math.round((studentsAssessed / totalStudents) * 100) : 0;
+        setRawStudents(backendStudents);
 
+      }
 
+      if (fetchedUsers) {
 
-      const maleCount = backendStudents.length > 0
+        setSessionCache('users', backendUsers);
 
-        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'male').length
-
-        : (isScoped ? 0 : (dm.count_male ?? 0));
-
-      const femaleCount = backendStudents.length > 0
-
-        ? backendStudents.filter(s => s.gender?.toLowerCase() === 'female').length
-
-        : (isScoped ? 0 : (dm.count_female ?? 0));
-
-
-
-      const malePct = totalStudents > 0 ? Number(((maleCount / totalStudents) * 100).toFixed(1)) : 0;
-
-      const femalePct = totalStudents > 0 ? Number(((femaleCount / totalStudents) * 100).toFixed(1)) : 0;
-
-
-
-      const norm = isScoped ? scopedHealth.normal : (dm.count_normal ?? 0);
-
-      const wasted = isScoped ? scopedHealth.wasted : (dm.count_thinness ?? 0);
-
-      const sevWasted = isScoped ? scopedHealth.sevWasted : (dm.count_severe_thinness ?? 0);
-
-      const overwt = isScoped ? scopedHealth.overweight : ((dm.count_overweight ?? 0) + (dm.count_obesity ?? 0));
-
-      const obesity = 0;
-
-      const stunted = isScoped ? scopedHealth.stunted : (dm.count_stunted ?? 0);
-
-      const underweight = isScoped ? scopedHealth.underweight : (dm.count_underweight ?? 0);
-
-      const pctDenom = studentsAssessed > 0 ? studentsAssessed : totalStudents;
-
-      const calcPct = (v) => pctDenom > 0 ? Number(((v / pctDenom) * 100).toFixed(1)) : 0;
-
-
-
-      setMetrics({
-
-        total_users: totalUsers,
-
-        total_clusters: totalClusters,
-
-        total_schools: totalSchools,
-
-        total_students: totalStudents,
-
-        students_assessed: studentsAssessed,
-
-        assessment_coverage: cov,
-
-        male_students: maleCount,
-
-        female_students: femaleCount,
-
-        male_percentage: malePct,
-
-        female_percentage: femalePct,
-
-        health_normal: norm,
-
-        health_normal_pct: calcPct(norm),
-
-        health_wasted: wasted,
-
-        health_wasted_pct: calcPct(wasted),
-
-        health_severely_wasted: sevWasted,
-
-        health_severely_wasted_pct: calcPct(sevWasted),
-
-        health_overweight: overwt,
-
-        health_overweight_pct: calcPct(overwt),
-
-        health_obesity: obesity,
-
-        health_obesity_pct: calcPct(obesity),
-
-        health_stunted: stunted,
-
-        health_stunted_pct: calcPct(stunted),
-
-        health_underweight: underweight,
-
-        health_underweight_pct: calcPct(underweight),
-
-      });
-
-
-
-      // Map real schools list from database
-
-      const maxStudentCount = Math.max(...backendSchools.map(s => s.students_count || 0), 1);
-
-      const mappedSchools = backendSchools.map(s => ({
-
-        id: String(s.id),
-
-        name: s.name,
-
-        cluster: s.cluster_name || 'District',
-
-        students: s.students_count || 0,
-
-        coverage: s.coverage_percentage || 0,
-
-        maxPct: Math.round(((s.students_count || 0) / maxStudentCount) * 100)
-
-      }));
-
-      setSchoolsList(mappedSchools);
-
-      setRawSchools(backendSchools);
-
-      setRawStudents(backendStudents);
-
-      setRawClusters(filteredClusters);
-
-      setRawUsers(backendUsers);
-
-
-
-      // Lightweight dashboard feed synced
-
-
-
-      // Map upcoming activities only from real database notifications / schedules (no hardcoded fallback)
-
-      const scheduledNotifs = backendNotifs.filter(n => n.scheduled_date || n.status === 'Scheduled');
-
-      if (scheduledNotifs.length > 0) {
-
-        setUpcomingActivities(scheduledNotifs.map(n => ({
-
-          id: String(n.id),
-
-          activity: n.title,
-
-          school: n.target || 'All Schools',
-
-          date: n.scheduled_date ? `${n.scheduled_date} ${n.scheduled_time || ''}` : new Date(n.created_at).toLocaleDateString(),
-
-          status: n.status || 'Scheduled'
-
-        })));
-
-      } else {
-
-        setUpcomingActivities([]);
+        setRawUsers(backendUsers);
 
       }
 
 
+
+      if (isScoped && fetchedStudents) {
+
+        const scopedHealth = computeHealthOverviewFromStudents(backendStudents);
+
+        const assessedList = backendStudents.filter(isStudentPhysicallyAssessed);
+
+        const assessedMale = assessedList.filter(s => s.gender?.toLowerCase() === 'male').length;
+
+        const assessedFemale = assessedList.filter(s => s.gender?.toLowerCase() === 'female').length;
+
+        const nextScopedMetrics = buildDashboardMetrics({
+
+          totalUsers: fetchedUsers ? backendUsers.length : metrics.total_users,
+
+          totalClusters: fetchedClusters ? filteredClusters.length : metrics.total_clusters,
+
+          totalSchools: fetchedSchools ? backendSchools.length : metrics.total_schools,
+
+          totalStudents: backendStudents.length,
+
+          studentsAssessed: scopedHealth.total,
+
+          maleCount: backendStudents.filter(s => s.gender?.toLowerCase() === 'male').length,
+
+          femaleCount: backendStudents.filter(s => s.gender?.toLowerCase() === 'female').length,
+
+          assessedMale,
+
+          assessedFemale,
+
+          norm: scopedHealth.normal,
+
+          wasted: scopedHealth.wasted,
+
+          sevWasted: scopedHealth.sevWasted,
+
+          overwt: scopedHealth.overweight,
+
+          stunted: scopedHealth.stunted,
+
+          underweight: scopedHealth.underweight,
+
+        });
+
+        setMetrics(prev => (sameMetrics(prev, nextScopedMetrics) ? prev : nextScopedMetrics));
+
+        if (!isFiltered) {
+
+          setSessionCache(`metrics_${currentScopeKey}`, nextScopedMetrics);
+
+        }
+
+      }
+
+
+
+      lastSyncAtRef.current = Date.now();
 
       setLastRefreshedTime(new Date());
 
     } catch (err) {
 
       console.warn('Dashboard real-time sync notice:', err);
+
+    } finally {
+
+      if (reqSeq === syncSeqRef.current) {
+
+        isSyncingRef.current = false;
+
+      }
 
     }
 
@@ -731,29 +915,39 @@ export default function DashboardView() {
 
     loadData(dashboardSchoolFilter);
 
-    // Real-time sync polling every 10 seconds when tab is active
+    // Real-time sync polling every 30 seconds when tab is active (skips overlapping polls)
 
     const timer = setInterval(() => {
 
-      if (!document.hidden) {
+      if (!document.hidden && !isSyncingRef.current) {
 
-        loadData(dashboardSchoolFilter);
+        loadData(dashboardSchoolFilter, { isBackgroundPoll: true });
 
       }
 
-    }, 10000);
+    }, 30000);
 
 
 
-    const handleScopeEvent = () => {
+    const handleScopeHeartbeat = () => {
+
+      if (document.hidden || isSyncingRef.current) return;
+
+      if (Date.now() - lastSyncAtRef.current < 15000) return;
+
+      loadData(dashboardSchoolFilter, { isBackgroundPoll: true });
+
+    };
+
+    const handleUserUpdated = () => {
 
       loadData(dashboardSchoolFilter);
 
     };
 
-    window.addEventListener('sh_scope_updated', handleScopeEvent);
+    window.addEventListener('sh_scope_updated', handleScopeHeartbeat);
 
-    window.addEventListener('sh_user_updated', handleScopeEvent);
+    window.addEventListener('sh_user_updated', handleUserUpdated);
 
 
 
@@ -761,13 +955,13 @@ export default function DashboardView() {
 
       clearInterval(timer);
 
-      window.removeEventListener('sh_scope_updated', handleScopeEvent);
+      window.removeEventListener('sh_scope_updated', handleScopeHeartbeat);
 
-      window.removeEventListener('sh_user_updated', handleScopeEvent);
+      window.removeEventListener('sh_user_updated', handleUserUpdated);
 
     };
 
-  }, [dashboardSchoolFilter, isClusterAdmin, JSON.stringify(assignedClusterIds), JSON.stringify(assignedSchoolIds)]);
+  }, [dashboardSchoolFilter, isClusterAdmin, user?.id, JSON.stringify(assignedClusterIds), JSON.stringify(assignedSchoolIds)]);
 
 
 
@@ -803,17 +997,41 @@ export default function DashboardView() {
 
   const studentOverviewData = useMemo(() => {
 
-    let list = rawStudents.filter(s => !s.enrollment_status || s.enrollment_status === 'Active');
-
     const isFiltered = studentSchoolFilter && studentSchoolFilter !== 'ALL';
+
+    const isScoped = isClusterAdmin || !isSuperAdmin;
+
+    const filterMatchesDashboard = String(studentSchoolFilter || 'ALL') === String(dashboardSchoolFilter || 'ALL');
+
+    if (filterMatchesDashboard && ((!isScoped && (metrics.students_assessed > 0 || rawStudents.length === 0)) || (rawStudents.length === 0 && metrics.students_assessed > 0))) {
+
+      return {
+
+        total: metrics.students_assessed || 0,
+
+        male: metrics.assessed_male_students || 0,
+
+        female: metrics.assessed_female_students || 0,
+
+        malePct: metrics.assessed_male_percentage || 0,
+
+        femalePct: metrics.assessed_female_percentage || 0,
+
+      };
+
+    }
+
+    let list = rawStudents.filter(isStudentPhysicallyAssessed);
 
     if (isFiltered) {
 
+      const target = String(studentSchoolFilter).trim().toLowerCase();
+
       list = list.filter(s =>
 
-        String(s.school_id || '').trim().toLowerCase() === String(studentSchoolFilter).trim().toLowerCase() ||
+        String(s.school_id || '').trim().toLowerCase() === target ||
 
-        String(s.school_name || '').trim().toLowerCase() === String(studentSchoolFilter).trim().toLowerCase()
+        String(s.school_name || '').trim().toLowerCase() === target
 
       );
 
@@ -839,19 +1057,19 @@ export default function DashboardView() {
 
 
 
-    if (!isFiltered) {
+    if (!isFiltered && !isScoped) {
 
       return {
 
-        total: metrics.total_students,
+        total: metrics.students_assessed || 0,
 
-        male: metrics.male_students,
+        male: metrics.assessed_male_students || 0,
 
-        female: metrics.female_students,
+        female: metrics.assessed_female_students || 0,
 
-        malePct: metrics.male_percentage || 0,
+        malePct: metrics.assessed_male_percentage || 0,
 
-        femalePct: metrics.female_percentage || 0,
+        femalePct: metrics.assessed_female_percentage || 0,
 
       };
 
@@ -861,7 +1079,7 @@ export default function DashboardView() {
 
     return { total: 0, male: 0, female: 0, malePct: 0, femalePct: 0 };
 
-  }, [rawStudents, studentSchoolFilter, metrics]);
+  }, [rawStudents, studentSchoolFilter, dashboardSchoolFilter, metrics, isClusterAdmin, isSuperAdmin]);
 
 
 
@@ -871,11 +1089,15 @@ export default function DashboardView() {
 
     const isFiltered = healthSchoolFilter && healthSchoolFilter !== 'ALL';
 
-    if (!isFiltered) {
+    const isScoped = isClusterAdmin || !isSuperAdmin;
+
+    const filterMatchesDashboard = String(healthSchoolFilter || 'ALL') === String(dashboardSchoolFilter || 'ALL');
+
+    if (!isFiltered || (!isScoped && filterMatchesDashboard && rawStudents.length === 0 && metrics.students_assessed > 0)) {
 
       return {
 
-        total: metrics.students_assessed || metrics.total_students,
+        total: metrics.students_assessed,
 
         totalEnrolled: metrics.total_students,
 
@@ -923,7 +1145,7 @@ export default function DashboardView() {
 
     return computeHealthOverviewFromStudents(filtered);
 
-  }, [rawStudents, healthSchoolFilter, metrics]);
+  }, [rawStudents, healthSchoolFilter, dashboardSchoolFilter, metrics, isClusterAdmin, isSuperAdmin]);
 
 
 
@@ -2641,7 +2863,7 @@ export default function DashboardView() {
 
                       <span style={{ fontSize: '10px', color: '#64748B', fontWeight: 500 }}>
 
-                        Total Students
+                        Assessed Students
 
                       </span>
 
@@ -3697,9 +3919,7 @@ const compactHealthFill = {
 
   height: '100%',
 
-  borderRadius: '99px',
-
-  transition: 'width 0.4s ease'
+  borderRadius: '99px'
 
 };
 
