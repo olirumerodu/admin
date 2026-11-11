@@ -159,28 +159,28 @@ function computeHealthOverviewFromStudents(studentList) {
       ''
     ).toLowerCase();
 
-    if (typeof baz === 'number') {
-      if (baz < -3.0) sevWasted += 1;
-      else if (baz < -2.0) wasted += 1;
-      else if (baz <= 1.0) normal += 1;
-      else overweight += 1;
-    } else if (effStatus.includes('severe') && (effStatus.includes('wasted') || effStatus.includes('thin'))) {
-      sevWasted += 1;
-    } else if ((effStatus.includes('wasted') || effStatus.includes('thinness')) && !effStatus.includes('severe')) {
-      wasted += 1;
-    } else if (effStatus.includes('overweight') || effStatus.includes('obese') || effStatus.includes('obesity')) {
-      overweight += 1;
-    } else if (effStatus.includes('normal')) {
-      normal += 1;
-    }
+    const isSevWasted = typeof baz === 'number'
+      ? baz < -3.0
+      : (effStatus.includes('severe') && (effStatus.includes('wasted') || effStatus.includes('thin')));
+    const isWasted = !isSevWasted && (typeof baz === 'number'
+      ? baz < -2.0
+      : ((effStatus.includes('wasted') || effStatus.includes('thinness')) && !effStatus.includes('severe')));
+    const isStunted = !isSevWasted && !isWasted && (typeof haz === 'number'
+      ? haz < -2.0
+      : (hClass.includes('stunt') || effStatus.includes('stunt')));
+    const isUnderweight = !isSevWasted && !isWasted && !isStunted && wApp && (typeof waz === 'number'
+      ? waz < -2.0
+      : (wClass.includes('underweight') || effStatus.includes('underweight')));
+    const isOverweight = !isSevWasted && !isWasted && !isStunted && !isUnderweight && (typeof baz === 'number'
+      ? baz > 1.0
+      : (effStatus.includes('overweight') || effStatus.includes('obese') || effStatus.includes('obesity')));
 
-    if ((typeof haz === 'number' && haz < -2.0) || (haz == null && (hClass.includes('stunt') || effStatus.includes('stunt')))) {
-      stunted += 1;
-    }
-
-    if (wApp && ((typeof waz === 'number' && waz < -2.0) || (waz == null && (wClass.includes('underweight') || effStatus.includes('underweight'))))) {
-      underweight += 1;
-    }
+    if (isSevWasted) sevWasted += 1;
+    else if (isWasted) wasted += 1;
+    else if (isStunted) stunted += 1;
+    else if (isUnderweight) underweight += 1;
+    else if (isOverweight) overweight += 1;
+    else normal += 1;
   }
 
   const calcPct = (v) => (assessedCount > 0 ? Number(((v / assessedCount) * 100).toFixed(1)) : 0);
