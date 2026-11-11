@@ -2725,19 +2725,15 @@ export default function DashboardView() {
 
               {/* Health Overview Progress Bars */}
 
-              <div style={compactCardStyle}>
+              <div style={{ ...compactCardStyle, padding: '12px 18px' }}>
 
-                <div style={{ ...compactCardHeaderStyle, marginBottom: '10px' }}>
+                <div style={{ ...compactCardHeaderStyle, marginBottom: '8px', gap: '8px' }}>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flexWrap: 'nowrap' }}>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Activity size={15} color="#EA580C" style={{ flexShrink: 0 }} />
 
-                      <Activity size={15} color="#EA580C" />
-
-                      <h3 style={compactCardTitleStyle}>Health Overview</h3>
-
-                    </div>
+                    <h3 style={{ ...compactCardTitleStyle, whiteSpace: 'nowrap' }}>Health Overview</h3>
 
                     <span
 
@@ -2757,19 +2753,19 @@ export default function DashboardView() {
 
                         whiteSpace: 'nowrap',
 
+                        flexShrink: 0,
+
                       }}
 
-                      title="BMI-for-Age rows sum to Assessed students; Stunting & Underweight are independent overlapping indicators."
+                      title={`${(healthOverviewData.total || 0).toLocaleString()} Assessed${healthOverviewData.notAssessed > 0 ? ` · ${healthOverviewData.notAssessed.toLocaleString()} Absent/Pending` : ''}`}
 
                     >
 
-                      {(healthOverviewData.total || 0).toLocaleString()} Assessed
-
                       {healthOverviewData.notAssessed > 0
 
-                        ? ` · ${healthOverviewData.notAssessed.toLocaleString()} Absent/Pending`
+                        ? `${(healthOverviewData.total || 0).toLocaleString()} / ${(healthOverviewData.totalEnrolled || 0).toLocaleString()} Assessed`
 
-                        : ''}
+                        : `${(healthOverviewData.total || 0).toLocaleString()} Assessed`}
 
                     </span>
 
@@ -2779,7 +2775,7 @@ export default function DashboardView() {
 
                   <select
 
-                    style={compactSelectStyle}
+                    style={{ ...compactSelectStyle, maxWidth: '175px' }}
 
                     value={healthSchoolFilter}
 
@@ -2803,7 +2799,7 @@ export default function DashboardView() {
 
                 {/* BMI-for-Age + Independent WHO Indicator Bars */}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', flex: 1, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', width: '100%', flex: 1, justifyContent: 'center' }}>
 
                   {/* Normal */}
 
@@ -2880,16 +2876,6 @@ export default function DashboardView() {
                     <span style={compactHealthCount}>{healthOverviewData.overweight}</span>
 
                     <span style={compactHealthPct}>{healthOverviewData.overweightPct}%</span>
-
-                  </div>
-
-
-
-                  {/* Independent WHO Indicators (may overlap BMI-for-Age categories above) */}
-
-                  <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: '5px', marginTop: '1px', fontSize: '10px', fontWeight: 600, color: '#94A3B8', letterSpacing: '0.01em' }}>
-
-                    Separate WHO Indicators (overlap BMI categories)
 
                   </div>
 
@@ -3693,7 +3679,7 @@ const compactHealthBarRow = {
 
   display: 'grid',
 
-  gridTemplateColumns: '136px minmax(0, 1fr) 44px 44px',
+  gridTemplateColumns: '118px minmax(0, 1fr) 44px 44px',
 
   alignItems: 'center',
 
