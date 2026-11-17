@@ -38,6 +38,16 @@ import SchoolGrowthChartModal from './SchoolGrowthChartModal';
 import StudentGrowthChartModal from './StudentGrowthChartModal';
 import StudentTcCertificateModal from './StudentTcCertificateModal';
 
+export const isMaleStudent = (st) => {
+  const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+  return g === 'male' || g === 'm' || g.startsWith('m');
+};
+
+export const isFemaleStudent = (st) => {
+  const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+  return g === 'female' || g === 'f' || g.startsWith('f');
+};
+
 // Helper: Authoritative WHO Nutrition Status calculation from live PostgreSQL student record
 export function getAuthoritativeNutritionStatus(student) {
   if (!student) return 'Pending Assessment';
@@ -825,7 +835,7 @@ export default function ReportsAnalyticsView() {
                               {cStudents.length}
                             </div>
                             <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px' }}>
-                              <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {cStudents.filter(st => String(st.gender || '').toLowerCase() === 'male').length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {cStudents.filter(st => String(st.gender || '').toLowerCase() === 'female').length}</span>
+                              <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {cStudents.filter(isMaleStudent).length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {cStudents.filter(isFemaleStudent).length}</span>
                             </div>
                           </div>
                         </div>
@@ -982,7 +992,7 @@ export default function ReportsAnalyticsView() {
                               <td style={{ padding: '12px 16px', fontWeight: 700, color: '#0F172A' }}>
                                 <div>{sStudents.length}</div>
                                 <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 500, marginTop: '2px' }}>
-                                  <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {sStudents.filter(st => String(st.gender || '').toLowerCase() === 'male').length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {sStudents.filter(st => String(st.gender || '').toLowerCase() === 'female').length}</span>
+                                  <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {sStudents.filter(isMaleStudent).length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {sStudents.filter(isFemaleStudent).length}</span>
                                 </div>
                               </td>
                               <td style={{ padding: '12px 16px', minWidth: '120px' }}>
@@ -1005,7 +1015,7 @@ export default function ReportsAnalyticsView() {
                                 </span>
                                 {priorityCount > 0 && (
                                   <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 500, marginTop: '2px' }}>
-                                    <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {sStudents.filter(st => (st.authoritativeStatus === 'Severely Wasted' || st.authoritativeStatus === 'Wasted') && String(st.gender || '').toLowerCase() === 'male').length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {sStudents.filter(st => (st.authoritativeStatus === 'Severely Wasted' || st.authoritativeStatus === 'Wasted') && String(st.gender || '').toLowerCase() === 'female').length}</span>
+                                    <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {sStudents.filter(st => (st.authoritativeStatus === 'Severely Wasted' || st.authoritativeStatus === 'Wasted') && isMaleStudent(st)).length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {sStudents.filter(st => (st.authoritativeStatus === 'Severely Wasted' || st.authoritativeStatus === 'Wasted') && isFemaleStudent(st)).length}</span>
                                   </div>
                                 )}
                               </td>

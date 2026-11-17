@@ -1413,22 +1413,31 @@ export default function StudentsManagementView({
   }, [progressReportData, progressModal.clusterId, progressModal.schoolId, progressModal.clusterName, progressModal.schoolName]);
 
   const progressGenderSummary = useMemo(() => {
+    const isMale = (s) => {
+      const g = String(s?.gender || s?.raw?.gender || '').trim().toLowerCase();
+      return g === 'male' || g === 'm' || g.startsWith('m');
+    };
+    const isFemale = (s) => {
+      const g = String(s?.gender || s?.raw?.gender || '').trim().toLowerCase();
+      return g === 'female' || g === 'f' || g.startsWith('f');
+    };
+
     const studentsList = progressReportData?.students || [];
     const maleCount = typeof progressReportData?.summary?.male_count === 'number'
       ? progressReportData.summary.male_count
-      : studentsList.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+      : studentsList.filter(isMale).length;
     const femaleCount = typeof progressReportData?.summary?.female_count === 'number'
       ? progressReportData.summary.female_count
-      : studentsList.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+      : studentsList.filter(isFemale).length;
 
-    const notNormMale = studentsList.filter(s => (s.is_severely_wasted || s.is_wasted || String(s.current_status || '').toLowerCase().includes('wasted') || String(s.nutrition_status || '').toLowerCase().includes('wasted')) && String(s.gender || '').toLowerCase() === 'male').length;
-    const notNormFemale = studentsList.filter(s => (s.is_severely_wasted || s.is_wasted || String(s.current_status || '').toLowerCase().includes('wasted') || String(s.nutrition_status || '').toLowerCase().includes('wasted')) && String(s.gender || '').toLowerCase() === 'female').length;
+    const notNormMale = studentsList.filter(s => (s.is_severely_wasted || s.is_wasted || String(s.current_status || '').toLowerCase().includes('wasted') || String(s.nutrition_status || '').toLowerCase().includes('wasted')) && isMale(s)).length;
+    const notNormFemale = studentsList.filter(s => (s.is_severely_wasted || s.is_wasted || String(s.current_status || '').toLowerCase().includes('wasted') || String(s.nutrition_status || '').toLowerCase().includes('wasted')) && isFemale(s)).length;
 
-    const noImpMale = studentsList.filter(s => (s.progress_status === 'deteriorated' || s.is_deteriorated) && String(s.gender || '').toLowerCase() === 'male').length;
-    const noImpFemale = studentsList.filter(s => (s.progress_status === 'deteriorated' || s.is_deteriorated) && String(s.gender || '').toLowerCase() === 'female').length;
+    const noImpMale = studentsList.filter(s => (s.progress_status === 'deteriorated' || s.is_deteriorated) && isMale(s)).length;
+    const noImpFemale = studentsList.filter(s => (s.progress_status === 'deteriorated' || s.is_deteriorated) && isFemale(s)).length;
 
-    const impMale = studentsList.filter(s => s.progress_status === 'improved' && String(s.gender || '').toLowerCase() === 'male').length;
-    const impFemale = studentsList.filter(s => s.progress_status === 'improved' && String(s.gender || '').toLowerCase() === 'female').length;
+    const impMale = studentsList.filter(s => s.progress_status === 'improved' && isMale(s)).length;
+    const impFemale = studentsList.filter(s => s.progress_status === 'improved' && isFemale(s)).length;
 
     return {
       maleCount,
@@ -3538,9 +3547,17 @@ export default function StudentsManagementView({
                     <tbody>
                       {progressReportData?.schools && progressReportData.schools.length > 0 ? (
                         progressReportData.schools.map((s) => {
+                          const isMale = (st) => {
+                            const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+                            return g === 'male' || g === 'm' || g.startsWith('m');
+                          };
+                          const isFemale = (st) => {
+                            const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+                            return g === 'female' || g === 'f' || g.startsWith('f');
+                          };
                           const sStudents = (progressReportData?.students || []).filter(st => st.school_id === s.school_id || st.school_name === s.school_name);
-                          const sMale = typeof s.male_count === 'number' ? s.male_count : sStudents.filter(st => String(st.gender || '').toLowerCase() === 'male').length;
-                          const sFemale = typeof s.female_count === 'number' ? s.female_count : sStudents.filter(st => String(st.gender || '').toLowerCase() === 'female').length;
+                          const sMale = typeof s.male_count === 'number' ? s.male_count : sStudents.filter(isMale).length;
+                          const sFemale = typeof s.female_count === 'number' ? s.female_count : sStudents.filter(isFemale).length;
 
                           return (
                           <tr key={s.school_id} style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.1s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>

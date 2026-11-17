@@ -225,33 +225,43 @@ export default function ClusterGrowthChartModal({
   const overPct = assessedCount > 0 ? ((overCount / assessedCount) * 100).toFixed(1) : '0';
   const noImpPct = assessedCount > 0 ? ((noImpCount / assessedCount) * 100).toFixed(1) : '0';
 
+  // Robust gender helper matching 'Male'/'male'/'M' and 'Female'/'female'/'F'
+  const isMale = (st) => {
+    const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+    return g === 'male' || g === 'm' || g.startsWith('m');
+  };
+  const isFemale = (st) => {
+    const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+    return g === 'female' || g === 'f' || g.startsWith('f');
+  };
+
   // Gender-wise breakdown for all cluster categories
-  const maleEnrolled = clusterStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleEnrolled = clusterStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleEnrolled = clusterStudents.filter(isMale).length;
+  const femaleEnrolled = clusterStudents.filter(isFemale).length;
 
-  const maleAssessed = assessedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleAssessed = assessedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleAssessed = assessedStudents.filter(isMale).length;
+  const femaleAssessed = assessedStudents.filter(isFemale).length;
 
-  const maleRecovering = recoveringStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleRecovering = recoveringStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleRecovering = recoveringStudents.filter(isMale).length;
+  const femaleRecovering = recoveringStudents.filter(isFemale).length;
 
-  const maleSW = severelyWastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleSW = severelyWastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleSW = severelyWastedStudents.filter(isMale).length;
+  const femaleSW = severelyWastedStudents.filter(isFemale).length;
 
-  const maleW = wastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleW = wastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleW = wastedStudents.filter(isMale).length;
+  const femaleW = wastedStudents.filter(isFemale).length;
 
-  const maleUnder = underweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleUnder = underweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleUnder = underweightStudents.filter(isMale).length;
+  const femaleUnder = underweightStudents.filter(isFemale).length;
 
-  const maleNorm = normalStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleNorm = normalStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleNorm = normalStudents.filter(isMale).length;
+  const femaleNorm = normalStudents.filter(isFemale).length;
 
-  const maleOver = overweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleOver = overweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleOver = overweightStudents.filter(isMale).length;
+  const femaleOver = overweightStudents.filter(isFemale).length;
 
-  const maleNoImp = noImprovementStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-  const femaleNoImp = noImprovementStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+  const maleNoImp = noImprovementStudents.filter(isMale).length;
+  const femaleNoImp = noImprovementStudents.filter(isFemale).length;
 
   // Academic year label
   const currentAcademicSession = (() => {
@@ -277,11 +287,11 @@ export default function ClusterGrowthChartModal({
       (st) => st.school_id === sch.id || st.school_name?.toLowerCase() === sch.name?.toLowerCase()
     );
     const sEnrolled = sStudents.length || sch.students || sch.studentsCount || 0;
-    const sMale = sStudents.filter((st) => String(st.gender || '').toLowerCase() === 'male').length;
-    const sFemale = sStudents.filter((st) => String(st.gender || '').toLowerCase() === 'female').length;
+    const sMale = sStudents.filter(isMale).length;
+    const sFemale = sStudents.filter(isFemale).length;
     const sAssessed = sStudents.filter((st) => st.hasAssessment).length;
-    const sAssessedMale = sStudents.filter((st) => st.hasAssessment && String(st.gender || '').toLowerCase() === 'male').length;
-    const sAssessedFemale = sStudents.filter((st) => st.hasAssessment && String(st.gender || '').toLowerCase() === 'female').length;
+    const sAssessedMale = sStudents.filter((st) => st.hasAssessment && isMale(st)).length;
+    const sAssessedFemale = sStudents.filter((st) => st.hasAssessment && isFemale(st)).length;
     const sRecovering = sStudents.filter((st) => st.isRecovering).length;
     const sSW = sStudents.filter((st) => st.isSeverelyWasted).length;
     const sW = sStudents.filter((st) => st.isWasted).length;
@@ -405,8 +415,8 @@ export default function ClusterGrowthChartModal({
     isRecoveringCategory = false,
     showNextDue = true
   ) => {
-    const catMale = studentList.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
-    const catFemale = studentList.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+    const catMale = studentList.filter(isMale).length;
+    const catFemale = studentList.filter(isFemale).length;
 
     return (
       <div style={{ marginBottom: '22px', pageBreakInside: 'avoid' }}>
