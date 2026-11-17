@@ -152,8 +152,12 @@ const DEFAULT_METRICS = {
   health_normal_pct: 0,
   health_wasted: 0,
   health_wasted_pct: 0,
+  health_wasted_male: 0,
+  health_wasted_female: 0,
   health_severely_wasted: 0,
   health_severely_wasted_pct: 0,
+  health_severely_wasted_male: 0,
+  health_severely_wasted_female: 0,
   health_overweight: 0,
   health_overweight_pct: 0,
   health_obesity: 0,
@@ -205,7 +209,11 @@ function buildDashboardMetrics({
   assessedFemale = 0,
   norm = 0,
   wasted = 0,
+  wastedMale = 0,
+  wastedFemale = 0,
   sevWasted = 0,
+  sevWastedMale = 0,
+  sevWastedFemale = 0,
   overwt = 0,
   stunted = 0,
   underweight = 0,
@@ -238,8 +246,12 @@ function buildDashboardMetrics({
     health_normal_pct: calcPct(norm),
     health_wasted: wasted,
     health_wasted_pct: calcPct(wasted),
+    health_wasted_male: wastedMale,
+    health_wasted_female: wastedFemale,
     health_severely_wasted: sevWasted,
     health_severely_wasted_pct: calcPct(sevWasted),
+    health_severely_wasted_male: sevWastedMale,
+    health_severely_wasted_female: sevWastedFemale,
     health_overweight: overwt,
     health_overweight_pct: calcPct(overwt),
     health_obesity: 0,
@@ -259,7 +271,11 @@ function computeHealthOverviewFromStudents(studentList) {
   let assessedCount = 0;
   let normal = 0;
   let wasted = 0;
+  let wastedMale = 0;
+  let wastedFemale = 0;
   let sevWasted = 0;
+  let sevWastedMale = 0;
+  let sevWastedFemale = 0;
   let overweight = 0;
   let stunted = 0;
   let underweight = 0;
@@ -308,9 +324,19 @@ function computeHealthOverviewFromStudents(studentList) {
       ? baz > 1.0
       : (effStatus.includes('overweight') || effStatus.includes('obese') || effStatus.includes('obesity')));
 
-    if (isSevWasted) sevWasted += 1;
-    else if (isWasted) wasted += 1;
-    else if (isStunted) stunted += 1;
+    const g = String(s.gender || '').trim().toLowerCase();
+    const isMale = g === 'male' || g === 'm';
+    const isFemale = g === 'female' || g === 'f';
+
+    if (isSevWasted) {
+      sevWasted += 1;
+      if (isMale) sevWastedMale += 1;
+      else if (isFemale) sevWastedFemale += 1;
+    } else if (isWasted) {
+      wasted += 1;
+      if (isMale) wastedMale += 1;
+      else if (isFemale) wastedFemale += 1;
+    } else if (isStunted) stunted += 1;
     else if (isUnderweight) underweight += 1;
     else if (isOverweight) overweight += 1;
     else normal += 1;
@@ -326,8 +352,12 @@ function computeHealthOverviewFromStudents(studentList) {
     normalPct: calcPct(normal),
     wasted,
     wastedPct: calcPct(wasted),
+    wastedMale,
+    wastedFemale,
     sevWasted,
     sevWastedPct: calcPct(sevWasted),
+    sevWastedMale,
+    sevWastedFemale,
     overweight,
     overweightPct: calcPct(overweight),
     obesity: 0,
@@ -571,7 +601,15 @@ export default function DashboardView() {
 
           wasted: dm.count_thinness ?? 0,
 
+          wastedMale: dm.count_wasted_male ?? 0,
+
+          wastedFemale: dm.count_wasted_female ?? 0,
+
           sevWasted: dm.count_severe_thinness ?? 0,
+
+          sevWastedMale: dm.count_severe_thinness_male ?? 0,
+
+          sevWastedFemale: dm.count_severe_thinness_female ?? 0,
 
           overwt: (dm.count_overweight ?? 0) + (dm.count_obesity ?? 0),
 
@@ -797,7 +835,15 @@ export default function DashboardView() {
 
           wasted: scopedHealth.wasted,
 
+          wastedMale: scopedHealth.wastedMale,
+
+          wastedFemale: scopedHealth.wastedFemale,
+
           sevWasted: scopedHealth.sevWasted,
+
+          sevWastedMale: scopedHealth.sevWastedMale,
+
+          sevWastedFemale: scopedHealth.sevWastedFemale,
 
           overwt: scopedHealth.overweight,
 
@@ -1111,9 +1157,17 @@ export default function DashboardView() {
 
         wastedPct: metrics.health_wasted_pct,
 
+        wastedMale: metrics.health_wasted_male || 0,
+
+        wastedFemale: metrics.health_wasted_female || 0,
+
         sevWasted: metrics.health_severely_wasted,
 
         sevWastedPct: metrics.health_severely_wasted_pct,
+
+        sevWastedMale: metrics.health_severely_wasted_male || 0,
+
+        sevWastedFemale: metrics.health_severely_wasted_female || 0,
 
         overweight: metrics.health_overweight,
 
@@ -3011,7 +3065,24 @@ export default function DashboardView() {
 
                   <div style={compactHealthBarRow}>
 
-                    <span style={compactHealthLabel}>Wasted</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, justifyContent: 'center' }}>
+
+                      <span style={compactHealthLabel}>Wasted</span>
+
+                      <span
+                        style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}
+                        title={`Male: ${healthOverviewData.wastedMale || 0}, Female: ${healthOverviewData.wastedFemale || 0}`}
+                      >
+
+                        <span style={{ color: '#0D9488', fontWeight: 600 }}>♂ {healthOverviewData.wastedMale || 0}</span>
+
+                        <span style={{ color: '#94A3B8' }}>•</span>
+
+                        <span style={{ color: '#EA580C', fontWeight: 600 }}>♀ {healthOverviewData.wastedFemale || 0}</span>
+
+                      </span>
+
+                    </div>
 
                     <div style={compactHealthTrack}>
 
@@ -3031,7 +3102,24 @@ export default function DashboardView() {
 
                   <div style={compactHealthBarRow}>
 
-                    <span style={compactHealthLabel}>Severely Wasted</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, justifyContent: 'center' }}>
+
+                      <span style={compactHealthLabel}>Severely Wasted</span>
+
+                      <span
+                        style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}
+                        title={`Male: ${healthOverviewData.sevWastedMale || 0}, Female: ${healthOverviewData.sevWastedFemale || 0}`}
+                      >
+
+                        <span style={{ color: '#0D9488', fontWeight: 600 }}>♂ {healthOverviewData.sevWastedMale || 0}</span>
+
+                        <span style={{ color: '#94A3B8' }}>•</span>
+
+                        <span style={{ color: '#EA580C', fontWeight: 600 }}>♀ {healthOverviewData.sevWastedFemale || 0}</span>
+
+                      </span>
+
+                    </div>
 
                     <div style={compactHealthTrack}>
 
