@@ -1412,6 +1412,36 @@ export default function StudentsManagementView({
     return list;
   }, [progressReportData, progressModal.clusterId, progressModal.schoolId, progressModal.clusterName, progressModal.schoolName]);
 
+  const progressGenderSummary = useMemo(() => {
+    const studentsList = progressReportData?.students || [];
+    const maleCount = typeof progressReportData?.summary?.male_count === 'number'
+      ? progressReportData.summary.male_count
+      : studentsList.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+    const femaleCount = typeof progressReportData?.summary?.female_count === 'number'
+      ? progressReportData.summary.female_count
+      : studentsList.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+
+    const notNormMale = studentsList.filter(s => (s.is_severely_wasted || s.is_wasted || String(s.current_status || '').toLowerCase().includes('wasted') || String(s.nutrition_status || '').toLowerCase().includes('wasted')) && String(s.gender || '').toLowerCase() === 'male').length;
+    const notNormFemale = studentsList.filter(s => (s.is_severely_wasted || s.is_wasted || String(s.current_status || '').toLowerCase().includes('wasted') || String(s.nutrition_status || '').toLowerCase().includes('wasted')) && String(s.gender || '').toLowerCase() === 'female').length;
+
+    const noImpMale = studentsList.filter(s => (s.progress_status === 'deteriorated' || s.is_deteriorated) && String(s.gender || '').toLowerCase() === 'male').length;
+    const noImpFemale = studentsList.filter(s => (s.progress_status === 'deteriorated' || s.is_deteriorated) && String(s.gender || '').toLowerCase() === 'female').length;
+
+    const impMale = studentsList.filter(s => s.progress_status === 'improved' && String(s.gender || '').toLowerCase() === 'male').length;
+    const impFemale = studentsList.filter(s => s.progress_status === 'improved' && String(s.gender || '').toLowerCase() === 'female').length;
+
+    return {
+      maleCount,
+      femaleCount,
+      notNormMale,
+      notNormFemale,
+      noImpMale,
+      noImpFemale,
+      impMale,
+      impFemale
+    };
+  }, [progressReportData]);
+
   const modalStudents = useMemo(() => {
     let list = modalScopeStudents;
 
@@ -3314,7 +3344,12 @@ export default function StudentsManagementView({
                     <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
                       {progressReportData?.summary?.total_assessed || 0}
                     </span>
-                    <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>SW & Wasted cohort</span>
+                    <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>SW & Wasted</span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px', display: 'flex', gap: '4px' }}>
+                    <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.maleCount}</span>
+                    <span>•</span>
+                    <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.femaleCount}</span>
                   </div>
                 </div>
               </div>
@@ -3363,7 +3398,7 @@ export default function StudentsManagementView({
                     </span>
                   </div>
                   <span style={{ fontSize: '10px', color: '#C2410C', fontWeight: 600 }}>
-                    SW: {progressReportData?.summary?.severely_wasted_count || 0} • W: {progressReportData?.summary?.wasted_count || 0} • Click
+                    SW: {progressReportData?.summary?.severely_wasted_count || 0} • W: {progressReportData?.summary?.wasted_count || 0} (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.notNormMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.notNormFemale}</span>)
                   </span>
                 </div>
               </div>
@@ -3412,7 +3447,7 @@ export default function StudentsManagementView({
                     </span>
                   </div>
                   <span style={{ fontSize: '10px', color: '#991B1B', fontWeight: 600 }}>
-                    BMI declined • Click to view
+                    BMI dropped (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.noImpMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.noImpFemale}</span>)
                   </span>
                 </div>
               </div>
@@ -3460,8 +3495,8 @@ export default function StudentsManagementView({
                       🔺 Positive
                     </span>
                   </div>
-                  <span style={{ fontSize: '10px', color: '#047857', fontWeight: 500 }}>
-                    BMI → Normal • Click to view
+                  <span style={{ fontSize: '10px', color: '#047857', fontWeight: 600 }}>
+                    BMI → Normal (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.impMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.impFemale}</span>)
                   </span>
                 </div>
               </div>
@@ -3485,22 +3520,29 @@ export default function StudentsManagementView({
                 </div>
 
                 <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '820px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '880px' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#F8FAFC', borderBottom: '1.5px solid #E2E8F0' }}>
                         <th style={{ padding: '12px 16px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>School Name</th>
                         <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Cluster</th>
                         <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#475569', whiteSpace: 'nowrap' }}>Total Monitored</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#0D9488', whiteSpace: 'nowrap' }}>Male</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#EA580C', whiteSpace: 'nowrap' }}>Female</th>
                         <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#DC2626', whiteSpace: 'nowrap' }}>Severely Wasted</th>
                         <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#EA580C', whiteSpace: 'nowrap' }}>Wasted</th>
-                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>No Improvement (BMI Dropped)</th>
+                        <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#991B1B', whiteSpace: 'nowrap' }}>No Improvement</th>
                         <th style={{ padding: '12px 14px', fontSize: '11.5px', fontWeight: 700, color: '#059669', whiteSpace: 'nowrap' }}>Improving</th>
                         <th style={{ padding: '12px 16px', fontSize: '11.5px', fontWeight: 700, color: '#475569', textAlign: 'right', whiteSpace: 'nowrap' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {progressReportData?.schools && progressReportData.schools.length > 0 ? (
-                        progressReportData.schools.map((s) => (
+                        progressReportData.schools.map((s) => {
+                          const sStudents = (progressReportData?.students || []).filter(st => st.school_id === s.school_id || st.school_name === s.school_name);
+                          const sMale = typeof s.male_count === 'number' ? s.male_count : sStudents.filter(st => String(st.gender || '').toLowerCase() === 'male').length;
+                          const sFemale = typeof s.female_count === 'number' ? s.female_count : sStudents.filter(st => String(st.gender || '').toLowerCase() === 'female').length;
+
+                          return (
                           <tr key={s.school_id} style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.1s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
                             <td style={{ padding: '14px 16px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3515,6 +3557,16 @@ export default function StudentsManagementView({
                             </td>
                             <td style={{ padding: '14px', fontSize: '13px', fontWeight: 700, color: '#0F172A', whiteSpace: 'nowrap' }}>
                               {s.total_assessed}
+                            </td>
+                            <td style={{ padding: '14px', fontSize: '12.5px', fontWeight: 700, color: '#0D9488', whiteSpace: 'nowrap' }}>
+                              <span style={{ padding: '2px 8px', borderRadius: '10px', backgroundColor: '#CCFBF1', color: '#0D9488' }}>
+                                M: {sMale}
+                              </span>
+                            </td>
+                            <td style={{ padding: '14px', fontSize: '12.5px', fontWeight: 700, color: '#EA580C', whiteSpace: 'nowrap' }}>
+                              <span style={{ padding: '2px 8px', borderRadius: '10px', backgroundColor: '#FFEDD5', color: '#EA580C' }}>
+                                F: {sFemale}
+                              </span>
                             </td>
                             <td style={{ padding: '14px', whiteSpace: 'nowrap' }}>
                               <span
@@ -3646,6 +3698,31 @@ export default function StudentsManagementView({
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const targetSchool = rawSchools.find(rs => rs.id === s.school_id) || { id: s.school_id, name: s.school_name, cluster_name: s.cluster_name };
+                                    setModalSchool(targetSchool);
+                                    setShowSchoolGrowthModal(true);
+                                  }}
+                                  style={{
+                                    backgroundColor: '#F0FDF4',
+                                    color: '#15803D',
+                                    border: '1px solid #BBF7D0',
+                                    borderRadius: '6px',
+                                    padding: '5px 10px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                  title="Open School Nutritional Growth Report"
+                                >
+                                  <FileText size={12} />
+                                  <span>Growth Report</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
                                     setProgressModal({
                                       isOpen: true,
                                       title: `Monitored Students — School: ${s.school_name}`,
@@ -3700,10 +3777,11 @@ export default function StudentsManagementView({
                               </div>
                             </td>
                           </tr>
-                        ))
+                          );
+                        })
                       ) : (
                         <tr>
-                          <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#64748B', fontSize: '13px' }}>
+                          <td colSpan="10" style={{ textAlign: 'center', padding: '30px', color: '#64748B', fontSize: '13px' }}>
                             No school records found for the selected period.
                           </td>
                         </tr>
@@ -3727,7 +3805,7 @@ export default function StudentsManagementView({
                     </p>
                   </div>
                   <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
-                    {progressReportData?.students?.length || 0} Monitored Students
+                    {progressReportData?.students?.length || 0} Monitored Students (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.maleCount}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.femaleCount}</span>)
                   </span>
                 </div>
 

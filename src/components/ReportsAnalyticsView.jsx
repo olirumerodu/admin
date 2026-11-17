@@ -824,6 +824,9 @@ export default function ReportsAnalyticsView() {
                             <div style={{ fontSize: '18px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
                               {cStudents.length}
                             </div>
+                            <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px' }}>
+                              <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {cStudents.filter(st => String(st.gender || '').toLowerCase() === 'male').length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {cStudents.filter(st => String(st.gender || '').toLowerCase() === 'female').length}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -977,7 +980,10 @@ export default function ReportsAnalyticsView() {
                                 </span>
                               </td>
                               <td style={{ padding: '12px 16px', fontWeight: 700, color: '#0F172A' }}>
-                                {sStudents.length}
+                                <div>{sStudents.length}</div>
+                                <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 500, marginTop: '2px' }}>
+                                  <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {sStudents.filter(st => String(st.gender || '').toLowerCase() === 'male').length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {sStudents.filter(st => String(st.gender || '').toLowerCase() === 'female').length}</span>
+                                </div>
                               </td>
                               <td style={{ padding: '12px 16px', minWidth: '120px' }}>
                                 <span style={{ fontWeight: 700, color: '#0F172A' }}>{coveragePct}%</span>
@@ -997,6 +1003,11 @@ export default function ReportsAnalyticsView() {
                                 }}>
                                   {priorityCount} Cases
                                 </span>
+                                {priorityCount > 0 && (
+                                  <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 500, marginTop: '2px' }}>
+                                    <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {sStudents.filter(st => (st.authoritativeStatus === 'Severely Wasted' || st.authoritativeStatus === 'Wasted') && String(st.gender || '').toLowerCase() === 'male').length}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {sStudents.filter(st => (st.authoritativeStatus === 'Severely Wasted' || st.authoritativeStatus === 'Wasted') && String(st.gender || '').toLowerCase() === 'female').length}</span>
+                                  </div>
+                                )}
                               </td>
                               <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                                 <button

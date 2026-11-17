@@ -164,11 +164,13 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
     const rawCls = s.classVal || raw.class_name || '1';
     const clsNum = normalizeClassNumber(rawCls);
     const sec = s.section || raw.section || 'A';
+    const genderVal = raw.gender || s.gender || '—';
 
     return {
       id: raw.id || s.id,
       idCode: raw.id || s.id || '',
       name: raw.name || s.name,
+      gender: genderVal,
       school_id: raw.school_id || s.school_id,
       school_name: raw.school_name || s.school_name,
       classVal: clsNum,
@@ -233,6 +235,25 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
   const normCount = normalStudents.length;
   const overCount = overweightStudents.length;
 
+  // Gender-wise breakdown for all categories
+  const maleEnrolled = schoolStudents.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleEnrolled = schoolStudents.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleAssessed = assessedStudents.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleAssessed = assessedStudents.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleNorm = normalStudents.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleNorm = normalStudents.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleW = wastedStudents.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleW = wastedStudents.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleSW = severelyWastedStudents.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleSW = severelyWastedStudents.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleOver = overweightStudents.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleOver = overweightStudents.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
+
   const swPct = assessedCount > 0 ? ((swCount / assessedCount) * 100).toFixed(1) : '0';
   const wPct = assessedCount > 0 ? ((wCount / assessedCount) * 100).toFixed(1) : '0';
   const normPct = assessedCount > 0 ? ((normCount / assessedCount) * 100).toFixed(1) : '0';
@@ -273,14 +294,22 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
     const clsStr = String(cls);
     const inCls = schoolStudents.filter(s => s.classVal === clsStr || normalizeClassNumber(s.classVal) === clsStr);
     const clsCount = inCls.length;
+    const clsMale = inCls.filter(s => String(s.gender || '').toLowerCase() === 'male').length;
+    const clsFemale = inCls.filter(s => String(s.gender || '').toLowerCase() === 'female').length;
     const clsAssessed = inCls.filter(s => s.hasAssessment).length;
+    const clsAssessedMale = inCls.filter(s => s.hasAssessment && String(s.gender || '').toLowerCase() === 'male').length;
+    const clsAssessedFemale = inCls.filter(s => s.hasAssessment && String(s.gender || '').toLowerCase() === 'female').length;
     const clsSW = inCls.filter(s => s.isSeverelyWasted).length;
     const clsW = inCls.filter(s => s.isWasted).length;
     const clsNorm = inCls.filter(s => s.isNormal).length;
     return {
       classNum: cls,
       enrolled: clsCount,
+      enrolledMale: clsMale,
+      enrolledFemale: clsFemale,
       assessed: clsAssessed,
+      assessedMale: clsAssessedMale,
+      assessedFemale: clsAssessedFemale,
       normal: clsNorm,
       wasted: clsW,
       severelyWasted: clsSW

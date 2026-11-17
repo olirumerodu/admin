@@ -225,6 +225,34 @@ export default function ClusterGrowthChartModal({
   const overPct = assessedCount > 0 ? ((overCount / assessedCount) * 100).toFixed(1) : '0';
   const noImpPct = assessedCount > 0 ? ((noImpCount / assessedCount) * 100).toFixed(1) : '0';
 
+  // Gender-wise breakdown for all cluster categories
+  const maleEnrolled = clusterStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleEnrolled = clusterStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleAssessed = assessedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleAssessed = assessedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleRecovering = recoveringStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleRecovering = recoveringStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleSW = severelyWastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleSW = severelyWastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleW = wastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleW = wastedStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleUnder = underweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleUnder = underweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleNorm = normalStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleNorm = normalStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleOver = overweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleOver = overweightStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
+  const maleNoImp = noImprovementStudents.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+  const femaleNoImp = noImprovementStudents.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
   // Academic year label
   const currentAcademicSession = (() => {
     const studentAcademicYear = clusterStudents.find((s) => s.raw?.academic_year || s.academicYear)?.raw?.academic_year;
@@ -249,7 +277,11 @@ export default function ClusterGrowthChartModal({
       (st) => st.school_id === sch.id || st.school_name?.toLowerCase() === sch.name?.toLowerCase()
     );
     const sEnrolled = sStudents.length || sch.students || sch.studentsCount || 0;
+    const sMale = sStudents.filter((st) => String(st.gender || '').toLowerCase() === 'male').length;
+    const sFemale = sStudents.filter((st) => String(st.gender || '').toLowerCase() === 'female').length;
     const sAssessed = sStudents.filter((st) => st.hasAssessment).length;
+    const sAssessedMale = sStudents.filter((st) => st.hasAssessment && String(st.gender || '').toLowerCase() === 'male').length;
+    const sAssessedFemale = sStudents.filter((st) => st.hasAssessment && String(st.gender || '').toLowerCase() === 'female').length;
     const sRecovering = sStudents.filter((st) => st.isRecovering).length;
     const sSW = sStudents.filter((st) => st.isSeverelyWasted).length;
     const sW = sStudents.filter((st) => st.isWasted).length;
@@ -263,7 +295,11 @@ export default function ClusterGrowthChartModal({
       name: sch.name,
       code: sch.code || '—',
       enrolled: sEnrolled,
+      male: sMale,
+      female: sFemale,
       assessed: sAssessed,
+      assessedMale: sAssessedMale,
+      assessedFemale: sAssessedFemale,
       recovering: sRecovering,
       severelyWasted: sSW,
       wasted: sW,
@@ -369,6 +405,9 @@ export default function ClusterGrowthChartModal({
     isRecoveringCategory = false,
     showNextDue = true
   ) => {
+    const catMale = studentList.filter((s) => String(s.gender || '').toLowerCase() === 'male').length;
+    const catFemale = studentList.filter((s) => String(s.gender || '').toLowerCase() === 'female').length;
+
     return (
       <div style={{ marginBottom: '22px', pageBreakInside: 'avoid' }}>
         <div style={{
@@ -381,7 +420,7 @@ export default function ClusterGrowthChartModal({
         }}>
           <div>
             <div style={{ fontSize: '12px', fontWeight: 800, color: badgeColor, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {iconEmoji} {title} ({studentList.length} Students)
+              {iconEmoji} {title} ({studentList.length} Students • <span style={{ color: '#0D9488' }}>M: {catMale}</span> • <span style={{ color: '#EA580C' }}>F: {catFemale}</span>)
             </div>
             <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '1px' }}>
               {description}
@@ -447,8 +486,17 @@ export default function ClusterGrowthChartModal({
                     <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
                       Class {st.classVal}-{st.section}
                     </td>
-                    <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#475569' }}>
-                      {st.gender}
+                    <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
+                      <span style={{
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '9.5px',
+                        fontWeight: 700,
+                        backgroundColor: String(st.gender || '').toLowerCase() === 'male' ? '#CCFBF1' : '#FFEDD5',
+                        color: String(st.gender || '').toLowerCase() === 'male' ? '#0D9488' : '#EA580C'
+                      }}>
+                        {String(st.gender || '').toLowerCase() === 'male' ? 'M' : String(st.gender || '').toLowerCase() === 'female' ? 'F' : (st.gender || '—')}
+                      </span>
                     </td>
                     <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 700 }}>
                       {st.bmi ? st.bmi : '—'}
@@ -704,10 +752,10 @@ export default function ClusterGrowthChartModal({
                         Schools in Cluster: {clusterSchools.length || cluster.schoolsCount || 0}
                       </span>
                       <span style={{ backgroundColor: '#FEF3C7', color: '#92400E', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
-                        Total Enrolled: {totalEnrolled} Students
+                        Total Enrolled: {totalEnrolled} Students (M: <span style={{ color: '#0D9488' }}>{maleEnrolled}</span> • F: <span style={{ color: '#EA580C' }}>{femaleEnrolled}</span>)
                       </span>
                       <span style={{ backgroundColor: '#DCFCE7', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700 }}>
-                        Total Assessed: {assessedCount} ({coveragePct}%)
+                        Total Assessed: {assessedCount} ({coveragePct}%) (M: <span style={{ color: '#0D9488' }}>{maleAssessed}</span> • F: <span style={{ color: '#EA580C' }}>{femaleAssessed}</span>)
                       </span>
                     </div>
                   </div>
@@ -751,7 +799,9 @@ export default function ClusterGrowthChartModal({
                   <TrendingUp size={15} color="#059669" />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#059669', marginTop: '2px', lineHeight: 1.1 }}>{recoveringPct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#047857', fontWeight: 600, marginTop: '2px' }}>{recoveringCount} Students recovering</div>
+                <div style={{ fontSize: '10.5px', color: '#047857', fontWeight: 600, marginTop: '2px' }}>
+                  {recoveringCount} Recovering (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleRecovering}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleRecovering}</span>)
+                </div>
               </div>
 
               {/* Card 2: Severely Wasted */}
@@ -761,7 +811,9 @@ export default function ClusterGrowthChartModal({
                   <AlertTriangle size={15} color="#DC2626" />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#DC2626', marginTop: '2px', lineHeight: 1.1 }}>{swPct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#B91C1C', fontWeight: 600, marginTop: '2px' }}>{swCount} Students severely wasted</div>
+                <div style={{ fontSize: '10.5px', color: '#B91C1C', fontWeight: 600, marginTop: '2px' }}>
+                  {swCount} Severely Wasted (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleSW}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleSW}</span>)
+                </div>
               </div>
 
               {/* Card 3: Wasted */}
@@ -771,7 +823,9 @@ export default function ClusterGrowthChartModal({
                   <Activity size={15} color="#EA580C" />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#EA580C', marginTop: '2px', lineHeight: 1.1 }}>{wPct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#C2410C', fontWeight: 600, marginTop: '2px' }}>{wCount} Students wasted</div>
+                <div style={{ fontSize: '10.5px', color: '#C2410C', fontWeight: 600, marginTop: '2px' }}>
+                  {wCount} Wasted (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleW}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleW}</span>)
+                </div>
               </div>
 
               {/* Card 4: Normal Nutritional Status */}
@@ -781,7 +835,9 @@ export default function ClusterGrowthChartModal({
                   <CheckCircle2 size={15} color="#16A34A" />
                 </div>
                 <div style={{ fontSize: '24px', fontWeight: 900, color: '#16A34A', marginTop: '2px', lineHeight: 1.1 }}>{normPct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#15803D', fontWeight: 600, marginTop: '2px' }}>{normCount} Students normal weight</div>
+                <div style={{ fontSize: '10.5px', color: '#15803D', fontWeight: 600, marginTop: '2px' }}>
+                  {normCount} Normal (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleNorm}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleNorm}</span>)
+                </div>
               </div>
             </div>
 
@@ -798,14 +854,18 @@ export default function ClusterGrowthChartModal({
               <div style={{ backgroundColor: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: '8px', padding: '10px 12px' }}>
                 <div style={{ fontSize: '10.5px', color: '#92400E', fontWeight: 700, textTransform: 'uppercase' }}>Underweight</div>
                 <div style={{ fontSize: '22px', fontWeight: 900, color: '#B45309', marginTop: '2px', lineHeight: 1.1 }}>{underPct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#92400E', marginTop: '2px' }}>{underCount} Students underweight</div>
+                <div style={{ fontSize: '10.5px', color: '#92400E', marginTop: '2px' }}>
+                  {underCount} Underweight (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleUnder}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleUnder}</span>)
+                </div>
               </div>
 
               {/* Card 6: Overweight */}
               <div style={{ backgroundColor: '#FAF5FF', border: '1px solid #D8B4FE', borderRadius: '8px', padding: '10px 12px' }}>
                 <div style={{ fontSize: '10.5px', color: '#6B21A8', fontWeight: 700, textTransform: 'uppercase' }}>Overweight</div>
                 <div style={{ fontSize: '22px', fontWeight: 900, color: '#7E22CE', marginTop: '2px', lineHeight: 1.1 }}>{overPct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#6B21A8', marginTop: '2px' }}>{overCount} Students overweight</div>
+                <div style={{ fontSize: '10.5px', color: '#6B21A8', marginTop: '2px' }}>
+                  {overCount} Overweight (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleOver}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleOver}</span>)
+                </div>
               </div>
 
               {/* Card 7: No Improvement / Dropped BMI */}
@@ -815,14 +875,18 @@ export default function ClusterGrowthChartModal({
                   <TrendingDown size={14} color="#BE123C" />
                 </div>
                 <div style={{ fontSize: '22px', fontWeight: 900, color: '#BE123C', marginTop: '2px', lineHeight: 1.1 }}>{noImpPct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#9F1239', marginTop: '2px' }}>{noImpCount} Students deteriorating</div>
+                <div style={{ fontSize: '10.5px', color: '#9F1239', marginTop: '2px' }}>
+                  {noImpCount} Deteriorating (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleNoImp}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleNoImp}</span>)
+                </div>
               </div>
 
               {/* Card 8: Screening Coverage */}
               <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '8px', padding: '10px 12px' }}>
                 <div style={{ fontSize: '10.5px', color: '#475569', fontWeight: 700, textTransform: 'uppercase' }}>Screening Coverage</div>
                 <div style={{ fontSize: '22px', fontWeight: 900, color: '#0F172A', marginTop: '2px', lineHeight: 1.1 }}>{coveragePct}%</div>
-                <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>{assessedCount} of {totalEnrolled} screened</div>
+                <div style={{ fontSize: '10.5px', color: '#475569', marginTop: '2px' }}>
+                  {assessedCount} of {totalEnrolled} (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {maleAssessed}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {femaleAssessed}</span>)
+                </div>
               </div>
             </div>
 
@@ -862,8 +926,18 @@ export default function ClusterGrowthChartModal({
                         <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#64748B' }}>{idx + 1}</td>
                         <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', fontWeight: 700, color: '#0F172A' }}>{s.name}</td>
                         <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', color: '#64748B' }}>{s.code}</td>
-                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 600 }}>{s.enrolled}</td>
-                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 600 }}>{s.assessed}</td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
+                          <div style={{ fontWeight: 600 }}>{s.enrolled}</div>
+                          <div style={{ fontSize: '9px', color: '#64748B' }}>
+                            <span style={{ color: '#0D9488', fontWeight: 700 }}>M:{s.male}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F:{s.female}</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center' }}>
+                          <div style={{ fontWeight: 600 }}>{s.assessed}</div>
+                          <div style={{ fontSize: '9px', color: '#64748B' }}>
+                            <span style={{ color: '#0D9488', fontWeight: 700 }}>M:{s.assessedMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F:{s.assessedFemale}</span>
+                          </div>
+                        </td>
                         <td style={{ padding: '5px 8px', border: '1px solid #CBD5E1', textAlign: 'center', fontWeight: 800, color: '#059669', backgroundColor: s.recovering > 0 ? '#DCFCE7' : 'transparent' }}>
                           {s.recovering}
                         </td>
