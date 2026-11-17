@@ -6629,7 +6629,7 @@ export default function StudentsManagementView({
           setModalSchool(null);
         }}
         school={modalSchool || activeSchool}
-        students={rawStudents}
+        students={(modalSchool && activeSchool && modalSchool.id !== activeSchool.id) ? rawStudents : (studentsData.length > 0 ? studentsData : rawStudents)}
         clusterName={activeCluster?.name}
       />
 

@@ -1599,10 +1599,14 @@ export default function ReportsAnalyticsView() {
           isOpen={Boolean(selectedSchoolReport)}
           onClose={() => setSelectedSchoolReport(null)}
           school={selectedSchoolReport}
-          students={liveStudents.filter(st =>
-            st.school_id === selectedSchoolReport.id ||
-            String(st.school_name || '').toLowerCase() === String(selectedSchoolReport.name || '').toLowerCase()
-          )}
+          students={liveStudents.filter(st => {
+            const raw = st.raw || st;
+            const schId = String(selectedSchoolReport.id || '').toLowerCase();
+            const schName = String(selectedSchoolReport.name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            const stId = String(st.school_id || raw.school_id || '').toLowerCase();
+            const stName = String(st.school_name || raw.school_name || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            return (schId && stId && stId === schId) || (schName && stName && stName === schName);
+          })}
           clusterName={selectedSchoolReport.cluster_name || selectedSchoolReport.cluster || ''}
         />
       )}

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Printer, 
@@ -10,17 +10,123 @@ import {
   Calendar, 
   TrendingUp,
   CheckCircle2,
-  Building2
+  Building2,
+  RotateCcw
 } from 'lucide-react';
 import StudentHealthLogo from './StudentHealthLogo';
+import { api } from '../services/api';
+
+const ROMAN_TO_NUM = {
+  'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5',
+  'vi': '6', 'vii': '7', 'viii': '8', 'ix': '9', 'x': '10',
+  'xi': '11', 'xii': '12'
+};
+
+const normalizeClassNumber = (val) => {
+  if (!val) return '';
+  const clean = String(val).replace(/^(class|grade)\s*/i, '').replace(/(st|nd|rd|th)$/i, '').trim();
+  const lower = clean.toLowerCase();
+  if (ROMAN_TO_NUM[lower] !== undefined) return ROMAN_TO_NUM[lower];
+  return clean;
+};
+
+const cleanStr = (v) => String(v || '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 export default function SchoolGrowthChartModal({ isOpen, onClose, school, students = [], clusterName }) {
   const printContentRef = useRef(null);
+  const [fetchedStudents, setFetchedStudents] = useState([]);
+  const [loadingSchoolData, setLoadingSchoolData] = useState(false);
+
+  // Flexible school matcher tokens
+  const sId = cleanStr(school?.id);
+  const sName = cleanStr(school?.name);
+  const sCode = cleanStr(school?.code);
+
+  const filterStudentsForSchool = (list) => {
+    if (!Array.isArray(list) || list.length === 0) return [];
+    return list.filter(st => {
+      const raw = st.raw || st;
+      const stSchoolId = cleanStr(st.school_id || raw.school_id);
+      const stSchoolName = cleanStr(st.school_name || raw.school_name);
+      const stSchoolCode = cleanStr(st.school_code || raw.school_code);
+      return (
+        (sId && stSchoolId && stSchoolId === sId) ||
+        (sName && stSchoolName && stSchoolName === sName) ||
+        (sCode && stSchoolCode && stSchoolCode === sCode)
+      );
+    });
+  };
+
+  // Auto-fetch students for this specific school if not provided or empty
+  useEffect(() => {
+    if (!isOpen || !school) return;
+
+    const matchedFromProp = filterStudentsForSchool(students);
+    if (matchedFromProp.length > 0) {
+      setFetchedStudents(matchedFromProp);
+      setLoadingSchoolData(false);
+      return;
+    }
+
+    // Also check if students passed was already pre-filtered for this school
+    if (Array.isArray(students) && students.length > 0) {
+      const allBelong = students.every(st => {
+        const raw = st.raw || st;
+        const stId = cleanStr(st.school_id || raw.school_id);
+        const stNm = cleanStr(st.school_name || raw.school_name);
+        return (!stId || !sId || stId === sId) && (!stNm || !sName || stNm === sName);
+      });
+      if (allBelong) {
+        setFetchedStudents(students);
+        setLoadingSchoolData(false);
+        return;
+      }
+    }
+
+    // Direct targeted fetch for this school from backend API
+    let isCancelled = false;
+    const targetId = school.id;
+    if (targetId) {
+      setLoadingSchoolData(true);
+      api.getStudents({ school_id: targetId })
+        .then(res => {
+          if (!isCancelled) {
+            if (Array.isArray(res) && res.length > 0) {
+              setFetchedStudents(res);
+            } else {
+              setFetchedStudents(matchedFromProp);
+            }
+          }
+        })
+        .catch(err => {
+          console.warn('SchoolGrowthChartModal student fetch error:', err);
+          if (!isCancelled) {
+            setFetchedStudents(matchedFromProp);
+          }
+        })
+        .finally(() => {
+          if (!isCancelled) {
+            setLoadingSchoolData(false);
+          }
+        });
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, school?.id, school?.name, students]);
 
   if (!isOpen || !school) return null;
 
+  const activeStudentsSource = (() => {
+    const matchedFromProp = filterStudentsForSchool(students);
+    if (matchedFromProp.length > 0) return matchedFromProp;
+    if (fetchedStudents.length > 0) return fetchedStudents;
+    return Array.isArray(students) ? students : [];
+  })();
+
   // Normalize and filter students belonging to this school
-  const schoolStudents = (students || []).map(s => {
+  const schoolStudents = activeStudentsSource.map(s => {
     const raw = s.raw || s;
     const hasAssessments = Array.isArray(raw.assessments) && raw.assessments.length > 0;
     const latestA = hasAssessments ? raw.assessments[0] : null;
@@ -31,7 +137,16 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
     const isW = !isSW && (s.isWasted || statusLower.includes('wasted') || statusLower.includes('thinness') || (typeof bmiZ === 'number' && bmiZ < -2.0));
     const isNorm = !isSW && !isW && (statusLower.includes('normal') || statusLower.includes('healthy') || (typeof bmiZ === 'number' && bmiZ >= -2.0 && bmiZ <= 1.0));
     const isOver = statusLower.includes('overweight') || statusLower.includes('obese') || statusLower.includes('obesity') || (typeof bmiZ === 'number' && bmiZ > 1.0);
-    const hasAssess = hasAssessments || (s.latestAssessment && s.latestAssessment !== 'Pending' && s.latestAssessment !== 'None') || raw.latest_assessment_date;
+    const hasAssess = Boolean(
+      hasAssessments ||
+      (raw.assessments && raw.assessments.length > 0) ||
+      (s.latestAssessment && s.latestAssessment !== 'Pending' && s.latestAssessment !== 'None') ||
+      raw.latest_assessment_date ||
+      (raw.nutrition_status && raw.nutrition_status !== 'Pending Assessment') ||
+      typeof raw.latest_bmi_for_age_zscore === 'number' ||
+      (typeof bmiZ === 'number') ||
+      (raw.bmi && raw.bmi > 0)
+    );
     
     // Ensure there is NO category called Obese or Obesity — map strictly to Overweight
     let finalStatus = currentStatus;
@@ -45,9 +160,9 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
       finalStatus = 'Normal';
     }
 
-    // Class number normalization
+    // Class number normalization (handles Roman numerals I-XII, Class 1-12, etc.)
     const rawCls = s.classVal || raw.class_name || '1';
-    const clsNum = String(rawCls).replace(/class\s*/i, '').trim();
+    const clsNum = normalizeClassNumber(rawCls);
     const sec = s.section || raw.section || 'A';
 
     return {
@@ -57,6 +172,7 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
       school_id: raw.school_id || s.school_id,
       school_name: raw.school_name || s.school_name,
       classVal: clsNum,
+      rawCls: rawCls,
       section: sec,
       bmi: raw.bmi || s.bmi || latestA?.bmi || 0,
       bmiZScore: bmiZ,
@@ -69,9 +185,18 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
       nextDueDateFormatted: s.nextDueDateFormatted || (hasAssess ? 'Due Next Month' : 'Pending Assessment'),
       raw: raw
     };
-  }).filter(s => 
-    s.school_id === school.id || s.school_name === school.name || (s.raw && (s.raw.school_id === school.id || s.raw.school_name === school.name))
-  );
+  }).filter(s => {
+    if (activeStudentsSource === fetchedStudents) return true;
+    const stSchoolId = cleanStr(s.school_id || s.raw?.school_id);
+    const stSchoolName = cleanStr(s.school_name || s.raw?.school_name);
+    const stSchoolCode = cleanStr(s.school_code || s.raw?.school_code);
+    return (
+      (sId && stSchoolId && stSchoolId === sId) ||
+      (sName && stSchoolName && stSchoolName === sName) ||
+      (sCode && stSchoolCode && stSchoolCode === sCode) ||
+      activeStudentsSource.length <= (school.students || school.students_count || 350)
+    );
+  });
 
   const totalEnrolled = schoolStudents.length || school.students || school.students_count || 0;
   
@@ -116,9 +241,37 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
   // Critical follow-up roster list
   const criticalRoster = severelyWastedStudents.concat(wastedStudents);
 
-  // Group by grade/class 1 through 8 strictly from real school students
-  const classBreakdown = [1, 2, 3, 4, 5, 6, 7, 8].map(cls => {
-    const inCls = schoolStudents.filter(s => s.classVal === String(cls));
+  // Derive which classes belong to this school (from classes_range and actual students)
+  const displayClasses = (() => {
+    const classSet = new Set();
+    if (school?.classes_range) {
+      const cr = String(school.classes_range).trim();
+      const match = cr.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = parseInt(match[2], 10);
+        for (let i = start; i <= end; i++) classSet.add(i);
+      }
+    }
+    schoolStudents.forEach(st => {
+      const num = parseInt(st.classVal, 10);
+      if (!isNaN(num) && num > 0) classSet.add(num);
+    });
+    if (classSet.size === 0) {
+      for (let i = 1; i <= 8; i++) classSet.add(i);
+    }
+    return Array.from(classSet).sort((a, b) => {
+      const numA = typeof a === 'number' ? a : parseInt(a, 10);
+      const numB = typeof b === 'number' ? b : parseInt(b, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return String(a).localeCompare(String(b));
+    });
+  })();
+
+  // Group by grade/class strictly from real school students
+  const classBreakdown = displayClasses.map(cls => {
+    const clsStr = String(cls);
+    const inCls = schoolStudents.filter(s => s.classVal === clsStr || normalizeClassNumber(s.classVal) === clsStr);
     const clsCount = inCls.length;
     const clsAssessed = inCls.filter(s => s.hasAssessment).length;
     const clsSW = inCls.filter(s => s.isSeverelyWasted).length;
@@ -322,17 +475,24 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
 
         {/* Scrollable Document Content */}
         <div style={{ padding: '24px', overflowY: 'auto', flex: 1, backgroundColor: '#FAF9F6' }}>
-          <div
-            ref={printContentRef}
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '8px',
-              padding: '24px 28px',
-              border: '1px solid #E2E8F0',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
-              color: '#0F172A'
-            }}
-          >
+          {loadingSchoolData && schoolStudents.length === 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '360px', gap: '14px', color: '#64748B' }}>
+              <RotateCcw size={32} className="animate-spin" color="#EA580C" />
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A' }}>Loading Nutritional Growth Report...</div>
+              <div style={{ fontSize: '12px', color: '#64748B' }}>Synchronizing WHO assessment metrics for {school.name}</div>
+            </div>
+          ) : (
+            <div
+              ref={printContentRef}
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '8px',
+                padding: '24px 28px',
+                border: '1px solid #E2E8F0',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                color: '#0F172A'
+              }}
+            >
             {/* WAATTASAATTAM Brand Report Header */}
             <div style={{ borderBottom: '2px solid #0F172A', paddingBottom: '14px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
@@ -540,8 +700,10 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
                             <span style={{ color: '#DC2626', fontWeight: 700, fontSize: '10px' }}>⚠️ Clinical Follow-up</span>
                           ) : row.wasted > 0 ? (
                             <span style={{ color: '#D97706', fontWeight: 600, fontSize: '10px' }}>Supplementary Diet</span>
-                          ) : (
+                          ) : row.enrolled > 0 ? (
                             <span style={{ color: '#16A34A', fontSize: '10px' }}>Routine Monitoring</span>
+                          ) : (
+                            <span style={{ color: '#94A3B8', fontSize: '10px' }}>—</span>
                           )}
                         </td>
                       </tr>
@@ -671,6 +833,7 @@ export default function SchoolGrowthChartModal({ isOpen, onClose, school, studen
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
