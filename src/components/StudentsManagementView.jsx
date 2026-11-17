@@ -1385,14 +1385,48 @@ export default function StudentsManagementView({
 
   // Filtered Students for Progress Report Drilldown Modal (strictly Severely Wasted & Wasted)
   const modalScopeStudents = useMemo(() => {
-    if (!progressReportData || !progressReportData.students) return [];
-    let list = progressReportData.students.filter(s =>
+    let list = Array.isArray(progressReportData?.students) ? [...progressReportData.students] : [];
+    list = list.filter(s =>
       s.is_severely_wasted ||
       s.is_wasted ||
       s.nutrition_status === 'Severely Wasted' ||
       s.nutrition_status === 'Wasted' ||
       (s.nutrition_status === 'Normal' && (s.prev_status === 'Severely Wasted' || s.prev_status === 'Wasted'))
     );
+
+    // Complement with tracked students from rawStudents if not already in list
+    const repStudentIds = new Set(list.map(s => String(s.student_id || s.id)));
+    rawStudents.forEach(st => {
+      const stId = String(st.id);
+      if (repStudentIds.has(stId)) return;
+      const status = String(st.nutrition_status || '').trim();
+      if (st.is_follow_up_required || status === 'Severely Wasted' || status === 'Wasted') {
+        list.push({
+          student_id: st.id,
+          id: st.id,
+          name: st.name,
+          class_name: st.class_name,
+          section: st.section,
+          gender: st.gender,
+          school_id: st.school_id,
+          school_name: st.school_name || st.sch_name,
+          cluster_id: st.cluster_id,
+          cluster_name: st.cluster_name || st.c_name,
+          nutrition_status: status,
+          current_status: status,
+          is_severely_wasted: status === 'Severely Wasted',
+          is_wasted: status === 'Wasted',
+          is_not_normal: true,
+          bmi: st.bmi,
+          height_cm: st.height_cm,
+          weight_kg: st.weight_kg,
+          bmi_zscore: st.bmi_zscore,
+          progress_status: 'baseline_only',
+          assessment_date: st.assessment_date || '28 Oct 2026',
+        });
+        repStudentIds.add(stId);
+      }
+    });
 
     if (progressModal.clusterId) {
       list = list.filter(s => String(s.cluster_id) === String(progressModal.clusterId) || (s.cluster_name && progressModal.clusterName && s.cluster_name.toLowerCase() === progressModal.clusterName.toLowerCase()));
@@ -1404,13 +1438,14 @@ export default function StudentsManagementView({
     // Deduplicate: one row per student_id (keep first = latest since backend sorts by date DESC)
     const seen = new Set();
     list = list.filter(s => {
-      if (seen.has(s.student_id)) return false;
-      seen.add(s.student_id);
+      const id = String(s.student_id || s.id);
+      if (seen.has(id)) return false;
+      seen.add(id);
       return true;
     });
 
     return list;
-  }, [progressReportData, progressModal.clusterId, progressModal.schoolId, progressModal.clusterName, progressModal.schoolName]);
+  }, [progressReportData, rawStudents, progressModal.clusterId, progressModal.schoolId, progressModal.clusterName, progressModal.schoolName]);
 
   const progressGenderSummary = useMemo(() => {
     const isMale = (s) => {
@@ -1450,6 +1485,177 @@ export default function StudentsManagementView({
       impFemale
     };
   }, [progressReportData]);
+
+  // Guaranteed comprehensive schools list for the active cluster progress summary (never omits any school)
+  const displayProgressSchools = useMemo(() => {
+    const clusterSchools = Array.isArray(schoolsList) ? schoolsList : [];
+    const backendSchools = Array.isArray(progressReportData?.schools) ? progressReportData.schools : [];
+    const reportStudents = Array.isArray(progressReportData?.students) ? progressReportData.students : [];
+
+    const isMale = (st) => {
+      const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+      return g === 'male' || g === 'm' || g.startsWith('m');
+    };
+    const isFemale = (st) => {
+      const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
+      return g === 'female' || g === 'f' || g.startsWith('f');
+    };
+
+    // Ensure every school in clusterSchools has an entry
+    const mergedMap = new Map();
+
+    clusterSchools.forEach(sch => {
+      const schId = String(sch.id || '').toLowerCase();
+      const schName = String(sch.name || '').toLowerCase();
+
+      // Find matching school in backend progress data
+      const bSchool = backendSchools.find(bs => {
+        const bId = String(bs.school_id || '').toLowerCase();
+        const bName = String(bs.school_name || '').toLowerCase();
+        return (schId && bId && schId === bId) || (schName && bName && schName === bName);
+      });
+
+      // Find matching assessed students in reportStudents
+      const sStudents = reportStudents.filter(st => {
+        const stSchoolId = String(st.school_id || '').toLowerCase();
+        const stSchoolName = String(st.school_name || '').toLowerCase();
+        return (schId && stSchoolId && schId === stSchoolId) || (schName && stSchoolName && schName === stSchoolName);
+      });
+
+      // Find tracked students from rawStudents if backend progress has 0 for this school
+      const rawSchoolTracked = rawStudents.filter(st => {
+        const stSchoolId = String(st.school_id || '').toLowerCase();
+        const stSchoolName = String(st.school_name || st.sch_name || '').toLowerCase();
+        const matches = (schId && stSchoolId && schId === stSchoolId) || (schName && stSchoolName && schName === stSchoolName);
+        if (!matches) return false;
+        const stStatus = String(st.nutrition_status || '').trim().toLowerCase();
+        const isFollowUp = Boolean(st.is_follow_up_required);
+        return isFollowUp || stStatus === 'severely wasted' || stStatus === 'wasted';
+      });
+
+      const effectiveStudents = sStudents.length > 0 ? sStudents : rawSchoolTracked;
+      const totalAssessed = (bSchool && bSchool.total_assessed > 0)
+        ? bSchool.total_assessed
+        : (sStudents.length > 0 ? sStudents.length : rawSchoolTracked.length);
+
+      const maleCount = (bSchool && typeof bSchool.male_count === 'number' && bSchool.total_assessed > 0)
+        ? bSchool.male_count
+        : effectiveStudents.filter(isMale).length;
+
+      const femaleCount = (bSchool && typeof bSchool.female_count === 'number' && bSchool.total_assessed > 0)
+        ? bSchool.female_count
+        : effectiveStudents.filter(isFemale).length;
+
+      const swCount = (bSchool && typeof bSchool.severely_wasted_count === 'number' && bSchool.total_assessed > 0)
+        ? bSchool.severely_wasted_count
+        : effectiveStudents.filter(st => st.is_severely_wasted || String(st.nutrition_status || '').toLowerCase().includes('severely wasted')).length;
+
+      const wCount = (bSchool && typeof bSchool.wasted_count === 'number' && bSchool.total_assessed > 0)
+        ? bSchool.wasted_count
+        : effectiveStudents.filter(st => st.is_wasted || String(st.nutrition_status || '').toLowerCase() === 'wasted').length;
+
+      const deterioratedCount = bSchool ? (bSchool.deteriorated_count ?? 0) : sStudents.filter(st => st.progress_status === 'deteriorated' || st.is_deteriorated).length;
+      const improvedCount = bSchool ? (bSchool.improved_count ?? 0) : sStudents.filter(st => st.progress_status === 'improved').length;
+
+      const key = schId || schName;
+      mergedMap.set(key, {
+        school_id: sch.id,
+        school_name: sch.name,
+        cluster_id: sch.cluster_id || activeCluster?.id,
+        cluster_name: sch.cluster_name || activeCluster?.name,
+        code: sch.code || '',
+        total_assessed: totalAssessed,
+        male_count: maleCount,
+        female_count: femaleCount,
+        severely_wasted_count: swCount,
+        wasted_count: wCount,
+        deteriorated_count: deterioratedCount,
+        improved_count: improvedCount,
+      });
+    });
+
+    // Also include any schools returned from backend that weren't in clusterSchools (fallback)
+    backendSchools.forEach(bs => {
+      const bId = String(bs.school_id || '').toLowerCase();
+      const bName = String(bs.school_name || '').toLowerCase();
+      const key = bId || bName;
+      if (!mergedMap.has(key)) {
+        mergedMap.set(key, {
+          school_id: bs.school_id,
+          school_name: bs.school_name,
+          cluster_id: bs.cluster_id || activeCluster?.id,
+          cluster_name: bs.cluster_name || activeCluster?.name,
+          code: bs.code || '',
+          total_assessed: bs.total_assessed ?? 0,
+          male_count: bs.male_count ?? 0,
+          female_count: bs.female_count ?? 0,
+          severely_wasted_count: bs.severely_wasted_count ?? 0,
+          wasted_count: bs.wasted_count ?? 0,
+          deteriorated_count: bs.deteriorated_count ?? 0,
+          improved_count: bs.improved_count ?? 0,
+        });
+      }
+    });
+
+    let result = Array.from(mergedMap.values());
+
+    // Single school filter from dropdown
+    if (progressSchoolFilter && progressSchoolFilter !== 'All Schools') {
+      const q = String(progressSchoolFilter).trim().toLowerCase();
+      result = result.filter(s => {
+        return (
+          String(s.school_id || '').toLowerCase() === q ||
+          String(s.school_name || '').toLowerCase() === q ||
+          String(s.code || '').toLowerCase() === q
+        );
+      });
+    }
+
+    result.sort((a, b) => String(a.school_name || '').localeCompare(String(b.school_name || '')));
+    return result;
+  }, [schoolsList, progressReportData, rawStudents, activeCluster, progressSchoolFilter]);
+
+  // Dynamic cluster-wide summary totals aggregating over all displayed active schools
+  const progressSummaryTotals = useMemo(() => {
+    let totalAssessed = 0;
+    let maleCount = 0;
+    let femaleCount = 0;
+    let swCount = 0;
+    let wCount = 0;
+    let deterioratedCount = 0;
+    let improvedCount = 0;
+
+    displayProgressSchools.forEach(s => {
+      totalAssessed += (s.total_assessed || 0);
+      maleCount += (s.male_count || 0);
+      femaleCount += (s.female_count || 0);
+      swCount += (s.severely_wasted_count || 0);
+      wCount += (s.wasted_count || 0);
+      deterioratedCount += (s.deteriorated_count || 0);
+      improvedCount += (s.improved_count || 0);
+    });
+
+    const notNormalCount = swCount + wCount;
+    const notNormalPct = totalAssessed > 0 ? Math.round((notNormalCount / totalAssessed) * 100) : 0;
+
+    return {
+      total_assessed: totalAssessed,
+      male_count: maleCount,
+      female_count: femaleCount,
+      severely_wasted_count: swCount,
+      wasted_count: wCount,
+      not_normal_count: notNormalCount,
+      not_normal_pct: notNormalPct,
+      deteriorated_count: deterioratedCount,
+      improved_count: improvedCount,
+      notNormMale: maleCount,
+      notNormFemale: femaleCount,
+      noImpMale: progressGenderSummary.noImpMale || 0,
+      noImpFemale: progressGenderSummary.noImpFemale || 0,
+      impMale: progressGenderSummary.impMale || 0,
+      impFemale: progressGenderSummary.impFemale || 0,
+    };
+  }, [displayProgressSchools, progressGenderSummary]);
 
   const modalStudents = useMemo(() => {
     let list = modalScopeStudents;
@@ -2628,7 +2834,7 @@ export default function StudentsManagementView({
             >
               <Activity size={16} color={clusterViewTab === 'progress' ? '#EB5A1D' : '#64748B'} />
               <span>Monthly Progress Report</span>
-              {progressReportData?.summary?.not_normal_count > 0 && (
+              {progressSummaryTotals.not_normal_count > 0 && (
                 <span
                   style={{
                     backgroundColor: clusterViewTab === 'progress' ? '#FEE2E2' : '#F1F5F9',
@@ -2640,7 +2846,7 @@ export default function StudentsManagementView({
                   }}
                   title="Students not yet in Normal nutritional category"
                 >
-                  {progressReportData.summary.not_normal_count}
+                  {progressSummaryTotals.not_normal_count}
                 </span>
               )}
             </button>
@@ -3351,14 +3557,14 @@ export default function StudentsManagementView({
                   <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#64748B' }}>Total Monitored</span>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
                     <span style={{ fontSize: '22px', fontWeight: 800, color: '#0F172A', lineHeight: 1.1 }}>
-                      {progressReportData?.summary?.total_assessed || 0}
+                      {progressSummaryTotals.total_assessed || 0}
                     </span>
                     <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>SW & Wasted</span>
                   </div>
                   <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px', display: 'flex', gap: '4px' }}>
-                    <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.maleCount}</span>
+                    <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressSummaryTotals.male_count}</span>
                     <span>•</span>
-                    <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.femaleCount}</span>
+                    <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressSummaryTotals.female_count}</span>
                   </div>
                 </div>
               </div>
@@ -3400,14 +3606,14 @@ export default function StudentsManagementView({
                   <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#9A3412' }}>Not Yet Normal</span>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
                     <span style={{ fontSize: '22px', fontWeight: 800, color: '#EA580C', lineHeight: 1.1 }}>
-                      {progressReportData?.summary?.not_normal_count || 0}
+                      {progressSummaryTotals.not_normal_count || 0}
                     </span>
                     <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '8px', backgroundColor: '#FFEDD5', color: '#C2410C' }}>
-                      {progressReportData?.summary?.not_normal_pct || 0}%
+                      {progressSummaryTotals.not_normal_pct || 0}%
                     </span>
                   </div>
                   <span style={{ fontSize: '10px', color: '#C2410C', fontWeight: 600 }}>
-                    SW: {progressReportData?.summary?.severely_wasted_count || 0} • W: {progressReportData?.summary?.wasted_count || 0} (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.notNormMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.notNormFemale}</span>)
+                    SW: {progressSummaryTotals.severely_wasted_count || 0} • W: {progressSummaryTotals.wasted_count || 0} (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressSummaryTotals.notNormMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressSummaryTotals.notNormFemale}</span>)
                   </span>
                 </div>
               </div>
@@ -3449,14 +3655,14 @@ export default function StudentsManagementView({
                   <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#991B1B' }}>No Improvement / Dropped</span>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
                     <span style={{ fontSize: '22px', fontWeight: 800, color: '#DC2626', lineHeight: 1.1 }}>
-                      {progressReportData?.summary?.deteriorated_count || 0}
+                      {progressSummaryTotals.deteriorated_count || 0}
                     </span>
                     <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '8px', backgroundColor: '#FEE2E2', color: '#991B1B' }}>
                       🔻 Critical
                     </span>
                   </div>
                   <span style={{ fontSize: '10px', color: '#991B1B', fontWeight: 600 }}>
-                    BMI dropped (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.noImpMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.noImpFemale}</span>)
+                    BMI dropped (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressSummaryTotals.noImpMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressSummaryTotals.noImpFemale}</span>)
                   </span>
                 </div>
               </div>
@@ -3498,14 +3704,14 @@ export default function StudentsManagementView({
                   <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#065F46' }}>Improving / Recovering</span>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
                     <span style={{ fontSize: '22px', fontWeight: 800, color: '#059669', lineHeight: 1.1 }}>
-                      {progressReportData?.summary?.improved_count || 0}
+                      {progressSummaryTotals.improved_count || 0}
                     </span>
                     <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 5px', borderRadius: '8px', backgroundColor: '#D1FAE5', color: '#065F46' }}>
                       🔺 Positive
                     </span>
                   </div>
                   <span style={{ fontSize: '10px', color: '#047857', fontWeight: 600 }}>
-                    BMI → Normal (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressGenderSummary.impMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressGenderSummary.impFemale}</span>)
+                    BMI → Normal (<span style={{ color: '#0D9488', fontWeight: 700 }}>M: {progressSummaryTotals.impMale}</span> • <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {progressSummaryTotals.impFemale}</span>)
                   </span>
                 </div>
               </div>
@@ -3524,7 +3730,7 @@ export default function StudentsManagementView({
                     </p>
                   </div>
                   <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>
-                    {progressReportData?.schools?.length || 0} Schools Active
+                    {displayProgressSchools.length} Schools Active
                   </span>
                 </div>
 
@@ -3545,19 +3751,10 @@ export default function StudentsManagementView({
                       </tr>
                     </thead>
                     <tbody>
-                      {progressReportData?.schools && progressReportData.schools.length > 0 ? (
-                        progressReportData.schools.map((s) => {
-                          const isMale = (st) => {
-                            const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
-                            return g === 'male' || g === 'm' || g.startsWith('m');
-                          };
-                          const isFemale = (st) => {
-                            const g = String(st?.gender || st?.raw?.gender || '').trim().toLowerCase();
-                            return g === 'female' || g === 'f' || g.startsWith('f');
-                          };
-                          const sStudents = (progressReportData?.students || []).filter(st => st.school_id === s.school_id || st.school_name === s.school_name);
-                          const sMale = typeof s.male_count === 'number' ? s.male_count : sStudents.filter(isMale).length;
-                          const sFemale = typeof s.female_count === 'number' ? s.female_count : sStudents.filter(isFemale).length;
+                      {displayProgressSchools.length > 0 ? (
+                        displayProgressSchools.map((s) => {
+                          const sMale = s.male_count ?? 0;
+                          const sFemale = s.female_count ?? 0;
 
                           return (
                           <tr key={s.school_id} style={{ borderBottom: '1px solid #F1F5F9', transition: 'background 0.1s' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
