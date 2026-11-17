@@ -3070,15 +3070,15 @@ export default function DashboardView() {
                       <span style={compactHealthLabel}>Wasted</span>
 
                       <span
-                        style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}
+                        style={{ fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '1px' }}
                         title={`Male: ${healthOverviewData.wastedMale || 0}, Female: ${healthOverviewData.wastedFemale || 0}`}
                       >
 
-                        <span style={{ color: '#0D9488', fontWeight: 600 }}>♂ {healthOverviewData.wastedMale || 0}</span>
+                        <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {healthOverviewData.wastedMale || 0}</span>
 
                         <span style={{ color: '#94A3B8' }}>•</span>
 
-                        <span style={{ color: '#EA580C', fontWeight: 600 }}>♀ {healthOverviewData.wastedFemale || 0}</span>
+                        <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {healthOverviewData.wastedFemale || 0}</span>
 
                       </span>
 
@@ -3107,15 +3107,15 @@ export default function DashboardView() {
                       <span style={compactHealthLabel}>Severely Wasted</span>
 
                       <span
-                        style={{ fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}
+                        style={{ fontSize: '10.5px', display: 'flex', alignItems: 'center', gap: '5px', marginTop: '1px' }}
                         title={`Male: ${healthOverviewData.sevWastedMale || 0}, Female: ${healthOverviewData.sevWastedFemale || 0}`}
                       >
 
-                        <span style={{ color: '#0D9488', fontWeight: 600 }}>♂ {healthOverviewData.sevWastedMale || 0}</span>
+                        <span style={{ color: '#0D9488', fontWeight: 700 }}>M: {healthOverviewData.sevWastedMale || 0}</span>
 
                         <span style={{ color: '#94A3B8' }}>•</span>
 
-                        <span style={{ color: '#EA580C', fontWeight: 600 }}>♀ {healthOverviewData.sevWastedFemale || 0}</span>
+                        <span style={{ color: '#EA580C', fontWeight: 700 }}>F: {healthOverviewData.sevWastedFemale || 0}</span>
 
                       </span>
 
@@ -3955,7 +3955,7 @@ const compactHealthBarRow = {
 
   display: 'grid',
 
-  gridTemplateColumns: '118px minmax(0, 1fr) 44px 44px',
+  gridTemplateColumns: '135px minmax(0, 1fr) 44px 44px',
 
   alignItems: 'center',
 
